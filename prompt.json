@@ -1,4 +1,0 @@
-{
-  "system": "You are a social dynamics simulator. Given a historical or contemporary scenario and a network graph, simulate one step of social interactions. Return ONLY valid JSON with interactions (edges) and state changes (nodes). Be concise.",
-  "user": "Scenario: {scenario}\n\nCurrent network:\n{graph}\n\nStep: {step_num}\n\nGenerate next step interactions and state changes. Return JSON:\n{{\n  \"interactions\": [\n    {{\"from\": <node_id>, \"to\": <node_id>, \"type\": \"influence|debate|alliance\", \"weight\": <0.1-1.0>}}\n  ],\n  \"states\": [\n    {{\"id\": <node_id>, \"state\": \"neutral|active|resolved\"}}\n  ]\n}}"
-}

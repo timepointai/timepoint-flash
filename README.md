@@ -1,260 +1,331 @@
-# Social Sim Monolith
+# TIMEPOINT Flash API
 
-A minimal, self-contained LLM-driven social network simulator. Takes a scenario → generates 3-step simulation → outputs network graph visualizations + JSON.
+**AI-powered photorealistic time travel API using Google Gemini 2.5 Flash Image models.**
+
+Generate historically accurate scenes from any moment in history with AI-orchestrated multi-agent workflows, powered by LangGraph and Google's Generative AI suite.
+
+---
+
+## Features
+
+- **Photorealistic Image Generation**: Using Google Gemini 2.5 Flash Image
+- **Multi-Agent Orchestration**: LangGraph coordinates AI agents for scene building
+- **Historical Accuracy**: Period-appropriate characters, dialog, and settings
+- **Real-time Progress**: Server-Sent Events (SSE) for live generation updates
+- **FastAPI Backend**: Modern async Python web framework
+- **PostgreSQL Database**: Robust data persistence with SQLAlchemy ORM
+- **Rate Limiting**: Built-in protection (configurable)
+- **API Documentation**: Auto-generated OpenAPI docs
+
+---
+
+## Tech Stack
+
+- **Framework**: FastAPI 0.115+
+- **AI Orchestration**: LangGraph, LangChain
+- **Models**:
+  - `gemini-1.5-flash` (fast logic/validation)
+  - `gemini-1.5-pro` (creative generation)
+  - `google/gemini-2.5-flash-image` (image generation)
+- **Database**: PostgreSQL + SQLAlchemy 2.0
+- **Image Processing**: Pillow, CairoSVG
+- **Graph Analysis**: NetworkX
+- **Observability**: Logfire (optional)
+
+---
 
 ## Quick Start
 
-```bash
-chmod +x init.sh
-./init.sh
-source .venv/bin/activate
-python monolith.py "US Constitutional Convention"
-```
+### Prerequisites
 
-Results in `outputs/YYYYMMDD_HHMMSS/` with PNG graphs + JSON data.
+- Python 3.11+
+- PostgreSQL database
+- Google AI API key (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
 
-## Setup (Detailed)
+### Installation
 
-### 1. Get API Key (Free)
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/realityinspector/timepoint-flash.git
+   cd timepoint-flash
+   ```
 
-1. Go to https://openrouter.ai/keys
-2. Sign up or log in
-3. Copy your key (starts with `sk-or-v1-`)
+2. **Run setup script**
+   ```bash
+   chmod +x init.sh
+   ./init.sh
+   ```
 
-### 2. Install
+3. **Activate virtual environment**
+   ```bash
+   source .venv/bin/activate
+   ```
 
-```bash
-chmod +x init.sh
-./init.sh
-```
+4. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and database URL
+   ```
 
-This creates `.venv/`, installs deps, makes `outputs/` and `data_files/` directories.
+5. **Run database migrations**
+   ```bash
+   alembic upgrade head
+   ```
 
-### 3. Configure
+6. **Start the server**
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
-```bash
-cp .env.example .env
-# Edit .env, replace with your actual key
-# OR just export: export OPENROUTER_API_KEY="sk-or-v1-..."
-```
+   API will be available at: http://localhost:5000
 
-The `.env` file should look like:
-```
-OPENROUTER_API_KEY=sk-or-v1-25c016ef...
-```
+   API docs at: http://localhost:5000/api/docs
 
-### 4. Run
+---
 
-```bash
-source .venv/bin/activate
-python monolith.py "Your scenario here"
-```
+## Environment Variables
 
-Add `-v` for verbose logging:
-```bash
-python monolith.py "Your scenario here" -v
-```
-
-## Examples
+Create a `.env` file with the following:
 
 ```bash
-python monolith.py "US Constitutional Convention"
-python monolith.py "Fall of Rome"
-python monolith.py "Scientific Revolution"
-python monolith.py "Moon landing race"
-python monolith.py "Internet development"
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/timepoint_flash
+
+# Google AI (Primary)
+GOOGLE_API_KEY=your_google_api_key_here
+
+# OpenRouter (Fallback)
+OPENROUTER_API_KEY=optional_fallback_key
+
+# Observability
+LOGFIRE_TOKEN=optional_token
+
+# Application Settings
+DEBUG=false
+MAX_TIMEPOINTS_PER_HOUR=1
+JUDGE_MODEL=gemini-1.5-flash
+IMAGE_MODEL=google/gemini-2.5-flash-image
+
+# Security (Generate with: openssl rand -hex 32)
+SECRET_KEY=your_secret_key_here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# CORS
+ALLOWED_ORIGINS=["http://localhost:3000"]
 ```
 
-## Output Structure
+---
 
-Each run creates a timestamped folder:
+## API Endpoints
 
+### Health Check
 ```
-outputs/20251106_185430/
-├── step_0.png
-├── step_1.png
-├── step_2.png
-└── simulation.json
+GET /health
 ```
+Returns service status.
 
-And a disposable database:
+### Create Timepoint
 ```
-data_files/sim_20251106_185430.db
+POST /api/timepoint/create
+Body: { "query": "medieval marketplace in winter 1250", "email": "user@example.com" }
 ```
+Starts timepoint generation, returns session ID.
 
-## What It Does
+### Stream Progress (SSE)
+```
+GET /api/timepoint/status/{session_id}
+```
+Real-time progress updates via Server-Sent Events.
 
-1. **Parse input**: Your scenario as a string
-2. **Initialize**: 5-node NetworkX graph, SQLite DB
-3. **Run LLM loop** (3 steps):
-   - Send current graph + scenario to LLM (OpenRouter)
-   - LLM returns JSON: `{"interactions": [...], "states": [...]}`
-   - Apply changes to graph
-   - Render PNG with node colors (neutral=blue, active=red, resolved=green)
-4. **Finalize**: Save JSON with full simulation data
+### Get Timepoint Details
+```
+GET /api/timepoint/details/{year}/{season}/{slug}
+```
+Returns full timepoint data (characters, dialog, images, etc.).
+
+### Feed/Gallery
+```
+GET /api/feed?page=1&limit=50
+```
+List all timepoints with pagination.
+
+### Full API Documentation
+Visit `/api/docs` when running the server for interactive Swagger UI.
+
+---
 
 ## Architecture
 
-Single `SimulationMonolith` class handles everything:
-- Graph management (NetworkX)
-- LLM orchestration (OpenRouter API)
-- Database persistence (SQLite)
-- Monitoring (Logfire, no keys needed)
-- Visualization (Matplotlib)
+### AI Agent Workflow
 
-Configuration via `SimConfig` dataclass:
-```python
-config = SimConfig(
-    scenario="...",
-    nodes=5,           # Number of actors
-    steps=3,           # Simulation steps
-    max_tokens=1000,   # LLM response limit
-    temperature=0.5    # 0=deterministic, 1=random
-)
+```
+User Query
+    ↓
+[JUDGE] Validate & clean input
+    ↓
+[TIMELINE] Extract year, season, location
+    ↓
+[SCENE] Build setting, weather, environment
+    ↓
+[CHARACTERS] Generate 3-12 unique characters
+    ↓
+[MOMENT] Create dramatic plot/interaction
+    ↓
+[DIALOG] Generate period-accurate conversations
+    ↓
+[CAMERA] Define cinematic camera angles
+    ↓
+[GRAPH] Build NetworkX scene graph
+    ↓
+[IMAGE_PROMPT] Compile comprehensive prompt
+    ↓
+[IMAGE_GENERATION] Generate image (Gemini 2.5 Flash)
+    ↓
+[SEGMENTATION] Label characters in image
+    ↓
+Save to Database
 ```
 
-## Troubleshooting
+### Project Structure
 
-### "ModuleNotFoundError: No module named 'httpx'"
+```
+timepoint-flash/
+├── app/
+│   ├── agents/              # LangGraph AI agents
+│   │   ├── judge.py
+│   │   ├── timeline.py
+│   │   ├── scene_builder.py
+│   │   ├── characters.py
+│   │   ├── moment.py
+│   │   ├── dialog.py
+│   │   ├── camera.py
+│   │   └── graph_orchestrator.py
+│   ├── services/            # External integrations
+│   │   ├── google_ai.py
+│   │   ├── openrouter.py
+│   │   ├── openrouter_fallback.py
+│   │   └── scene_graph.py
+│   ├── routers/             # API endpoints
+│   │   ├── timepoint.py
+│   │   ├── feed.py
+│   │   └── email.py
+│   ├── utils/
+│   │   └── rate_limiter.py
+│   ├── models.py            # SQLAlchemy ORM models
+│   ├── database.py          # Database setup
+│   ├── config.py            # Pydantic settings
+│   ├── schemas.py           # Pydantic request/response models
+│   └── main.py              # FastAPI app entry point
+├── alembic/                 # Database migrations
+├── scripts/                 # Utility scripts
+├── .env.example             # Environment template
+├── requirements.txt         # Python dependencies
+├── Dockerfile               # Container config
+├── .replit                  # Replit deployment config
+└── pyproject.toml           # Project metadata
+```
 
-Activate venv:
+---
+
+## Deployment
+
+### Replit
+
+This repo is configured for Replit deployment. Simply:
+1. Import repo to Replit
+2. Set environment secrets in Replit
+3. Run with the `.replit` configuration
+
+### Docker
+
 ```bash
-source .venv/bin/activate
+docker build -t timepoint-flash .
+docker run -p 5000:5000 --env-file .env timepoint-flash
 ```
 
-### "Set OPENROUTER_API_KEY env var"
+### Railway / Cloud Platforms
 
-Your `.env` isn't loading. Check:
-1. File exists: `ls -la .env`
-2. No quotes: Should be `KEY=value`, not `KEY="value"`
-3. Or export: `export OPENROUTER_API_KEY="sk-or-..."`
+1. Push to GitHub
+2. Connect to Railway/Render/Fly.io
+3. Set environment variables
+4. Deploy
 
-### "API error" or timeout
+---
 
-- Verify key at https://openrouter.ai/keys
-- Check internet connection
-- Increase timeout in SimConfig: `timeout=120`
+## Development
 
-### "Out of memory"
-
-Use fewer nodes/steps in SimConfig:
-```python
-config = SimConfig(scenario="...", nodes=3, steps=2)
-```
-
-## Customization
-
-### Change Model
-
-Edit `monolith.py`, find `model` in SimConfig:
-```python
-model="meta-llama/llama-2-7b-chat"  # or use another from openrouter.io
-```
-
-### Change Prompt
-
-Edit `prompt.json`:
-```json
-{
-  "system": "Your custom system prompt",
-  "user": "Your custom user prompt with {scenario} and {graph} placeholders"
-}
-```
-
-### Add More Steps
-
-```python
-config = SimConfig(scenario="...", steps=5)
-```
-
-### Analyze Results
+### Running Tests
 
 ```bash
-python analyze.py                          # Latest
-python analyze.py outputs/20251106_185430  # Specific
+pytest tests/
 ```
 
-Shows interaction counts, node activity, state distributions.
+### Code Quality
 
-## Performance
+```bash
+# Format with ruff
+ruff format .
 
-- Runtime: 10-60 seconds per simulation (LLM latency dependent)
-- Memory: ~100MB
-- Disk: ~1-2MB per run
-- Tokens: ~1000 per run (3 steps × ~300 tokens)
-
-Spring layout uses 50 iterations (seed=42 for reproducibility).
-PNG rendered at 80 DPI (fast).
-
-## Files
-
+# Type checking
+mypy app/
 ```
-.
-├── monolith.py         Core engine (~250 lines)
-├── prompt.json         LLM prompts
-├── requirements.txt    Dependencies (httpx, networkx, matplotlib, python-dotenv, logfire)
-├── .env.example        API key template
-├── init.sh             Setup script
-├── analyze.py          Output analyzer
-├── .gitignore          Git ignore
-├── README.md           This file
-├── outputs/            Simulation results (created)
-└── data_files/         Databases (created)
+
+### Database Migrations
+
+```bash
+# Create new migration
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback
+alembic downgrade -1
 ```
+
+---
+
+## Rate Limiting
+
+Default: 1 timepoint per hour per email address.
+
+Configure in `.env`:
+```bash
+MAX_TIMEPOINTS_PER_HOUR=1
+```
+
+---
 
 ## Observability
 
-Built-in Logfire spans (no extra config):
+Optional Logfire integration for monitoring:
 
-```
-simulation
-├── initialization
-│   ├── database_init
-│   └── graph_init
-├── step_0
-│   ├── llm_orchestration → api_call
-│   ├── parse_step
-│   ├── apply_step_0
-│   └── render_step_0
-└── finalize
-```
+1. Get token from [Logfire](https://logfire.pydantic.dev/)
+2. Set `LOGFIRE_TOKEN` in `.env`
+3. View traces and metrics in Logfire dashboard
 
-All LLM responses logged to SQLite for audit trail.
+---
 
-## API Pricing
+## Contributing
 
-OpenRouter free tier provides free credits. Check your usage at https://openrouter.io/usage
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-Typical cost per simulation: $0.001 - $0.01 (varies by model)
-
-## Notes
-
-- Each run is isolated (no coordination needed)
-- Databases auto-cleanup (just delete files)
-- Graph layout deterministic (seed=42)
-- LLM output parsed with regex fallback (robust to formatting)
-- State mutations applied to NetworkX graph directly
-- All JSON pretty-printed for inspection
-
-## Support
-
-Issues? Check:
-1. API key valid: https://openrouter.ai/keys
-2. .env format (no quotes, NEWLINE at end)
-3. Python 3.10+: `python --version`
-4. Venv active: `which python` (should be in `.venv/bin/`)
-5. Internet connection working
-
-## Examples of Good Scenarios
-
-- Historical events ("US Constitution signing", "Fall of Rome")
-- Scientific achievements ("Moon landing", "Germ theory discovery")
-- Modern scenarios ("Twitter IPO", "ChatGPT launch")
-- Fictional ("Game of Thrones Red Wedding", "Lord of the Rings Fellowship")
-- Personal ("startup founding team dynamics")
-
-The LLM will simulate 3 steps of social interactions and state changes.
+---
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
+
+---
+
+## Support
+
+For issues or questions, please open an issue on GitHub.
+
+---
+
+**Built with** ⚡ **FastAPI** | 🧠 **LangGraph** | 🎨 **Google Gemini**
