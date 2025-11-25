@@ -1,0 +1,15 @@
+run = "uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
+entrypoint = "app/main.py"
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 5000"]
+deploymentTarget = "autoscale"
+ignorePorts = false
+
+[[ports]]
+localPort = 5000
+externalPort = 80
