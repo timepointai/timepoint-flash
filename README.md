@@ -255,10 +255,110 @@ docker run -p 5000:5000 --env-file .env timepoint-flash
 
 ## Development
 
-### Running Tests
+### Testing
+
+Timepoint Flash includes a comprehensive test suite with both fast unit tests and full end-to-end integration tests with LLM-based quality assessment.
+
+#### Quick Start
 
 ```bash
-pytest tests/
+# Fast unit tests (no API key required)
+./test.sh fast
+
+# Full e2e tests with LLM judge (requires OPENROUTER_API_KEY)
+export OPENROUTER_API_KEY="your-key-here"
+./test.sh e2e
+
+# All tests
+./test.sh all
+
+# With coverage report
+./test.sh coverage
+```
+
+#### Test Setup
+
+1. **Install test dependencies**:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+2. **Set up environment**:
+   ```bash
+   # Option 1: Export environment variable
+   export OPENROUTER_API_KEY="your-openrouter-api-key"
+
+   # Option 2: Create .env.dev file
+   cp .env.dev.example .env.dev
+   # Edit .env.dev with your API key
+   ```
+
+3. **Run tests**:
+   ```bash
+   # Fast tests only (no external API calls)
+   pytest -m fast
+
+   # E2E tests only (requires API key)
+   pytest -m e2e
+
+   # All tests
+   pytest
+
+   # With verbose output
+   pytest -v -s
+   ```
+
+#### Test Types
+
+**Fast Tests** (`tests/test_fast.py`)
+- Unit tests for database models
+- Rate limiting logic
+- API endpoint structure
+- No external API calls
+- Run in ~5 seconds
+
+**E2E Tests** (`tests/test_e2e.py`)
+- Full timepoint generation workflow
+- LLM-based quality assessment
+- Real API calls to OpenRouter/Google
+- Tests historical scenarios
+- Run in ~5-10 minutes
+
+#### LLM Performance Judge
+
+The e2e tests include an LLM-based judge that evaluates:
+- **Historical Accuracy** (0-100): Period-appropriate elements
+- **Character Quality** (0-100): Character development and consistency
+- **Dialog Quality** (0-100): Natural, period-appropriate dialog
+- **Scene Coherence** (0-100): Overall scene consistency
+
+Example output:
+```
+QUALITY ASSESSMENT RESULTS
+========================================
+Overall Score:        76.5/100
+Historical Accuracy:  82.0/100
+Character Quality:    78.0/100
+Dialog Quality:       72.0/100
+Scene Coherence:      75.0/100
+
+Feedback: Strong historical accuracy with well-developed
+characters. Dialog could be more period-specific.
+========================================
+Status: ✅ PASSED
+```
+
+#### Test Configuration
+
+Test settings in `pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+markers = [
+    "fast: Fast unit tests (no external API calls)",
+    "e2e: End-to-end integration tests (requires API keys)",
+    "slow: Slow tests (long-running operations)",
+]
+timeout = 300
 ```
 
 ### Code Quality

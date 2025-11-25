@@ -40,9 +40,27 @@ dependencies = [
 dev = [
     "pytest==8.3.5",
     "pytest-asyncio==0.25.3",
+    "pytest-cov==6.0.0",
+    "pytest-timeout==2.3.1",
+    "faker==33.1.0",
     "ruff",
     "mypy",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "fast: Fast unit tests (no external API calls)",
+    "e2e: End-to-end integration tests (requires API keys)",
+    "slow: Slow tests (long-running operations)",
+]
+timeout = 300
+addopts = "-v --tb=short --strict-markers --cov=app --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 100
