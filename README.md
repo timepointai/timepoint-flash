@@ -4,6 +4,8 @@
 
 Generate historically accurate scenes from any moment in history with AI-orchestrated multi-agent workflows, powered by LangGraph and Google's Generative AI suite.
 
+**[📘 For AI Agents: See AGENTS.md](AGENTS.md)** - Comprehensive technical documentation designed for AI agents and autonomous systems working with this codebase.
+
 ---
 
 ## Features
@@ -421,6 +423,12 @@ Optional Logfire integration for monitoring:
 MIT License - see LICENSE file for details.
 
 ---
+
+## Documentation
+
+- **[README.md](README.md)** - User documentation (this file)
+- **[AGENTS.md](AGENTS.md)** - Technical documentation for AI agents
+- **[API Documentation](http://localhost:5000/api/docs)** - Interactive API docs (when running)
 
 ## Support
 
