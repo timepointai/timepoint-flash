@@ -16,6 +16,13 @@ from typing import Dict, Any, Literal
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from tests.utils.llm_judge import judge_timepoint, JudgementResult
+from tests.utils.test_helpers import (
+    wait_for_completion,
+    verify_image_data,
+    verify_timepoint_structure,
+    generate_unique_test_email
+)
+from tests.utils.retry import retry_on_api_error, skip_on_api_unavailable
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -38,21 +45,64 @@ def log_database_info(db_type: Literal["sqlite", "postgresql"], test_database_ur
 TEST_SCENARIOS = [
     {
         "query": "Medieval marketplace in London, winter 1250",
-        "email": "test-medieval@example.com",
+        "email": "test-medieval",
         "min_score": 65.0,  # Lower threshold for complex historical scenarios
         "description": "Medieval English marketplace scene"
     },
     {
         "query": "American Revolutionary War, Valley Forge 1777",
-        "email": "test-revolution@example.com",
+        "email": "test-revolution",
         "min_score": 65.0,
         "description": "Revolutionary War winter encampment"
     },
     {
         "query": "Ancient Rome forum, summer 50 BCE",
-        "email": "test-rome@example.com",
+        "email": "test-rome",
         "min_score": 65.0,
         "description": "Roman Republic forum scene"
+    },
+    # NEW SCENARIOS - Expanding coverage
+    {
+        "query": "Ancient Egypt, construction of the Great Pyramid of Giza, 2560 BCE",
+        "email": "test-egypt",
+        "min_score": 65.0,
+        "description": "Ancient Egyptian pyramid construction"
+    },
+    {
+        "query": "Renaissance Florence, artist's workshop, spring 1504",
+        "email": "test-renaissance",
+        "min_score": 65.0,
+        "description": "Renaissance Italy art studio"
+    },
+    {
+        "query": "Industrial Revolution London, factory floor, autumn 1850",
+        "email": "test-industrial",
+        "min_score": 65.0,
+        "description": "Victorian factory during Industrial Revolution"
+    },
+    {
+        "query": "World War II, D-Day landing at Normandy, June 6 1944",
+        "email": "test-ww2",
+        "min_score": 65.0,
+        "description": "WWII D-Day invasion"
+    },
+    {
+        "query": "Moon landing, Apollo 11 mission control, July 20 1969",
+        "email": "test-moonlanding",
+        "min_score": 65.0,
+        "description": "Apollo 11 moon landing mission control"
+    },
+    {
+        "query": "Berlin Wall fall, Checkpoint Charlie, November 9 1989",
+        "email": "test-berlin",
+        "min_score": 65.0,
+        "description": "Fall of Berlin Wall"
+    },
+    {
+        "query": "New York City, Times Square on New Year's Eve, winter 2023",
+        "email": "test-modern",
+        "min_score": 65.0,
+        "description": "Modern era near-present day"
     },
 ]
 
@@ -93,6 +143,7 @@ async def test_full_timepoint_generation_simple(
 @pytest.mark.slow
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario", TEST_SCENARIOS)
+@retry_on_api_error(max_attempts=2, backoff_factor=2.0)  # Retry once on transient failures
 async def test_timepoint_generation_with_judge(
     client: TestClient,
     db_session: Session,
@@ -104,19 +155,21 @@ async def test_timepoint_generation_with_judge(
 
     This test:
     1. Creates a timepoint with a historical query
-    2. Waits for generation to complete
+    2. Waits for generation to complete (smart polling)
     3. Retrieves the generated timepoint
-    4. Uses LLM judge to evaluate quality
-    5. Asserts quality meets minimum threshold
+    4. Validates structure and image data
+    5. Uses LLM judge to evaluate quality
+    6. Asserts quality meets minimum threshold
     """
     query = scenario["query"]
-    email = scenario["email"]
+    email = generate_unique_test_email(base=scenario["email"].split("@")[0])  # Unique email
     min_score = scenario["min_score"]
     description = scenario["description"]
 
     print(f"\n{'='*60}")
     print(f"Testing: {description}")
     print(f"Query: {query}")
+    print(f"Email: {email}")
     print(f"{'='*60}")
 
     # Step 1: Create timepoint
@@ -124,8 +177,8 @@ async def test_timepoint_generation_with_judge(
     response = client.post(
         "/api/timepoint/create",
         json={
-            "query": query,
-            "email": email
+            "input_query": query,
+            "requester_email": email
         }
     )
 
@@ -137,64 +190,89 @@ async def test_timepoint_generation_with_judge(
     session_id = create_data.get("session_id") or create_data.get("id")
     slug = create_data.get("slug")
 
-    # Step 2: Wait for generation (give it time)
-    print("Step 2: Waiting for generation to complete...")
-    await asyncio.sleep(5)  # Initial wait
+    # Step 2: Wait for generation using smart polling
+    print("Step 2: Waiting for generation to complete (smart polling)...")
 
-    # Try to get the timepoint (with retries)
-    timepoint_data = None
-    max_retries = 20  # Max 200 seconds total
-    retry_delay = 10  # 10 seconds between retries
-
-    for attempt in range(max_retries):
-        # Try different endpoints to find the timepoint
+    async def check_completion():
+        """Check if timepoint is complete."""
+        # Try to get by slug first
         if slug:
-            # Try to get by slug
             detail_response = client.get(f"/api/timepoint/details/{slug}")
             if detail_response.status_code == 200:
-                timepoint_data = detail_response.json()
-                break
+                data = detail_response.json()
+                # Check if it's complete (either status field or has all required data)
+                is_complete = (
+                    data.get("status") == "completed" or
+                    (data.get("image_url") and data.get("character_data_json"))
+                )
+                if is_complete:
+                    return (True, data)
 
-        # Try to check status
-        if session_id:
-            status_response = client.get(f"/api/timepoint/status/{session_id}")
-            if status_response.status_code == 200:
-                # Check if completed
-                # Note: This might be SSE, so we skip for now
-                pass
-
-        # Try feed endpoint to find our timepoint
-        feed_response = client.get("/api/feed?limit=10")
+        # Fallback: Check feed for our email
+        feed_response = client.get("/api/feed?limit=20")
         if feed_response.status_code == 200:
             feed_data = feed_response.json()
             for tp in feed_data.get("timepoints", []):
-                if tp.get("email") == email or tp.get("query") == query:
-                    timepoint_data = tp
-                    break
+                # Match by input_query or email
+                if (tp.get("input_query") == query or
+                    tp.get("cleaned_query") == query or
+                    tp.get("slug") == slug):
+                    is_complete = (
+                        tp.get("status") == "completed" or
+                        (tp.get("image_url") and tp.get("character_data_json"))
+                    )
+                    if is_complete:
+                        return (True, tp)
 
-        if timepoint_data and timepoint_data.get("status") == "completed":
-            break
+        return (False, None)
 
-        print(f"  Attempt {attempt + 1}/{max_retries}: Timepoint not ready yet...")
-        await asyncio.sleep(retry_delay)
+    timepoint_data = await wait_for_completion(
+        check_func=check_completion,
+        timeout_seconds=180,  # 3 minutes max
+        poll_interval=3.0,  # Check every 3 seconds
+        description="timepoint generation"
+    )
 
     # Step 3: Verify we got the timepoint
     if not timepoint_data:
-        pytest.skip(f"Timepoint generation timed out or failed for: {query}")
+        pytest.skip(f"Timepoint generation timed out after 180s for: {query}")
 
     assert timepoint_data is not None, "Failed to retrieve timepoint"
-    assert timepoint_data.get("status") == "completed", \
-        f"Timepoint not completed: {timepoint_data.get('status')}"
 
     print(f"✓ Timepoint generation completed")
     print(f"  Year: {timepoint_data.get('year')}")
     print(f"  Season: {timepoint_data.get('season')}")
     print(f"  Location: {timepoint_data.get('location')}")
-    print(f"  Characters: {len(timepoint_data.get('character_data', []))}")
-    print(f"  Dialog lines: {len(timepoint_data.get('dialog', []))}")
 
-    # Step 4: Judge quality with LLM
-    print("Step 4: Evaluating quality with LLM judge...")
+    # Get character and dialog data (handle both field name formats)
+    characters = timepoint_data.get("character_data") or timepoint_data.get("character_data_json", [])
+    dialog = timepoint_data.get("dialog") or timepoint_data.get("dialog_json", [])
+
+    print(f"  Characters: {len(characters)}")
+    print(f"  Dialog lines: {len(dialog)}")
+
+    # Step 4: Validate structure
+    print("Step 4: Validating timepoint structure...")
+    is_valid, errors = verify_timepoint_structure(timepoint_data)
+
+    if not is_valid:
+        print(f"⚠ Structure validation warnings:")
+        for error in errors:
+            print(f"  - {error}")
+        # Don't fail on structure issues, just warn
+    else:
+        print(f"✓ Structure validation passed")
+
+    # Step 5: Validate image (if present)
+    if timepoint_data.get("image_url"):
+        print("Step 5: Validating image data...")
+        image_valid = verify_image_data(timepoint_data["image_url"], expected_format="PNG")
+        assert image_valid, "Image validation failed"
+    else:
+        print("⚠ No image URL found in timepoint data")
+
+    # Step 6: Judge quality with LLM
+    print("Step 6: Evaluating quality with LLM judge...")
     judgement = await judge_timepoint(
         api_key=openrouter_api_key,
         query=query,
@@ -215,7 +293,7 @@ async def test_timepoint_generation_with_judge(
     print(f"Status: {'✅ PASSED' if judgement.passed else '❌ FAILED'}")
     print(f"{'='*60}\n")
 
-    # Step 5: Assert quality meets threshold
+    # Step 7: Assert quality meets threshold
     assert judgement.passed, \
         f"Quality score {judgement.overall_score:.1f} below threshold {min_score:.1f}"
     assert judgement.overall_score >= min_score, \

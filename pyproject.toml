@@ -54,7 +54,7 @@ dev = [
     "pytest-asyncio==0.25.3",
     "pytest-cov==6.0.0",
     "pytest-timeout==2.3.1",
-    "faker==33.1.0",
+    "faker==33.1.0",  # For generating unique test data
     "ruff",
     "mypy",
 ]
