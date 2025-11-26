@@ -115,10 +115,12 @@ Query → Judge → Timeline → Scene → Characters → Moment
 Each agent uses Google Gemini models for different tasks:
 - **gemini-1.5-flash** - Fast validation and logic
 - **gemini-1.5-pro** - Creative scene generation
-- **Nano Banana** (gemini-2.5-flash-image) - Photorealistic images ($0.039/image)
-- **Nano Banana Pro** (gemini-3-pro-image) - 2K/4K, text rendering ($0.139+/image)
+- **Nano Banana Pro** (gemini-3-pro-image) - **RECOMMENDED** 2K/4K, text rendering ($0.00012/image via OpenRouter!)
+- **Nano Banana** (gemini-2.5-flash-image) - Standard quality ($0.001238/image)
 
-**[🍌 Learn more about Nano Banana models →](docs/MODELS.md)**
+**[🍌 Learn more about Nano Banana models →](docs/MODELS.md)** - Pro is cheaper AND better!
+
+
 
 ### 🖼️ Web Gallery
 

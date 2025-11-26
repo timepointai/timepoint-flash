@@ -22,10 +22,10 @@ TIMEPOINT Flash supports Google's cutting-edge Gemini image generation models, a
 - **Speed:** ~25-35 seconds per image
 - **Quality:** Photorealistic, professional-grade output
 
-**Pricing:**
+**Pricing (via OpenRouter):**
 
 1. **Production (Paid):** `google/gemini-2.5-flash-image`
-   - **$0.039 per image**
+   - **$0.001238 per image** (~808 images per dollar!)
    - Best for production workloads
    - Stable, consistent quality
 
@@ -64,18 +64,22 @@ Built on Gemini 3 Pro with advanced reasoning and real-world knowledge integrati
   - Camera transformations
 - **Google Search integration** - Real-time information (weather, sports, etc.)
 
-**Pricing:**
-- **$0.139 per 2K image** (3.6x more expensive than Nano Banana)
-- **$0.24 per 4K image** (6x more expensive)
+**Pricing (via OpenRouter):**
+- **$0.00012 per image** (all resolutions: 1K/2K/4K!)
+- **10x CHEAPER** than Nano Banana
+- For comparison: Google's direct API charges $0.13-0.24, OpenRouter is 1000x cheaper!
 
 **Model ID:** `google/gemini-3-pro-image-preview`
 
 **When to Use Nano Banana Pro:**
+- **Actually cheaper than Nano Banana!** Use it as your default
 - Need 2K/4K resolution
 - Require text rendering in images
 - Building marketing materials with typography
 - Need to maintain character consistency across scenes
 - Require fine-grained creative control
+
+**💡 Pro Tip:** Since Nano Banana Pro is cheaper AND better quality on OpenRouter, consider using it as your default!
 
 **How to Use:**
 ```bash
@@ -87,15 +91,15 @@ IMAGE_MODEL=google/gemini-3-pro-image-preview
 
 ### Which Model Should I Use?
 
-| Use Case | Model | Why |
-|----------|-------|-----|
-| **Getting started** | Nano Banana (free preview) | Zero cost, same quality |
-| **Production (default)** | Nano Banana (paid) | Best price/quality ratio ($0.039) |
-| **High-res outputs** | Nano Banana Pro | 2K/4K resolution |
-| **Text in images** | Nano Banana Pro | Industry-leading typography |
-| **Enterprise/marketing** | Nano Banana Pro | Maximum quality + controls |
+| Use Case | Model | OpenRouter Price | Why |
+|----------|-------|------------------|-----|
+| **Getting started** | Nano Banana (free preview) | FREE | Zero cost, same quality |
+| **Production (best value)** | Nano Banana Pro | **$0.00012/img** | Cheaper + better quality! |
+| **Budget production** | Nano Banana (paid) | $0.001238/img | Good if you don't need Pro features |
+| **High-res outputs** | Nano Banana Pro | $0.00012/img | 2K/4K resolution |
+| **Text in images** | Nano Banana Pro | $0.00012/img | Industry-leading typography |
 
-**💡 Recommendation:** Start with Nano Banana. Upgrade to Pro only if you need 2K/4K or text rendering.
+**💡 New Recommendation:** Use Nano Banana Pro as your default! It's actually CHEAPER and higher quality than regular Nano Banana on OpenRouter.
 
 ---
 
@@ -154,10 +158,11 @@ Query → Judge (Flash) → Timeline (Flash) → Scene (Pro) → Characters (Pro
 
 ### Production Costs (Paid Models)
 
-**Per Timepoint (full generation):**
+**Per Timepoint (full generation via OpenRouter):**
 - Text generation (Flash/Pro): ~$0.005-0.01
-- Image generation (Nano Banana): **$0.039**
-- **Total: ~$0.044-0.05 per timepoint**
+- Image generation (Nano Banana): **$0.001238**
+- Image generation (Nano Banana Pro): **$0.00012** ← Even cheaper!
+- **Total: ~$0.005-0.011 per timepoint** (with Nano Banana Pro)
 
 ### Free Option
 
@@ -301,16 +306,16 @@ A: Image generation is computationally expensive. Nano Banana generates high-qua
 
 ### Q: Should I use Nano Banana or Nano Banana Pro?
 
-A: **Start with Nano Banana** (Gemini 2.5 Flash Image):
-- 10x cheaper ($0.039 vs $0.139+)
-- Same core quality
-- Perfect for 1024x1024 scenes
+A: **Use Nano Banana Pro** (Gemini 3 Pro Image) as your default:
+- **10x cheaper** on OpenRouter ($0.00012 vs $0.001238)
+- **Higher quality** - better text rendering, 2K/4K support
+- **More features** - character consistency, advanced controls
+- Same speed, better results
 
-**Upgrade to Nano Banana Pro** only if you need:
-- 2K/4K resolution
-- Text rendering in images (signs, posters, etc.)
-- Character consistency across multiple images
-- Fine-grained lighting/camera controls
+**Only use regular Nano Banana if:**
+- You're on the free preview tier
+- You specifically don't need Pro features
+- You're using Google's direct API (not OpenRouter)
 
 ### Q: What's the difference between Nano Banana and regular Gemini?
 

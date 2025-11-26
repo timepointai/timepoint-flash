@@ -39,12 +39,14 @@ class Settings(BaseSettings):
     CREATIVE_MODEL: str = "gemini-1.5-pro"
 
     # Image Generation: Nano Banana Models 🍌
-    # RECOMMENDED: Nano Banana (Gemini 2.5 Flash Image)
-    # - $0.039/image, 1024x1024px, best price/quality
-    # ADVANCED: Nano Banana Pro (Gemini 3 Pro Image) - NEW!
-    # - $0.139-0.24/image, 2K/4K, text rendering, advanced controls
-    # - Use: google/gemini-3-pro-image-preview
-    IMAGE_MODEL: str = "google/gemini-2.5-flash-image"
+    # RECOMMENDED: Nano Banana Pro (Gemini 3 Pro Image) - CHEAPER + BETTER!
+    # - Via OpenRouter: $0.00012/image (10x cheaper than standard!)
+    # - 2K/4K resolution, text rendering, character consistency
+    # - Model: google/gemini-3-pro-image-preview
+    # ALTERNATIVE: Nano Banana (Gemini 2.5 Flash Image)
+    # - Via OpenRouter: $0.001238/image, 1024x1024px
+    # - Model: google/gemini-2.5-flash-image
+    IMAGE_MODEL: str = "google/gemini-3-pro-image-preview"
 
     # Budget/Testing Mode - Use free preview model
     USE_FREE_MODELS: bool = False  # Set to True to use free preview models
