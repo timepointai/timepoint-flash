@@ -122,6 +122,18 @@ class RateLimit(Base):
     email_obj = relationship("Email", back_populates="rate_limit")
 
 
+class IPRateLimit(Base):
+    """Rate limiting per IP address (for anonymous/public API access)."""
+    __tablename__ = "ip_rate_limits"
+
+    id = Column(UUID(), primary_key=True, default=uuid_module.uuid4)
+    ip_address = Column(String(45), unique=True, index=True, nullable=False)  # IPv6 max length is 45
+
+    last_created_at = Column(TIMESTAMP, nullable=True)
+    count_1h = Column(Integer, default=0)
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+
 class ProcessingSession(Base):
     """Temporary session data for ongoing timepoint generation."""
     __tablename__ = "processing_sessions"

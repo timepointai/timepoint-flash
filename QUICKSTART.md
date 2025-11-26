@@ -34,6 +34,28 @@ This generates 3 sample scenes, starts the server, and opens the gallery in your
 ./tp demo                                           # Quick demo mode
 ```
 
+## Public API (No Auth!)
+
+**Just start the server and access from any client:**
+
+```bash
+# Start server
+./tp serve
+
+# Generate from curl (another terminal):
+curl -X POST http://localhost:8000/api/timepoint/create \
+  -H "Content-Type: application/json" \
+  -d '{"input_query": "Ancient Rome, 50 BCE"}'
+
+# Or use ready-to-run examples:
+cd examples/
+python3 python_client.py      # Complete Python client
+python3 stream_progress.py    # Real-time SSE streaming
+./curl_examples.sh            # Bash/curl examples
+```
+
+**[📖 Full API Documentation →](docs/API.md)**
+
 ## What's Happening?
 
 1. **11 AI agents** orchestrate via LangGraph

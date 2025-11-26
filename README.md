@@ -13,9 +13,9 @@ Generate historically accurate scenes from any moment in history using AI multi-
 ✨ **CLI Tool** - `tp demo` and see results in 90 seconds
 🖼️ **Web Gallery** - HTMX-powered UI, zero build step
 🗄️ **SQLite Auto-Deploy** - No database setup required
-🎨 **Photorealistic Images** - Google Gemini 2.5 Flash
+🍌 **Nano Banana** - Latest Google Gemini image models (2.5 + Pro)
 🤖 **11-Agent Workflow** - LangGraph orchestration
-📡 **Real-time Updates** - Server-Sent Events (SSE)
+📡 **Public API** - No authentication, ready-to-use examples
 🧪 **Comprehensive Tests** - Fast unit + e2e with LLM judge
 
 ---
@@ -31,6 +31,62 @@ Generate historically accurate scenes from any moment in history using AI multi-
 ```
 
 That's it! See [QUICKSTART.md](QUICKSTART.md) for details.
+
+---
+
+## Public API Access
+
+**No authentication required.** Just start the server and access the API from any client.
+
+```bash
+# Start server
+./tp serve
+
+# From another terminal or any HTTP client:
+curl -X POST http://localhost:8000/api/timepoint/create \
+  -H "Content-Type: application/json" \
+  -d '{"input_query": "Ancient Rome, 50 BCE"}'
+
+# Get all results
+curl http://localhost:8000/api/feed | jq '.'
+```
+
+### Ready-to-Run Examples
+
+We've included working code in multiple languages:
+
+```bash
+cd examples/
+
+# Python - Complete client
+python3 python_client.py
+
+# Python - SSE streaming
+python3 stream_progress.py
+
+# JavaScript/Node.js
+npm install && node javascript_client.js
+
+# Bash/curl
+./curl_examples.sh
+```
+
+### Key Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/timepoint/create` | POST | Generate a new timepoint |
+| `/api/timepoint/status/{session_id}` | GET | Stream progress (SSE) |
+| `/api/timepoint/details/{slug}` | GET | Get complete data |
+| `/api/feed` | GET | List all timepoints |
+
+**[📖 Full API Documentation →](docs/API.md)**
+
+### Rate Limiting
+
+- **Email-based**: 1 generation/hour per email
+- **IP-based**: 10 generations/hour for anonymous
+- **Trusted hosts**: Unlimited (replit.dev, your domain)
 
 ---
 
@@ -59,7 +115,10 @@ Query → Judge → Timeline → Scene → Characters → Moment
 Each agent uses Google Gemini models for different tasks:
 - **gemini-1.5-flash** - Fast validation and logic
 - **gemini-1.5-pro** - Creative scene generation
-- **google/gemini-2.5-flash-image** - Photorealistic images
+- **Nano Banana** (gemini-2.5-flash-image) - Photorealistic images ($0.039/image)
+- **Nano Banana Pro** (gemini-3-pro-image) - 2K/4K, text rendering ($0.139+/image)
+
+**[🍌 Learn more about Nano Banana models →](docs/MODELS.md)**
 
 ### 🖼️ Web Gallery
 
@@ -314,7 +373,10 @@ Typical timepoint generation:
 
 - **[README.md](README.md)** - Overview (this file)
 - **[QUICKSTART.md](QUICKSTART.md)** - Ultra-concise getting started
+- **[docs/API.md](docs/API.md)** - Public API guide for developers
+- **[docs/MODELS.md](docs/MODELS.md)** - Nano Banana models explained
 - **[AGENTS.md](AGENTS.md)** - Technical docs for AI agents
+- **[examples/](examples/)** - Ready-to-run code examples
 - **[API Docs](http://localhost:8000/api/docs)** - Interactive Swagger UI
 
 ---

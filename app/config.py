@@ -34,11 +34,20 @@ class Settings(BaseSettings):
     
     # Models
     # Using Gemini 1.5 Flash for fast logic/judging
-    JUDGE_MODEL: str = "gemini-1.5-flash" 
+    JUDGE_MODEL: str = "gemini-1.5-flash"
     # Using Gemini 1.5 Pro for complex creative generation (scenes, dialog)
     CREATIVE_MODEL: str = "gemini-1.5-pro"
-    # Using Imagen 3 for image generation (if available via API)
-    IMAGE_MODEL: str = "imagen-3.0-generate-001"
+
+    # Image Generation: Nano Banana Models 🍌
+    # RECOMMENDED: Nano Banana (Gemini 2.5 Flash Image)
+    # - $0.039/image, 1024x1024px, best price/quality
+    # ADVANCED: Nano Banana Pro (Gemini 3 Pro Image) - NEW!
+    # - $0.139-0.24/image, 2K/4K, text rendering, advanced controls
+    # - Use: google/gemini-3-pro-image-preview
+    IMAGE_MODEL: str = "google/gemini-2.5-flash-image"
+
+    # Budget/Testing Mode - Use free preview model
+    USE_FREE_MODELS: bool = False  # Set to True to use free preview models
 
     # OpenRouter API (Legacy/Backup)
     OPENROUTER_API_KEY: Optional[str] = None

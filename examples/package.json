@@ -1,0 +1,13 @@
+{
+  "name": "timepoint-flash-examples",
+  "version": "1.0.0",
+  "description": "JavaScript examples for TIMEPOINT Flash API",
+  "type": "module",
+  "scripts": {
+    "client": "node javascript_client.js"
+  },
+  "dependencies": {
+    "eventsource": "^2.0.2",
+    "node-fetch": "^3.3.2"
+  }
+}

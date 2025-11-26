@@ -15,7 +15,7 @@ from app.schemas import (
     ProcessingStatus
 )
 from app.models import ProcessingSession, Email, RateLimit, Timepoint
-from app.utils.rate_limiter import check_rate_limit
+from app.utils.rate_limiter import check_rate_limit, check_ip_rate_limit, update_ip_rate_limit
 from app.agents.graph_orchestrator import run_timepoint_workflow
 
 router = APIRouter()
@@ -24,25 +24,51 @@ logger = logging.getLogger(__name__)
 @router.post("/create")
 async def create_timepoint(
     request: Request,
-    email: str = Body(..., embed=True),
-    query: str = Body(..., min_length=5, max_length=500, embed=True),
+    input_query: str = Body(..., min_length=5, max_length=500, embed=True, alias="input_query"),
+    requester_email: str | None = Body(None, embed=True, alias="requester_email"),
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
     """
     Create a new timepoint from user input.
-    Returns session_id and initial status.
+
+    Public API - No authentication required!
+
+    Rate limiting:
+    - With email: 1 timepoint/hour per email
+    - Anonymous (no email): 10 timepoints/hour per IP
+    - Trusted hosts (*.replit.dev, timepointai.com): Unlimited
+
+    Args:
+        input_query: Historical scene description (required)
+        requester_email: Email address for rate limiting (optional)
+
+    Returns:
+        session_id and initial status
     """
-    # Check rate limit (bypass for replit.dev domains)
+    # Get client IP and host
+    client_ip = request.client.host if request.client else "unknown"
     host = request.headers.get("host", "")
-    is_allowed, error_msg = check_rate_limit(db, email, host)
-    if not is_allowed:
-        raise HTTPException(status_code=429, detail=error_msg)
+
+    # Check IP-based rate limit (always check for spam protection)
+    ip_allowed, ip_error_msg = check_ip_rate_limit(db, client_ip, host)
+    if not ip_allowed:
+        raise HTTPException(status_code=429, detail=ip_error_msg)
+
+    # If email provided, also check email-based rate limit
+    if requester_email:
+        email_allowed, email_error_msg = check_rate_limit(db, requester_email, host)
+        if not email_allowed:
+            raise HTTPException(status_code=429, detail=email_error_msg)
+        email_for_db = requester_email
+    else:
+        # Use anonymous email tied to IP
+        email_for_db = f"anonymous-{client_ip}@timepoint.local"
 
     # Get or create email record
-    email_obj = db.query(Email).filter(Email.email == email).first()
+    email_obj = db.query(Email).filter(Email.email == email_for_db).first()
     if not email_obj:
-        email_obj = Email(email=email)
+        email_obj = Email(email=email_for_db)
         db.add(email_obj)
         db.commit()
         db.refresh(email_obj)
@@ -51,7 +77,7 @@ async def create_timepoint(
     session_id = str(uuid.uuid4())
     session = ProcessingSession(
         session_id=session_id,
-        email=email,
+        email=email_for_db,
         status=ProcessingStatus.PENDING,
         progress_data_json={"stage": "initializing", "message": "Starting timepoint generation..."},
         expires_at=datetime.utcnow() + timedelta(hours=1)
@@ -59,22 +85,32 @@ async def create_timepoint(
     db.add(session)
     db.commit()
 
+    # Update rate limits (both IP and email if provided)
+    update_ip_rate_limit(db, client_ip)
+    if requester_email:
+        from app.utils.rate_limiter import update_rate_limit
+        update_rate_limit(db, requester_email)
+
     # Launch workflow in background
-    logger.info(f"Launching workflow for session {session_id}, email: {email}")
+    logger.info(f"Launching workflow for session {session_id}, email: {email_for_db}, IP: {client_ip}")
 
     async def wrapper():
         """Wrapper to catch any exceptions in background task."""
         try:
-            await run_timepoint_workflow(session_id, email, query)
+            await run_timepoint_workflow(session_id, email_for_db, input_query)
         except Exception as e:
             logger.error(f"Background task FAILED: {e}", exc_info=True)
 
     background_tasks.add_task(wrapper)
 
+    # Generate slug for response (will be finalized by workflow)
+    temp_slug = f"generating-{session_id[:8]}"
+
     return {
         "session_id": session_id,
+        "slug": temp_slug,
         "status": ProcessingStatus.PENDING.value,
-        "message": "Initializing your time travel journey..."
+        "message": "Timepoint generation started"
     }
 
 
