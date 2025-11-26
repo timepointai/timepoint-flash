@@ -14,7 +14,7 @@ import asyncio
 
 class CharacterList(BaseModel):
     """List of characters for the scene."""
-    characters: List[Character] = Field(..., min_items=1, max_items=12)
+    characters: List[Character] = Field(..., min_length=1, max_length=12)
     crowd_present: bool = Field(default=False, description="Whether a crowd/background people are present")
     crowd_description: str | None = Field(None, max_length=200, description="Description of the crowd if present")
 

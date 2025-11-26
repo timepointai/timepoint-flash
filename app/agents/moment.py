@@ -31,9 +31,9 @@ class Moment(BaseModel):
     action: str = Field(..., max_length=300, description="What's physically happening right now")
     tension: str = Field(..., max_length=200, description="Dramatic tension or stakes in this moment")
     focal_point: str = Field(..., max_length=150, description="Visual and narrative focal point")
-    character_interactions: List[CharacterInteraction] = Field(..., max_items=8, description="Key character-to-character interactions")
+    character_interactions: List[CharacterInteraction] = Field(..., max_length=8, description="Key character-to-character interactions")
     emotional_tone: str = Field(..., max_length=100, description="Overall emotional atmosphere")
-    narrative_beats: List[NarrativeBeat] = Field(..., min_items=3, max_items=5, description="3-5 sequential story beats")
+    narrative_beats: List[NarrativeBeat] = Field(..., min_length=3, max_length=5, description="3-5 sequential story beats")
     visual_composition: str = Field(..., max_length=300, description="How the scene should be visually composed")
     story_context: str = Field(..., max_length=300, description="Why this moment matters in the larger historical context")
 

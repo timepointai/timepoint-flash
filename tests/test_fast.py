@@ -24,12 +24,12 @@ def test_health_endpoint(client: TestClient):
 
 @pytest.mark.fast
 def test_root_endpoint(client: TestClient):
-    """Test the root endpoint."""
+    """Test the root endpoint serves the gallery HTML."""
     response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert data["service"] == "TIMEPOINT AI API"
-    assert data["status"] == "running"
+    # Root now serves HTML gallery, not JSON
+    assert "text/html" in response.headers.get("content-type", "")
+    assert b"TIMEPOINT" in response.content or b"Gallery" in response.content
 
 
 @pytest.mark.fast

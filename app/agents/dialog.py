@@ -18,7 +18,7 @@ class DialogLine(BaseModel):
 
 class Dialog(BaseModel):
     """Scene dialog."""
-    lines: List[DialogLine] = Field(..., min_items=2, max_items=12, description="2-12 lines of dialog")
+    lines: List[DialogLine] = Field(..., min_length=2, max_length=12, description="2-12 lines of dialog")
     context: str = Field(..., max_length=200, description="What's happening in this moment")
 
 

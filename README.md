@@ -345,7 +345,7 @@ MAX_TIMEPOINTS_PER_HOUR=5  # Increase limit
 ```bash
 JUDGE_MODEL=gemini-1.5-flash
 CREATIVE_MODEL=gemini-1.5-pro
-IMAGE_MODEL=google/gemini-2.5-flash-image
+IMAGE_MODEL=google/gemini-3-pro-image-preview  # Nano Banana Pro (recommended)
 ```
 
 ### CORS

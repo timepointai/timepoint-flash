@@ -38,7 +38,7 @@ class SceneContext(BaseModel):
     """Complete scene context."""
     setting: Setting
     weather: Weather
-    props: List[Prop] = Field(..., max_items=8, description="Up to 8 important props")
+    props: List[Prop] = Field(..., max_length=8, description="Up to 8 important props")
     background_details: str = Field(..., max_length=300, description="Additional background elements")
     historical_context: str = Field(..., max_length=300, description="Historical context for accuracy")
 

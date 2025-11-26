@@ -13,7 +13,7 @@ This document provides a comprehensive technical overview of the Timepoint Flash
 **Framework**: FastAPI + HTMX (web UI)
 **Architecture**: LangGraph multi-agent orchestration
 **Database**: SQLite (default) or PostgreSQL + SQLAlchemy ORM
-**Primary Models**: Google Gemini 1.5 Pro, Gemini 2.5 Flash Image
+**Primary Models**: Google Gemini 1.5 Pro, Gemini 3 Pro Image (Nano Banana Pro)
 **CLI Tool**: `tp` command (Click-based)
 **Deployment**: Replit (configured), Docker, Railway-ready
 
@@ -388,15 +388,21 @@ COMPLETED → Database + Feed
 ### 10. Image Generator (`app/services/google_ai.py:generate_image`)
 
 **Purpose**: Generate photorealistic historical image
-**Model**: Google Gemini 2.5 Flash Image (via Google AI SDK)
+**Model**: Google Gemini 3 Pro Image "Nano Banana Pro" (via OpenRouter)
 **Input**: Compiled image prompt
 **Output**: Base64-encoded image data (PNG)
 
 **Configuration**:
-- Model: `gemini-2.5-flash-image-preview` (primary)
-- Fallback: OpenRouter endpoint with same model
+- Model: `google/gemini-3-pro-image-preview` (default - recommended!)
+- Alternative: `google/gemini-2.5-flash-image` (Nano Banana standard)
+- Fallback: OpenRouter endpoint with alternate models
 - Timeout: 60 seconds
 - Error handling: Continues workflow even if image fails
+
+**Why Nano Banana Pro**:
+- **10x cheaper** than standard Nano Banana ($0.00012 vs $0.001238 per image)
+- **Higher quality**: 2K/4K resolution, better text rendering
+- Same speed, more features
 
 **Storage**: Image data stored directly in database (no external object storage in current version).
 
@@ -511,17 +517,11 @@ COMPLETED → Database + Feed
 ```
 
 #### `GET /`
-**Purpose**: API root info
+**Purpose**: Web gallery home page
 **Auth**: None
-**Response**:
-```json
-{
-  "service": "TIMEPOINT AI API",
-  "status": "running",
-  "version": "1.0.0",
-  "docs": "/api/docs"
-}
-```
+**Response**: HTML page (gallery UI)
+
+**Note**: This endpoint now serves the HTMX-powered gallery interface, not JSON. For API root info, use `GET /health`.
 
 ---
 
@@ -710,11 +710,11 @@ data: ""
 Defined in `app/config.py`:
 ```python
 JUDGE_MODEL = "gemini-1.5-flash"
-VALIDATOR_MODEL = "gemini-1.5-pro"
-IMAGE_MODEL = "google/gemini-2.5-flash-image-preview"
+CREATIVE_MODEL = "gemini-1.5-pro"
+IMAGE_MODEL = "google/gemini-3-pro-image-preview"  # Nano Banana Pro (default)
 ```
 
-**Model Fallback**: If Google AI fails, system attempts OpenRouter endpoint with same model.
+**Model Fallback**: If primary model fails, system attempts OpenRouter endpoint with alternate models.
 
 ---
 
