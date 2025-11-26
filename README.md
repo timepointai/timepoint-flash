@@ -20,7 +20,36 @@ Generate historically accurate scenes from any moment in history using AI multi-
 
 ---
 
-## Quick Start
+## 🚀 Zero to Demo in 90 Seconds
+
+**The absolute laziest path** (2 commands):
+
+```bash
+# 1. Setup (30 seconds - installs deps, prompts for API key)
+./setup.sh
+
+# 2. Demo (60 seconds - generates 3 scenes, opens gallery in browser)
+./tp demo
+```
+
+That's it! Your browser will open to `http://localhost:8000` showing the gallery.
+
+**Even lazier?** Clone and run in one line:
+```bash
+git clone https://github.com/yourusername/timepoint-flash.git && cd timepoint-flash && ./setup.sh && ./tp demo
+```
+
+**What happens:**
+- ✅ Setup validates Python 3.11+, installs dependencies
+- ✅ Demo generates 3 stunning historical scenes
+- ✅ Gallery opens automatically in your browser
+- ✅ Server keeps running - watch scenes appear in real-time
+
+**See:** [QUICKSTART.md](QUICKSTART.md) for step-by-step details with expected output.
+
+---
+
+## Quick Start (Detailed)
 
 ```bash
 # One command setup (checks Python, installs deps, configures API key)
@@ -393,6 +422,93 @@ Typical timepoint generation:
 - **[AGENTS.md](AGENTS.md)** - Technical docs for AI agents
 - **[examples/](examples/)** - Ready-to-run code examples
 - **[API Docs](http://localhost:8000/api/docs)** - Interactive Swagger UI
+
+---
+
+## Common Issues (Troubleshooting)
+
+### "Python version too old"
+**Solution**: Install Python 3.11+ from [python.org](https://www.python.org/downloads/)
+```bash
+python3 --version  # Should show 3.11 or higher
+```
+
+### "No API key found" or "OPENROUTER_API_KEY not configured"
+**Solution 1**: Run setup script interactively:
+```bash
+./setup.sh  # Will prompt for API key
+```
+
+**Solution 2**: Manual edit:
+```bash
+echo "OPENROUTER_API_KEY=your_key_here" >> .env
+# Get free key at: https://openrouter.ai/keys
+```
+
+### "Port already in use" (Address already in use: 8000)
+**Solution**: Use a different port:
+```bash
+./tp serve --port 8001
+# or
+./tp demo --port 8001
+```
+
+### "Missing packages" or "ModuleNotFoundError"
+**Solution**: Re-run setup or install manually:
+```bash
+./setup.sh  # Recommended
+
+# OR manually:
+uv sync           # If you have uv
+pip install -e .  # Otherwise
+```
+
+### "Tests failing" or "Want to run tests"
+**Fast tests** (no API key needed, ~5 seconds):
+```bash
+./test.sh fast
+```
+
+**E2E tests** (requires API key, ~10-15 minutes):
+```bash
+./test.sh e2e
+```
+
+See [TESTING.md](TESTING.md) for comprehensive testing guide.
+
+### "Server not starting" or "Could not connect to API server"
+**Check**:
+1. Is another instance running? `lsof -i :8000` (kill if needed)
+2. Are dependencies installed? Run `./setup.sh`
+3. Is database accessible? Check `.env` for `DATABASE_URL`
+
+**Solution**: Try manual start with debug output:
+```bash
+python3 -m uvicorn app.main:app --port 8000
+```
+
+### "Examples not working" (python_client.py, etc.)
+**Solution**: Make sure server is running first:
+```bash
+# Terminal 1: Start server
+./tp serve
+
+# Terminal 2: Run example
+cd examples/
+python3 python_client.py
+```
+
+### "Images not generating" or "Generation takes forever"
+**Typical timing**: 40-60 seconds per scene
+- If taking >2 minutes, check API rate limits on OpenRouter
+- Check server logs for errors
+- Try with a simpler query: `./tp generate "Rome 50 BCE"`
+
+### Still stuck?
+1. Check [QUICKSTART.md](QUICKSTART.md) for detailed setup
+2. Check [TESTING.md](TESTING.md) for test troubleshooting
+3. Check server logs in terminal where you ran `./tp serve`
+4. Open an issue on GitHub with error details
 
 ---
 
