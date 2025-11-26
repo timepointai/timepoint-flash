@@ -29,9 +29,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # Google AI Suite
-    GOOGLE_API_KEY: str
-    
+    # Google AI Suite (Optional - will fallback to OpenRouter if not set)
+    GOOGLE_API_KEY: Optional[str] = None
+
     # Models
     # Using Gemini 1.5 Flash for fast logic/judging
     JUDGE_MODEL: str = "gemini-1.5-flash"
