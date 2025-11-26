@@ -3,14 +3,35 @@ End-to-end integration tests for Timepoint Flash.
 
 These tests make real API calls and require OPENROUTER_API_KEY.
 Run with: pytest -m e2e
+
+Database Support:
+- Automatically uses SQLite (in-memory or file-based) by default
+- Uses PostgreSQL if DATABASE_URL is configured and database is accessible
+- Tests adapt automatically to the available database
 """
 import pytest
 import asyncio
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Literal
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from tests.utils.llm_judge import judge_timepoint, JudgementResult
+
+
+@pytest.fixture(scope="module", autouse=True)
+def log_database_info(db_type: Literal["sqlite", "postgresql"], test_database_url: str):
+    """Log which database is being used for e2e tests."""
+    print(f"\n{'='*60}")
+    print(f"E2E Test Database Configuration")
+    print(f"{'='*60}")
+    print(f"Database Type: {db_type.upper()}")
+    print(f"Database URL:  {test_database_url}")
+    if db_type == "sqlite":
+        if test_database_url == "sqlite:///:memory:":
+            print(f"Mode:          In-memory (ephemeral)")
+        else:
+            print(f"Mode:          File-based (persistent)")
+    print(f"{'='*60}\n")
 
 
 # Test scenarios with expected quality thresholds

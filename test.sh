@@ -30,7 +30,7 @@ if [[ -z "$VIRTUAL_ENV" ]]; then
         source .venv/bin/activate
         echo -e "${GREEN}✓ Virtual environment activated${NC}"
     else
-        echo -e "${RED}✗ No .venv found. Run ./init.sh first.${NC}"
+        echo -e "${RED}✗ No .venv found. Run ./setup.sh first.${NC}"
         exit 1
     fi
 fi

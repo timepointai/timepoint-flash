@@ -10,11 +10,101 @@ This document provides a comprehensive technical overview of the Timepoint Flash
 
 **Repository**: https://github.com/realityinspector/timepoint-flash
 **Language**: Python 3.11+
-**Framework**: FastAPI
+**Framework**: FastAPI + HTMX (web UI)
 **Architecture**: LangGraph multi-agent orchestration
-**Database**: PostgreSQL + SQLAlchemy ORM
+**Database**: SQLite (default) or PostgreSQL + SQLAlchemy ORM
 **Primary Models**: Google Gemini 1.5 Pro, Gemini 2.5 Flash Image
+**CLI Tool**: `tp` command (Click-based)
 **Deployment**: Replit (configured), Docker, Railway-ready
+
+**New Features (v1.0)**:
+- ✨ CLI tool with `tp demo` for quick starts
+- 🖼️ HTMX-powered web gallery (zero build step)
+- 🗄️ SQLite auto-deploy (no database setup)
+- 🧪 Smart database testing (SQLite ↔ PostgreSQL)
+
+---
+
+## CLI Tool (`app/cli.py`)
+
+**Entry Point**: `tp` command (via pyproject.toml)
+
+### Commands
+
+```bash
+tp generate "query"        # Generate single timepoint
+tp list                     # List all timepoints
+tp serve --port 5000       # Start server + gallery
+tp demo                     # Generate 3 demo scenes + open browser
+```
+
+### Implementation Details
+
+- **Framework**: Click (CLI framework)
+- **Output**: Rich (terminal formatting with colors, tables, panels)
+- **HTTP Client**: HTTPX (calls local API)
+- **Auto-start**: Can start server automatically if not running
+- **Browser Integration**: Opens gallery in default browser
+
+### Demo Mode Flow
+
+1. Check if demo timepoints exist (3 predefined queries)
+2. Generate missing demos via API
+3. Start server if not running
+4. Open browser to gallery
+5. Keep server running until Ctrl+C
+
+---
+
+## Web Gallery (`app/routers/gallery.py`)
+
+**New in v1.0**: HTMX-powered web UI for viewing timepoints.
+
+### Gallery Endpoints
+
+#### `GET /`
+**Purpose**: Gallery home (masonry grid)
+**Template**: `gallery.html`
+**Features**:
+- Grid layout of all timepoints
+- Infinite scroll (HTMX)
+- Click to view details
+
+#### `GET /view/{slug}`
+**Purpose**: Single timepoint detailed view
+**Template**: `viewer.html`
+**Shows**:
+- Full resolution image
+- All character bios & appearances
+- Complete dialog
+- Scene metadata
+- Generation time
+
+#### `GET /generate`
+**Purpose**: Interactive generation form
+**Template**: `generate.html`
+**Features**:
+- Input form with validation
+- Real-time SSE progress updates
+- Live status display
+
+#### `GET /demo`
+**Purpose**: Demo landing page
+**Template**: `demo.html`
+**Content**: Explains demo mode, shows sample queries
+
+### HTMX Partials
+
+For dynamic loading:
+- `GET /partials/timepoint-card/{slug}` - Single card HTML
+- `GET /partials/feed-page?page=N` - Next page for infinite scroll
+
+### Tech Stack
+
+- **Templates**: Jinja2
+- **Dynamic UX**: HTMX 1.9 (14KB)
+- **CSS**: Water.css (classless) + custom styles
+- **Real-time**: Server-Sent Events (SSE)
 
 ---
 
@@ -340,6 +430,13 @@ COMPLETED → Database + Feed
 
 ### Core Tables
 
+**Database Support**: SQLite (default) and PostgreSQL
+
+**UUID Handling**: Custom `UUID` TypeDecorator in `app/models.py`
+- SQLite: Stores as String(36)
+- PostgreSQL: Uses native UUID type
+- Automatic dialect detection
+
 #### `emails`
 ```sql
 - id: UUID (PK)
@@ -356,13 +453,12 @@ COMPLETED → Database + Feed
 - season: VARCHAR(50)
 - input_query: TEXT
 - cleaned_query: TEXT
-- location: VARCHAR(255)
 - image_url: TEXT (Base64 PNG data)
 - segmented_image_url: TEXT
 - character_data_json: JSON (list of character objects)
 - dialog_json: JSON (list of dialog lines)
 - scene_graph_json: JSON (NetworkX graph)
-- metadata_json: JSON (setting, weather, camera, etc.)
+- metadata_json: JSON (setting, weather, camera, location, etc.)
 - processing_time_ms: INTEGER
 - created_at: TIMESTAMP
 ```
@@ -594,9 +690,12 @@ data: ""
 
 ### Environment Variables
 
-**Required**:
-- `DATABASE_URL`: PostgreSQL connection string
-- `GOOGLE_API_KEY`: Google AI API key (for Gemini models)
+**Required** (choose one):
+- `OPENROUTER_API_KEY`: OpenRouter key (includes Google models) **OR**
+- `GOOGLE_API_KEY`: Direct Google AI API key
+
+**Optional**:
+- `DATABASE_URL`: Database connection (default: `sqlite:///./timepoint_local.db`)
 
 **Optional**:
 - `OPENROUTER_API_KEY`: Fallback LLM provider
@@ -663,9 +762,41 @@ async def update_timepoint_progressive(timepoint_id: str, **updates):
 ### Test Markers
 
 ```python
-@pytest.mark.fast     # Unit tests, no external API calls (~5 seconds)
-@pytest.mark.e2e      # End-to-end tests with real API (~5-10 minutes)
-@pytest.mark.slow     # Long-running operations
+@pytest.mark.fast       # Unit tests, no external API calls (~5 seconds)
+@pytest.mark.e2e        # End-to-end tests with real API (~5-10 minutes)
+@pytest.mark.slow       # Long-running operations
+@pytest.mark.postgres   # Tests requiring PostgreSQL (auto-skip if unavailable)
+@pytest.mark.sqlite     # SQLite-specific behavior tests
+```
+
+### Smart Database Testing
+
+**New in v1.0**: Tests automatically adapt to available database.
+
+**Logic** (`tests/conftest.py`):
+1. Read `DATABASE_URL` from environment
+2. If SQLite URL → use it
+3. If PostgreSQL URL → test connection:
+   - If available → use PostgreSQL
+   - If unavailable → fallback to in-memory SQLite (with warning)
+4. If no DATABASE_URL → use in-memory SQLite
+
+**Benefits**:
+- ✅ Zero configuration for local testing
+- ✅ PostgreSQL integration testing when available
+- ✅ Graceful fallback (never fails due to DB)
+- ✅ CI/CD friendly
+
+**Usage**:
+```bash
+# Local (SQLite)
+DATABASE_URL=sqlite:///./test.db pytest
+
+# CI (in-memory)
+pytest  # No DATABASE_URL set
+
+# Integration (PostgreSQL)
+DATABASE_URL=postgresql://localhost/test pytest
 ```
 
 ### Test Execution

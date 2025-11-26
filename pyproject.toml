@@ -2,6 +2,10 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*", "scripts*"]
+
 [project]
 name = "timepoint-flash"
 version = "1.0.0"
@@ -34,7 +38,15 @@ dependencies = [
     "passlib[bcrypt]==1.7.4",
     "python-dotenv==1.0.1",
     "email-validator==2.2.0",
+    "jinja2==3.1.4",
+    "click==8.1.7",
+    "rich==13.9.4",
 ]
+
+# CLI Tool: We use a shell script wrapper (./tp) instead of setuptools entry point
+# to avoid Python 3.14 compatibility issues with uv. The wrapper script ensures
+# reliable imports by adding the project root to PYTHONPATH.
+# See: ./tp script in project root
 
 [project.optional-dependencies]
 dev = [
@@ -58,6 +70,8 @@ markers = [
     "fast: Fast unit tests (no external API calls)",
     "e2e: End-to-end integration tests (requires API keys)",
     "slow: Slow tests (long-running operations)",
+    "postgres: Tests that require PostgreSQL (auto-skip if unavailable)",
+    "sqlite: Tests specific to SQLite behavior",
 ]
 timeout = 300
 addopts = "-v --tb=short --strict-markers --cov=app --cov-report=term-missing"

@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title %}Demo - TIMEPOINT FLASH{% endblock %}
+
+{% block content %}
+<div class="demo-container">
+    <!-- Hero Section -->
+    <div class="demo-hero">
+        <h1>🎬 TIMEPOINT FLASH</h1>
+        <p class="hero-subtitle">AI-Powered Photorealistic Time Travel</p>
+        <p class="hero-description">
+            Generate historically accurate scenes from any moment in history using 11 specialized AI agents
+            powered by Google Gemini models.
+        </p>
+    </div>
+
+    <!-- How It Works -->
+    <section class="demo-section">
+        <h2>⚡ How It Works</h2>
+        <div class="workflow-grid">
+            <div class="workflow-step">
+                <div class="step-number">1</div>
+                <h3>Describe the Scene</h3>
+                <p>Enter any historical moment, location, and time period</p>
+            </div>
+            <div class="workflow-step">
+                <div class="step-number">2</div>
+                <h3>11 Agents Orchestrate</h3>
+                <p>Timeline → Scene → Characters → Dialog → Camera → Image</p>
+            </div>
+            <div class="workflow-step">
+                <div class="step-number">3</div>
+                <h3>View Results</h3>
+                <p>Photorealistic image with characters, dialog, and scene graph</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Pipeline -->
+    <section class="demo-section">
+        <h2>🤖 Agent Pipeline</h2>
+        <div class="agent-pipeline">
+            <div class="agent-flow">
+                <span class="agent-badge">Judge</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Timeline</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Scene</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Characters</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Moment</span>
+            </div>
+            <div class="agent-flow">
+                <span class="agent-badge">Dialog</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Camera</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Graph</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Image Prompt</span>
+                <span class="arrow">→</span>
+                <span class="agent-badge">Image Gen</span>
+            </div>
+        </div>
+        <p class="pipeline-note">
+            Each agent is specialized: fast models for logic, creative models for content, image models for generation.
+        </p>
+    </section>
+
+    <!-- Try Demo Scenes -->
+    <section class="demo-section featured">
+        <h2>🚀 Try These Demo Scenes</h2>
+        <p class="section-subtitle">Click to generate a sample historical scene (takes ~60 seconds)</p>
+
+        <div class="demo-grid">
+            {% for query in demo_queries %}
+            <div class="demo-card">
+                <h3>{{ query.split(',')[0] }}</h3>
+                <p class="demo-query">{{ query }}</p>
+                <form action="/generate" method="get">
+                    <input type="hidden" name="prefill" value="{{ query }}">
+                    <button type="submit" class="btn-primary">Generate This Scene</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="demo-actions">
+            <a href="/generate" class="btn-secondary btn-large">✨ Create Custom Scene</a>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="demo-section">
+        <h2>🛠️ Built With</h2>
+        <div class="tech-grid">
+            <div class="tech-item">
+                <strong>Backend</strong>
+                <span>FastAPI + SQLite</span>
+            </div>
+            <div class="tech-item">
+                <strong>AI</strong>
+                <span>LangGraph + Gemini</span>
+            </div>
+            <div class="tech-item">
+                <strong>Frontend</strong>
+                <span>HTMX + Jinja2</span>
+            </div>
+            <div class="tech-item">
+                <strong>Deployment</strong>
+                <span>Zero config needed</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="demo-section">
+        <h2>✨ Features</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3>Photorealistic Images</h3>
+                <p>Google Gemini 2.5 Flash generates high-quality historical scenes</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <h3>Rich Characters</h3>
+                <p>AI-generated characters with clothing, roles, and personalities</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3>Authentic Dialog</h3>
+                <p>Period-appropriate conversations in historical context</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔗</div>
+                <h3>Scene Graphs</h3>
+                <p>Spatial relationships between characters and objects</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📡</div>
+                <h3>Real-time Progress</h3>
+                <p>Watch generation progress with Server-Sent Events</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Batteries Included</h3>
+                <p>SQLite auto-deploy, CLI tool, zero build step</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="demo-cta">
+        <h2>Ready to Time Travel?</h2>
+        <div class="cta-actions">
+            <a href="/generate" class="btn-primary btn-large">Generate Your First Scene</a>
+            <a href="/" class="btn-secondary btn-large">Browse Gallery</a>
+        </div>
+    </section>
+</div>
+
+<style>
+.demo-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.demo-hero {
+    text-align: center;
+    padding: 4rem 2rem;
+    margin-bottom: 3rem;
+    background: linear-gradient(135deg, #0070f3 0%, #00c9ff 100%);
+    border-radius: 16px;
+    color: white;
+}
+
+.demo-hero h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.hero-subtitle {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.95;
+}
+
+.hero-description {
+    font-size: 1.1rem;
+    max-width: 700px;
+    margin: 0 auto;
+    opacity: 0.9;
+    line-height: 1.6;
+}
+
+.demo-section {
+    margin-bottom: 4rem;
+    background: var(--background-alt, #1e1e1e);
+    border-radius: 12px;
+    padding: 2.5rem;
+}
+
+.demo-section.featured {
+    background: linear-gradient(135deg, rgba(0, 112, 243, 0.1) 0%, rgba(0, 201, 255, 0.1) 100%);
+    border: 2px solid var(--accent, #0070f3);
+}
+
+.demo-section h2 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.section-subtitle {
+    text-align: center;
+    color: var(--text-muted, #999);
+    margin-bottom: 2rem;
+}
+
+.workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.workflow-step {
+    text-align: center;
+}
+
+.step-number {
+    width: 60px;
+    height: 60px;
+    background: var(--accent, #0070f3);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 auto 1rem;
+}
+
+.workflow-step h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.workflow-step p {
+    color: var(--text-muted, #999);
+}
+
+.agent-pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.agent-flow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.agent-badge {
+    background: var(--background-body, #121212);
+    border: 1px solid var(--accent, #0070f3);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.arrow {
+    color: var(--text-muted, #666);
+    font-size: 1.2rem;
+}
+
+.pipeline-note {
+    text-align: center;
+    color: var(--text-muted, #999);
+    margin-top: 1.5rem;
+    font-style: italic;
+}
+
+.demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.demo-card {
+    background: var(--background-body, #121212);
+    border: 2px solid var(--border, #333);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+}
+
+.demo-card:hover {
+    border-color: var(--accent, #0070f3);
+    transform: translateY(-4px);
+}
+
+.demo-card h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+}
+
+.demo-query {
+    color: var(--text-muted, #999);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.demo-actions {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.tech-item {
+    background: var(--background-body, #121212);
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.tech-item strong {
+    display: block;
+    color: var(--accent, #0070f3);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.tech-item span {
+    color: var(--text-muted, #999);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.feature-card {
+    background: var(--background-body, #121212);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.feature-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+}
+
+.feature-card p {
+    color: var(--text-muted, #999);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.demo-cta {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: var(--background-alt, #1e1e1e);
+    border-radius: 12px;
+}
+
+.demo-cta h2 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+}
+
+.cta-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+    display: inline-block;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-primary {
+    background: var(--accent, #0070f3);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover, #0051cc);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: var(--background-body, #121212);
+    color: var(--text, #fff);
+    border: 2px solid var(--border, #555);
+}
+
+.btn-secondary:hover {
+    background: var(--background-alt, #2a2a2a);
+    border-color: var(--accent, #0070f3);
+}
+
+.btn-large {
+    padding: 1rem 2.5rem;
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .demo-hero h1 {
+        font-size: 2rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1.2rem;
+    }
+
+    .demo-section h2 {
+        font-size: 1.5rem;
+    }
+}
+</style>
+{% endblock %}

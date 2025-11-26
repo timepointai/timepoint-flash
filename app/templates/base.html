@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TIMEPOINT FLASH{% endblock %}</title>
+
+    <!-- Minimal Classless CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css">
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- HTMX for Dynamic UX -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1><a href="/" style="text-decoration: none;">🎬 TIMEPOINT FLASH</a></h1>
+                <ul class="nav-links">
+                    <li><a href="/">Gallery</a></li>
+                    <li><a href="/generate">Generate</a></li>
+                    <li><a href="/demo">Demo</a></li>
+                    <li><a href="/api/docs" target="_blank">API Docs</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>
+                <strong>TIMEPOINT FLASH</strong> - Photorealistic Time Travel powered by AI
+            </p>
+            <p style="font-size: 0.9em; opacity: 0.8;">
+                Built with FastAPI + HTMX | Data stored in SQLite
+            </p>
+        </div>
+    </footer>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

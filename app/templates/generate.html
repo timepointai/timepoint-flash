@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Timepoint - TIMEPOINT FLASH{% endblock %}
+
+{% block content %}
+<div class="generate-container">
+    <div class="generate-header">
+        <h1>✨ Generate a Timepoint</h1>
+        <p>Create a photorealistic scene from any moment in history</p>
+    </div>
+
+    <!-- Generation Form -->
+    <div id="generation-form" class="generation-card">
+        <form id="timepoint-form">
+            <div class="form-group">
+                <label for="query">Describe the scene</label>
+                <input
+                    type="text"
+                    id="query"
+                    name="query"
+                    placeholder="Medieval marketplace, London 1250"
+                    required
+                    class="form-input">
+                <small class="form-help">
+                    Be specific: include location, time period, weather, and activity
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email (optional - for rate limiting)</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="your@email.com"
+                    class="form-input">
+            </div>
+
+            <button type="submit" class="btn-primary btn-large">
+                🚀 Generate Scene
+            </button>
+        </form>
+
+        <div class="examples">
+            <h3>Try these examples:</h3>
+            <div class="example-grid">
+                <button class="example-btn" onclick="fillExample('Medieval marketplace in London, winter 1250')">
+                    Medieval London
+                </button>
+                <button class="example-btn" onclick="fillExample('Ancient Rome forum, summer 50 BCE')">
+                    Ancient Rome
+                </button>
+                <button class="example-btn" onclick="fillExample('American Revolutionary War, Valley Forge 1777')">
+                    Valley Forge
+                </button>
+                <button class="example-btn" onclick="fillExample('Victorian London street, foggy evening 1888')">
+                    Victorian London
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Display (hidden initially) -->
+    <div id="progress-container" style="display: none;" class="generation-card">
+        <h2>⚙️ Generating Scene...</h2>
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div id="progress-log" class="progress-log"></div>
+        <div id="result-container" style="display: none;">
+            <div class="success-message">
+                <h3>✅ Generation Complete!</h3>
+                <a id="view-link" href="#" class="btn-primary">View Timepoint</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.generate-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.generate-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.generate-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.generate-header p {
+    font-size: 1.2rem;
+    color: var(--text-muted, #999);
+}
+
+.generation-card {
+    background: var(--background-alt, #1e1e1e);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.875rem;
+    border: 2px solid var(--border, #333);
+    border-radius: 6px;
+    background: var(--background-body, #121212);
+    color: var(--text, #fff);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus {
+    border-color: var(--accent, #0070f3);
+    outline: none;
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted, #777);
+}
+
+.btn-primary {
+    background: var(--accent, #0070f3);
+    color: white;
+    border: none;
+    padding: 0.875rem 2rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-block;
+    text-decoration: none;
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover, #0051cc);
+    transform: translateY(-2px);
+}
+
+.btn-large {
+    width: 100%;
+    font-size: 1.1rem;
+    padding: 1rem;
+}
+
+.examples {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border, #333);
+}
+
+.examples h3 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: var(--text-muted, #999);
+}
+
+.example-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
+.example-btn {
+    background: var(--background-body, #121212);
+    border: 1px solid var(--border, #444);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+    color: var(--text, #fff);
+}
+
+.example-btn:hover {
+    background: var(--background-alt, #2a2a2a);
+    border-color: var(--accent, #0070f3);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--background-body, #121212);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0070f3, #00c9ff);
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+.progress-log {
+    max-height: 400px;
+    overflow-y: auto;
+    background: var(--background-body, #0d0d0d);
+    border: 1px solid var(--border, #333);
+    border-radius: 6px;
+    padding: 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+
+.progress-entry {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-left: 3px solid var(--accent, #0070f3);
+    padding-left: 0.75rem;
+}
+
+.progress-entry.error {
+    border-color: #ff4444;
+    color: #ff6666;
+}
+
+.progress-entry.success {
+    border-color: #44ff44;
+    color: #66ff66;
+}
+
+.success-message {
+    text-align: center;
+    padding: 2rem;
+}
+
+.success-message h3 {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #44ff44;
+}
+</style>
+
+<script>
+function fillExample(text) {
+    document.getElementById('query').value = text;
+}
+
+document.getElementById('timepoint-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const query = document.getElementById('query').value;
+    const email = document.getElementById('email').value || 'demo@timepoint.dev';
+
+    // Hide form, show progress
+    document.getElementById('generation-form').style.display = 'none';
+    document.getElementById('progress-container').style.display = 'block';
+
+    try {
+        // Start generation
+        const response = await fetch('/api/timepoint/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ input_query: query, requester_email: email })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Generation failed');
+        }
+
+        // Connect to SSE stream
+        const sessionId = data.session_id;
+        const eventSource = new EventSource(`/api/timepoint/status/${sessionId}`);
+
+        let lastProgress = 0;
+
+        eventSource.addEventListener('progress', (e) => {
+            const data = JSON.parse(e.data);
+            const logDiv = document.getElementById('progress-log');
+
+            const entry = document.createElement('div');
+            entry.className = 'progress-entry';
+            entry.textContent = `[${data.agent || 'SYSTEM'}] ${data.message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+
+            // Update progress bar
+            if (data.progress !== undefined) {
+                lastProgress = data.progress;
+                document.getElementById('progress-fill').style.width = `${data.progress}%`;
+            }
+        });
+
+        eventSource.addEventListener('complete', (e) => {
+            const data = JSON.parse(e.data);
+            eventSource.close();
+
+            // Show success message
+            document.getElementById('progress-fill').style.width = '100%';
+            document.getElementById('result-container').style.display = 'block';
+            document.getElementById('view-link').href = `/view/${data.slug}`;
+
+            const logDiv = document.getElementById('progress-log');
+            const entry = document.createElement('div');
+            entry.className = 'progress-entry success';
+            entry.textContent = `✅ Complete! Generated timepoint: ${data.slug}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        });
+
+        eventSource.addEventListener('error', (e) => {
+            const logDiv = document.getElementById('progress-log');
+            const entry = document.createElement('div');
+            entry.className = 'progress-entry error';
+            entry.textContent = `❌ Error: ${e.data || 'Connection lost'}`;
+            logDiv.appendChild(entry);
+            eventSource.close();
+        });
+
+        eventSource.onerror = () => {
+            const logDiv = document.getElementById('progress-log');
+            const entry = document.createElement('div');
+            entry.className = 'progress-entry error';
+            entry.textContent = '❌ Connection error. Check server logs.';
+            logDiv.appendChild(entry);
+            eventSource.close();
+        };
+
+    } catch (error) {
+        const logDiv = document.getElementById('progress-log');
+        const entry = document.createElement('div');
+        entry.className = 'progress-entry error';
+        entry.textContent = `❌ ${error.message}`;
+        logDiv.appendChild(entry);
+    }
+});
+</script>
+{% endblock %}

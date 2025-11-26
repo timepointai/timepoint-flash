@@ -2,12 +2,14 @@
 FastAPI main application entry point.
 """
 import logging
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.routers import timepoint, feed, email
+from app.routers import timepoint, feed, email, gallery
 
 # Configure logging
 logging.basicConfig(
@@ -64,20 +66,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include routers
+    # Mount static files
+    static_dir = Path(__file__).parent / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Include API routers
     app.include_router(timepoint.router, prefix="/api/timepoint", tags=["timepoint"])
     app.include_router(feed.router, prefix="/api/feed", tags=["feed"])
     app.include_router(email.router, prefix="/api/email", tags=["email"])
 
-    @app.get("/")
-    async def root():
-        """API Root."""
-        return {
-            "service": "TIMEPOINT AI API",
-            "status": "running",
-            "version": "1.0.0",
-            "docs": "/api/docs"
-        }
+    # Include gallery router (web UI) - handles root "/"
+    app.include_router(gallery.router, tags=["gallery"])
 
     @app.get("/health")
     async def health_check():
@@ -96,6 +96,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=5000,
+        port=8000,
         reload=settings.DEBUG
     )

@@ -1,200 +1,148 @@
-# TIMEPOINT Flash API
+# TIMEPOINT Flash
 
-**AI-powered photorealistic time travel API using Google Gemini 2.5 Flash Image models.**
+**AI-powered photorealistic time travel - batteries included.**
 
-Generate historically accurate scenes from any moment in history with AI-orchestrated multi-agent workflows, powered by LangGraph and Google's Generative AI suite.
+Generate historically accurate scenes from any moment in history using AI multi-agent workflows powered by Google Gemini models.
 
-**[📘 For AI Agents: See AGENTS.md](AGENTS.md)** - Comprehensive technical documentation designed for AI agents and autonomous systems working with this codebase.
-
----
-
-## Features
-
-- **Photorealistic Image Generation**: Using Google Gemini 2.5 Flash Image
-- **Multi-Agent Orchestration**: LangGraph coordinates AI agents for scene building
-- **Historical Accuracy**: Period-appropriate characters, dialog, and settings
-- **Real-time Progress**: Server-Sent Events (SSE) for live generation updates
-- **FastAPI Backend**: Modern async Python web framework
-- **PostgreSQL Database**: Robust data persistence with SQLAlchemy ORM
-- **Rate Limiting**: Built-in protection (configurable)
-- **API Documentation**: Auto-generated OpenAPI docs
+**[📘 For AI Agents: See AGENTS.md](AGENTS.md)** | **[🚀 Quick Start: See QUICKSTART.md](QUICKSTART.md)**
 
 ---
 
-## Tech Stack
+## What You Get
 
-- **Framework**: FastAPI 0.115+
-- **AI Orchestration**: LangGraph, LangChain
-- **Models**:
-  - `gemini-1.5-flash` (fast logic/validation)
-  - `gemini-1.5-pro` (creative generation)
-  - `google/gemini-2.5-flash-image` (image generation)
-- **Database**: PostgreSQL + SQLAlchemy 2.0
-- **Image Processing**: Pillow, CairoSVG
-- **Graph Analysis**: NetworkX
-- **Observability**: Logfire (optional)
+✨ **CLI Tool** - `tp demo` and see results in 90 seconds
+🖼️ **Web Gallery** - HTMX-powered UI, zero build step
+🗄️ **SQLite Auto-Deploy** - No database setup required
+🎨 **Photorealistic Images** - Google Gemini 2.5 Flash
+🤖 **11-Agent Workflow** - LangGraph orchestration
+📡 **Real-time Updates** - Server-Sent Events (SSE)
+🧪 **Comprehensive Tests** - Fast unit + e2e with LLM judge
 
 ---
 
 ## Quick Start
 
-### Prerequisites
+```bash
+# One command setup (checks Python, installs deps, configures API key)
+./setup.sh
 
-- Python 3.11+
-- PostgreSQL database
-- Google AI API key (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
+# Run demo (generates 3 scenes + opens gallery)
+./tp demo
+```
 
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/realityinspector/timepoint-flash.git
-   cd timepoint-flash
-   ```
-
-2. **Run setup script**
-   ```bash
-   chmod +x init.sh
-   ./init.sh
-   ```
-
-3. **Activate virtual environment**
-   ```bash
-   source .venv/bin/activate
-   ```
-
-4. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys and database URL
-   ```
-
-5. **Run database migrations**
-   ```bash
-   alembic upgrade head
-   ```
-
-6. **Start the server**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-   API will be available at: http://localhost:5000
-
-   API docs at: http://localhost:5000/api/docs
+That's it! See [QUICKSTART.md](QUICKSTART.md) for details.
 
 ---
 
-## Environment Variables
-
-Create a `.env` file with the following:
+## CLI Commands
 
 ```bash
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/timepoint_flash
-
-# Google AI (Primary)
-GOOGLE_API_KEY=your_google_api_key_here
-
-# OpenRouter (Fallback)
-OPENROUTER_API_KEY=optional_fallback_key
-
-# Observability
-LOGFIRE_TOKEN=optional_token
-
-# Application Settings
-DEBUG=false
-MAX_TIMEPOINTS_PER_HOUR=1
-JUDGE_MODEL=gemini-1.5-flash
-IMAGE_MODEL=google/gemini-2.5-flash-image
-
-# Security (Generate with: openssl rand -hex 32)
-SECRET_KEY=your_secret_key_here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# CORS
-ALLOWED_ORIGINS=["http://localhost:3000"]
+./tp generate "Medieval marketplace, London 1250"  # Generate scene
+./tp list                                          # List all timepoints
+./tp serve --open-browser                          # Start server + gallery
+./tp demo                                          # Quick demo mode
 ```
 
 ---
 
-## API Endpoints
+## Features
 
-### Health Check
-```
-GET /health
-```
-Returns service status.
+### 🎬 Multi-Agent Orchestration
 
-### Create Timepoint
-```
-POST /api/timepoint/create
-Body: { "query": "medieval marketplace in winter 1250", "email": "user@example.com" }
-```
-Starts timepoint generation, returns session ID.
+11 specialized AI agents work together via LangGraph:
 
-### Stream Progress (SSE)
 ```
-GET /api/timepoint/status/{session_id}
+Query → Judge → Timeline → Scene → Characters → Moment
+  → Dialog → Camera → Graph → Image Prompt → Image Gen → Segmentation
 ```
-Real-time progress updates via Server-Sent Events.
 
-### Get Timepoint Details
-```
-GET /api/timepoint/details/{year}/{season}/{slug}
-```
-Returns full timepoint data (characters, dialog, images, etc.).
+Each agent uses Google Gemini models for different tasks:
+- **gemini-1.5-flash** - Fast validation and logic
+- **gemini-1.5-pro** - Creative scene generation
+- **google/gemini-2.5-flash-image** - Photorealistic images
 
-### Feed/Gallery
-```
-GET /api/feed?page=1&limit=50
-```
-List all timepoints with pagination.
+### 🖼️ Web Gallery
 
-### Full API Documentation
-Visit `/api/docs` when running the server for interactive Swagger UI.
+HTMX-powered UI with:
+- Masonry grid layout
+- Infinite scroll
+- Live generation progress (SSE)
+- Character & dialog display
+- Zero JavaScript build step
+
+### 🗄️ Database Support
+
+**SQLite (default)**
+- Works out of the box
+- File-based: `sqlite:///./timepoint_local.db`
+- In-memory: `sqlite:///:memory:` (for tests)
+
+**PostgreSQL (optional)**
+- For production deployments
+- Set `DATABASE_URL=postgresql://...`
+- Auto-detected and used when available
+
+### 🧪 Testing
+
+Smart database detection for tests:
+
+```bash
+./test.sh fast     # Unit tests (5s, no API calls)
+./test.sh e2e      # Full workflow (5-10min, requires API key)
+./test.sh all      # Everything
+
+# Tests automatically use:
+# - SQLite by default
+# - PostgreSQL if DATABASE_URL is set and accessible
+# - Fallback to in-memory SQLite if PostgreSQL unavailable
+```
+
+E2E tests include **LLM-based quality judge** that scores:
+- Historical accuracy
+- Character quality
+- Dialog authenticity
+- Scene coherence
 
 ---
 
-## Architecture
+## Tech Stack
 
-### AI Agent Workflow
+**Backend**
+- FastAPI 0.115+ (async Python web framework)
+- Uvicorn (ASGI server)
+- SQLAlchemy 2.0 (ORM, supports SQLite + PostgreSQL)
+- Alembic (database migrations)
 
-```
-User Query
-    ↓
-[JUDGE] Validate & clean input
-    ↓
-[TIMELINE] Extract year, season, location
-    ↓
-[SCENE] Build setting, weather, environment
-    ↓
-[CHARACTERS] Generate 3-12 unique characters
-    ↓
-[MOMENT] Create dramatic plot/interaction
-    ↓
-[DIALOG] Generate period-accurate conversations
-    ↓
-[CAMERA] Define cinematic camera angles
-    ↓
-[GRAPH] Build NetworkX scene graph
-    ↓
-[IMAGE_PROMPT] Compile comprehensive prompt
-    ↓
-[IMAGE_GENERATION] Generate image (Gemini 2.5 Flash)
-    ↓
-[SEGMENTATION] Label characters in image
-    ↓
-Save to Database
-```
+**AI & Orchestration**
+- LangGraph (agent workflow)
+- LangChain (LLM framework)
+- Mirascope + Instructor (structured outputs)
+- Google Generative AI SDK
 
-### Project Structure
+**Frontend**
+- HTMX 1.9 (dynamic UI, 14KB)
+- Jinja2 (templates)
+- Water.css (classless CSS)
+- Server-Sent Events (real-time updates)
+
+**CLI & Tools**
+- Click (CLI framework)
+- Rich (terminal formatting)
+- HTTPX (async HTTP client)
+
+**Image & Graph Processing**
+- Pillow (image manipulation)
+- NetworkX (scene graph)
+- CairoSVG (SVG rendering)
+
+---
+
+## Project Structure
 
 ```
 timepoint-flash/
 ├── app/
-│   ├── agents/              # LangGraph AI agents
+│   ├── agents/              # 11 LangGraph AI agents
 │   │   ├── judge.py
 │   │   ├── timeline.py
 │   │   ├── scene_builder.py
@@ -206,215 +154,168 @@ timepoint-flash/
 │   ├── services/            # External integrations
 │   │   ├── google_ai.py
 │   │   ├── openrouter.py
-│   │   ├── openrouter_fallback.py
 │   │   └── scene_graph.py
-│   ├── routers/             # API endpoints
+│   ├── routers/             # API routes
 │   │   ├── timepoint.py
 │   │   ├── feed.py
-│   │   └── email.py
-│   ├── utils/
-│   │   └── rate_limiter.py
-│   ├── models.py            # SQLAlchemy ORM models
-│   ├── database.py          # Database setup
-│   ├── config.py            # Pydantic settings
-│   ├── schemas.py           # Pydantic request/response models
-│   └── main.py              # FastAPI app entry point
-├── alembic/                 # Database migrations
-├── scripts/                 # Utility scripts
-├── .env.example             # Environment template
-├── requirements.txt         # Python dependencies
-├── Dockerfile               # Container config
-├── .replit                  # Replit deployment config
-└── pyproject.toml           # Project metadata
+│   │   └── gallery.py       # ← New: Web UI routes
+│   ├── templates/           # ← New: Jinja2 templates
+│   │   ├── base.html
+│   │   ├── gallery.html
+│   │   ├── viewer.html
+│   │   └── generate.html
+│   ├── static/              # ← New: CSS & assets
+│   │   └── css/style.css
+│   ├── cli.py               # ← New: CLI tool
+│   ├── models.py            # Database models (SQLite + PostgreSQL)
+│   ├── database.py
+│   ├── config.py
+│   ├── schemas.py
+│   └── main.py
+├── tests/
+│   ├── conftest.py          # Smart database fixtures
+│   ├── test_fast.py         # Unit tests
+│   ├── test_e2e.py          # Integration tests
+│   └── utils/llm_judge.py
+├── pyproject.toml           # CLI entry point + dependencies
+├── requirements.txt
+├── .env.example
+├── README.md
+├── AGENTS.md
+└── QUICKSTART.md            # ← New: Ultra-concise guide
 ```
+
+---
+
+## API Endpoints
+
+### Gallery (Web UI)
+- `GET /` → Gallery grid
+- `GET /view/{slug}` → Single timepoint
+- `GET /generate` → Live generation form
+- `GET /demo` → Demo landing
+
+### API (JSON)
+- `POST /api/timepoint/create` → Start generation
+- `GET /api/timepoint/status/{session_id}` → SSE progress stream
+- `GET /api/timepoint/details/{slug}` → Get timepoint data
+- `GET /api/feed` → List all (paginated)
+- `GET /api/docs` → Interactive API documentation
+
+---
+
+## Environment Variables
+
+Minimal `.env`:
+
+```bash
+# Required (choose one):
+OPENROUTER_API_KEY=your_key      # Includes Google models
+# OR
+GOOGLE_API_KEY=your_key          # Direct Google AI access
+
+# Optional:
+DATABASE_URL=sqlite:///./timepoint_local.db  # Default
+LOGFIRE_TOKEN=your_token         # Observability (optional)
+DEBUG=true                       # Enable API docs
+```
+
+See `.env.example` for all options.
 
 ---
 
 ## Deployment
 
-### Replit
-
-This repo is configured for Replit deployment. Simply:
-1. Import repo to Replit
-2. Set environment secrets in Replit
-3. Run with the `.replit` configuration
-
-### Docker
-
+### Local Development
 ```bash
-docker build -t timepoint-flash .
-docker run -p 5000:5000 --env-file .env timepoint-flash
+./tp serve --port 8000
 ```
 
-### Railway / Cloud Platforms
+### Docker
+```bash
+docker build -t timepoint-flash .
+docker run -p 8000:8000 --env-file .env timepoint-flash
+```
 
+### Replit
+Configured for one-click deployment - just import the repo.
+
+### Railway / Render / Fly.io
 1. Push to GitHub
-2. Connect to Railway/Render/Fly.io
+2. Connect platform
 3. Set environment variables
 4. Deploy
+
+**Note**: For production, set `DATABASE_URL` to PostgreSQL.
 
 ---
 
 ## Development
 
-### Testing
-
-Timepoint Flash includes a comprehensive test suite with both fast unit tests and full end-to-end integration tests with LLM-based quality assessment.
-
-#### Quick Start
-
-```bash
-# Fast unit tests (no API key required)
-./test.sh fast
-
-# Full e2e tests with LLM judge (requires OPENROUTER_API_KEY)
-export OPENROUTER_API_KEY="your-key-here"
-./test.sh e2e
-
-# All tests
-./test.sh all
-
-# With coverage report
-./test.sh coverage
-```
-
-#### Test Setup
-
-1. **Install test dependencies**:
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-2. **Set up environment**:
-   ```bash
-   # Option 1: Export environment variable
-   export OPENROUTER_API_KEY="your-openrouter-api-key"
-
-   # Option 2: Create .env.dev file
-   cp .env.dev.example .env.dev
-   # Edit .env.dev with your API key
-   ```
-
-3. **Run tests**:
-   ```bash
-   # Fast tests only (no external API calls)
-   pytest -m fast
-
-   # E2E tests only (requires API key)
-   pytest -m e2e
-
-   # All tests
-   pytest
-
-   # With verbose output
-   pytest -v -s
-   ```
-
-#### Test Types
-
-**Fast Tests** (`tests/test_fast.py`)
-- Unit tests for database models
-- Rate limiting logic
-- API endpoint structure
-- No external API calls
-- Run in ~5 seconds
-
-**E2E Tests** (`tests/test_e2e.py`)
-- Full timepoint generation workflow
-- LLM-based quality assessment
-- Real API calls to OpenRouter/Google
-- Tests historical scenarios
-- Run in ~5-10 minutes
-
-#### LLM Performance Judge
-
-The e2e tests include an LLM-based judge that evaluates:
-- **Historical Accuracy** (0-100): Period-appropriate elements
-- **Character Quality** (0-100): Character development and consistency
-- **Dialog Quality** (0-100): Natural, period-appropriate dialog
-- **Scene Coherence** (0-100): Overall scene consistency
-
-Example output:
-```
-QUALITY ASSESSMENT RESULTS
-========================================
-Overall Score:        76.5/100
-Historical Accuracy:  82.0/100
-Character Quality:    78.0/100
-Dialog Quality:       72.0/100
-Scene Coherence:      75.0/100
-
-Feedback: Strong historical accuracy with well-developed
-characters. Dialog could be more period-specific.
-========================================
-Status: ✅ PASSED
-```
-
-#### Test Configuration
-
-Test settings in `pyproject.toml`:
-```toml
-[tool.pytest.ini_options]
-markers = [
-    "fast: Fast unit tests (no external API calls)",
-    "e2e: End-to-end integration tests (requires API keys)",
-    "slow: Slow tests (long-running operations)",
-]
-timeout = 300
-```
-
-### Code Quality
-
-```bash
-# Format with ruff
-ruff format .
-
-# Type checking
-mypy app/
-```
-
 ### Database Migrations
-
 ```bash
-# Create new migration
 alembic revision --autogenerate -m "description"
-
-# Apply migrations
 alembic upgrade head
-
-# Rollback
 alembic downgrade -1
 ```
 
+### Code Quality
+```bash
+ruff format .       # Format
+mypy app/           # Type check
+pytest -m fast      # Unit tests
+```
+
+### Adding New Agents
+See [AGENTS.md](AGENTS.md) for architecture details.
+
 ---
 
-## Rate Limiting
+## Configuration
 
-Default: 1 timepoint per hour per email address.
+### Rate Limiting
+Default: 1 timepoint/hour per email
 
-Configure in `.env`:
 ```bash
-MAX_TIMEPOINTS_PER_HOUR=1
+MAX_TIMEPOINTS_PER_HOUR=5  # Increase limit
+```
+
+### Models
+```bash
+JUDGE_MODEL=gemini-1.5-flash
+CREATIVE_MODEL=gemini-1.5-pro
+IMAGE_MODEL=google/gemini-2.5-flash-image
+```
+
+### CORS
+```bash
+ALLOWED_ORIGINS=["http://localhost:3000","https://yourdomain.com"]
 ```
 
 ---
 
-## Observability
+## Performance
 
-Optional Logfire integration for monitoring:
+Typical timepoint generation:
+- **Judge**: 1-2s
+- **Timeline**: 1-2s
+- **Scene + Characters**: 3-5s
+- **Moment + Dialog**: 3-5s
+- **Camera + Graph**: 2-3s
+- **Image Prompt**: 1s
+- **Image Generation**: 25-35s (Gemini 2.5)
+- **Segmentation**: 2-3s
 
-1. Get token from [Logfire](https://logfire.pydantic.dev/)
-2. Set `LOGFIRE_TOKEN` in `.env`
-3. View traces and metrics in Logfire dashboard
+**Total**: 40-60s end-to-end
 
 ---
 
-## Contributing
+## Documentation
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+- **[README.md](README.md)** - Overview (this file)
+- **[QUICKSTART.md](QUICKSTART.md)** - Ultra-concise getting started
+- **[AGENTS.md](AGENTS.md)** - Technical docs for AI agents
+- **[API Docs](http://localhost:8000/api/docs)** - Interactive Swagger UI
 
 ---
 
@@ -424,16 +325,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-## Documentation
-
-- **[README.md](README.md)** - User documentation (this file)
-- **[AGENTS.md](AGENTS.md)** - Technical documentation for AI agents
-- **[API Documentation](http://localhost:5000/api/docs)** - Interactive API docs (when running)
-
-## Support
-
-For issues or questions, please open an issue on GitHub.
-
----
-
-**Built with** ⚡ **FastAPI** | 🧠 **LangGraph** | 🎨 **Google Gemini**
+**Built with** ⚡ FastAPI | 🧠 LangGraph | 🎨 Google Gemini | ⚡ HTMX

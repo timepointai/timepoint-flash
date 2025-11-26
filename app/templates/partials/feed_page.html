@@ -1,0 +1,47 @@
+{% for timepoint in timepoints %}
+<div class="timepoint-card">
+    <a href="/view/{{ timepoint.slug }}" class="card-link">
+        {% if timepoint.image_url %}
+        <div class="card-image">
+            <img src="{{ timepoint.image_url }}" alt="{{ timepoint.cleaned_query }}" loading="lazy">
+        </div>
+        {% endif %}
+
+        <div class="card-content">
+            <div class="card-meta">
+                <span class="year">{{ timepoint.year }}</span>
+                <span class="season">{{ timepoint.season }}</span>
+            </div>
+
+            <h3 class="card-title">{{ timepoint.cleaned_query }}</h3>
+
+            {% if timepoint.character_data_json %}
+            <div class="card-stats">
+                <span>👥 {{ timepoint.character_data_json|length }} characters</span>
+                {% if timepoint.dialog_json %}
+                <span>💬 {{ timepoint.dialog_json|length }} lines</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if timepoint.processing_time_ms %}
+            <div class="card-time">
+                ⏱️ Generated in {{ (timepoint.processing_time_ms / 1000)|round(1) }}s
+            </div>
+            {% endif %}
+        </div>
+    </a>
+</div>
+{% endfor %}
+
+{% if has_more %}
+<div class="load-more" id="load-more-container">
+    <button
+        hx-get="/partials/feed-page?page={{ page }}"
+        hx-target="#gallery-grid"
+        hx-swap="beforeend"
+        class="btn-primary">
+        Load More Timepoints
+    </button>
+</div>
+{% endif %}

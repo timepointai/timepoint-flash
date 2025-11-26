@@ -1,14 +1,49 @@
 """
 SQLAlchemy ORM models for database tables.
+
+Supports both SQLite (local/demo) and PostgreSQL (production).
 """
-from sqlalchemy import Column, String, Integer, Boolean, Text, ForeignKey, DateTime, Enum, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, Integer, Boolean, Text, ForeignKey, DateTime, Enum, TIMESTAMP, TypeDecorator
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import uuid
+import uuid as uuid_module
 import enum
 
 from app.database import Base
+
+
+class UUID(TypeDecorator):
+    """Platform-independent UUID type.
+
+    Uses PostgreSQL's UUID type when available, otherwise uses String(36).
+    """
+    impl = String
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PG_UUID(as_uuid=True))
+        else:
+            return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return value
+        else:
+            if isinstance(value, uuid_module.UUID):
+                return str(value)
+            return value
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid_module.UUID):
+            return uuid_module.UUID(value)
+        return value
 
 
 class ProcessingStatus(str, enum.Enum):
@@ -26,7 +61,7 @@ class Email(Base):
     """Email addresses for user identification and rate limiting."""
     __tablename__ = "emails"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID(), primary_key=True, default=uuid_module.uuid4)
     email = Column(String(255), unique=True, index=True, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     verified = Column(Boolean, default=False)
@@ -41,8 +76,8 @@ class Timepoint(Base):
     """Generated timepoint with scene, characters, and images."""
     __tablename__ = "timepoints"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email_id = Column(UUID(as_uuid=True), ForeignKey("emails.id"), nullable=False)
+    id = Column(UUID(), primary_key=True, default=uuid_module.uuid4)
+    email_id = Column(UUID(), ForeignKey("emails.id"), nullable=False)
 
     # Permalink components
     slug = Column(String(255), unique=True, index=True, nullable=False)
@@ -55,10 +90,10 @@ class Timepoint(Base):
     is_fictional = Column(Boolean, default=False, nullable=False)  # For fictional timelines (Star Wars, LOTR, etc)
 
     # Scene data
-    scene_graph_json = Column(JSONB, nullable=True)
-    character_data_json = Column(JSONB, nullable=True)
-    dialog_json = Column(JSONB, nullable=True)
-    metadata_json = Column(JSONB, nullable=True)
+    scene_graph_json = Column(JSON, nullable=True)
+    character_data_json = Column(JSON, nullable=True)
+    dialog_json = Column(JSON, nullable=True)
+    metadata_json = Column(JSON, nullable=True)
 
     # Images (using Text to support large base64 data URLs)
     image_url = Column(Text, nullable=True)
@@ -76,8 +111,8 @@ class RateLimit(Base):
     """Rate limiting per email address."""
     __tablename__ = "rate_limits"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email_id = Column(UUID(as_uuid=True), ForeignKey("emails.id"), unique=True, nullable=False)
+    id = Column(UUID(), primary_key=True, default=uuid_module.uuid4)
+    email_id = Column(UUID(), ForeignKey("emails.id"), unique=True, nullable=False)
 
     last_created_at = Column(TIMESTAMP, nullable=True)
     count_1h = Column(Integer, default=0)
@@ -91,15 +126,15 @@ class ProcessingSession(Base):
     """Temporary session data for ongoing timepoint generation."""
     __tablename__ = "processing_sessions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID(), primary_key=True, default=uuid_module.uuid4)
     session_id = Column(String(255), unique=True, index=True, nullable=False)
     email = Column(String(255), nullable=False)
 
     status = Column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)
-    progress_data_json = Column(JSONB, nullable=True)
+    progress_data_json = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
 
-    timepoint_id = Column(UUID(as_uuid=True), ForeignKey("timepoints.id"), nullable=True)
+    timepoint_id = Column(UUID(), ForeignKey("timepoints.id"), nullable=True)
 
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

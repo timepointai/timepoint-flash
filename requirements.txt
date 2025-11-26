@@ -3,6 +3,9 @@ fastapi==0.115.12
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 sse-starlette==2.2.1
+jinja2==3.1.4
+click==8.1.7
+rich==13.9.4
 
 # Database
 sqlalchemy==2.0.39
