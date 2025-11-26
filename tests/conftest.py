@@ -228,6 +228,39 @@ def client(db_session: Session, test_settings: Settings) -> Generator[TestClient
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def cleanup_test_data_fixture(db_session: Session, request):
+    """
+    Automatically clean up test data after each test function.
+
+    This fixture runs after every test to ensure test isolation.
+    Cleans up:
+    - Test emails (test-*@example.com)
+    - Associated timepoints
+    - Rate limits
+    - Processing sessions
+    - IP rate limits
+
+    Only runs for e2e tests (not fast tests).
+    """
+    # Skip cleanup for fast tests (they use in-memory DB or rollback)
+    if "fast" in request.keywords:
+        yield
+        return
+
+    # Run the test first
+    yield
+
+    # Cleanup after test
+    try:
+        from tests.utils.test_helpers import cleanup_test_data
+        cleanup_test_data(db_session, email_pattern="test-%@example.com")
+        cleanup_test_data(db_session, email_pattern="test-%@%.com")  # Catch all test emails
+    except Exception as e:
+        # Don't fail test if cleanup fails, just warn
+        logger.warning(f"Test cleanup failed: {e}")
+
+
 @pytest.fixture(scope="session")
 def openrouter_api_key() -> str:
     """

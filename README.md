@@ -145,12 +145,13 @@ HTMX-powered UI with:
 
 ### 🧪 Testing
 
-Smart database detection for tests:
+Comprehensive test suite with 40+ tests:
 
 ```bash
-./test.sh fast     # Unit tests (5s, no API calls)
-./test.sh e2e      # Full workflow (5-10min, requires API key)
+./test.sh fast     # Unit tests (~5s, no API calls)
+./test.sh e2e      # Full workflow (~10-15min, requires API key)
 ./test.sh all      # Everything
+./test.sh coverage # Generate coverage report
 
 # Tests automatically use:
 # - SQLite by default
@@ -158,11 +159,22 @@ Smart database detection for tests:
 # - Fallback to in-memory SQLite if PostgreSQL unavailable
 ```
 
-E2E tests include **LLM-based quality judge** that scores:
-- Historical accuracy
-- Character quality
-- Dialog authenticity
-- Scene coherence
+**Test Categories**:
+- **13 fast unit tests** - Database, API, rate limiting
+- **10 e2e scenarios** - Full workflow with LLM judge evaluation
+- **8 agent tests** - Individual agent validation
+- **3 image tests** - Image generation & segmentation
+- **8 API tests** - Rate limiting, concurrency, error handling
+
+**Features**:
+- Smart polling (no hardcoded waits)
+- Auto-retry on transient failures
+- Test isolation with automatic cleanup
+- Mock mode for offline testing (`USE_MOCKS=true`)
+- LLM-based quality judge (evaluates historical accuracy, character quality, dialog, coherence)
+- CI/CD integration with GitHub Actions
+
+**[📖 Full Testing Guide →](TESTING.md)**
 
 ---
 
@@ -375,6 +387,7 @@ Typical timepoint generation:
 
 - **[README.md](README.md)** - Overview (this file)
 - **[QUICKSTART.md](QUICKSTART.md)** - Ultra-concise getting started
+- **[TESTING.md](TESTING.md)** - Comprehensive testing guide
 - **[docs/API.md](docs/API.md)** - Public API guide for developers
 - **[docs/MODELS.md](docs/MODELS.md)** - Nano Banana models explained
 - **[AGENTS.md](AGENTS.md)** - Technical docs for AI agents
