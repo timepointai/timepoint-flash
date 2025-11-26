@@ -2,6 +2,17 @@
 
 Ready-to-run code examples for the TIMEPOINT Flash API.
 
+## 🚨 First Time Here?
+
+**Run setup first** (from project root):
+```bash
+cd ..            # Go to project root
+./setup.sh       # One-command setup (30 seconds)
+./tp demo        # Optional: See demo in action
+```
+
+**See**: [QUICKSTART.md](../QUICKSTART.md) for complete setup instructions.
+
 ## Prerequisites
 
 1. **Start the server:**
@@ -11,6 +22,12 @@ Ready-to-run code examples for the TIMEPOINT Flash API.
    ```
 
 2. **Server runs on:** `http://localhost:8000`
+
+3. **Verify server is running:**
+   ```bash
+   curl http://localhost:8000/health
+   # Should return: {"status":"healthy","service":"timepoint-flash"}
+   ```
 
 ---
 

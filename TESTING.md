@@ -2,6 +2,15 @@
 
 Comprehensive guide to running, writing, and understanding tests for TIMEPOINT Flash.
 
+## 🚨 First Time Here?
+
+**Run setup first**:
+```bash
+./setup.sh       # One-command setup (installs deps, configures API key)
+```
+
+**See**: [QUICKSTART.md](QUICKSTART.md) for complete setup instructions.
+
 ---
 
 ## Quick Start
