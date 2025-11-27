@@ -308,18 +308,55 @@ timepoint-flash/
 
 ## Environment Variables
 
-Minimal `.env`:
+### API Key Configuration
+
+TIMEPOINT Flash supports flexible API key configuration with automatic fallback:
+
+**Option 1: OpenRouter Only** (Recommended for beginners)
+```bash
+OPENROUTER_API_KEY=your_key      # All Google models via OpenRouter
+```
+- Get a free key at https://openrouter.ai/keys
+- Supports Gemini 2.5 Flash, 2.5 Pro, and image models
+- Automatic rate limiting and error handling
+
+**Option 2: Direct Google AI** (Recommended for production)
+```bash
+GOOGLE_API_KEY=your_key          # Direct Google AI access
+OPENROUTER_API_KEY=your_key      # Fallback for safety blocks
+```
+- Get Google AI key at https://aistudio.google.com/app/apikey
+- Faster response times, lower costs
+- Automatic fallback to OpenRouter when Google blocks content (e.g., historical events)
+
+**Option 3: OpenRouter + Google** (Best of both worlds)
+```bash
+GOOGLE_API_KEY=your_key          # Primary provider
+OPENROUTER_API_KEY=your_key      # Fallback provider
+```
+- System automatically:
+  - Uses Google AI for most requests
+  - Falls back to OpenRouter when Google blocks content (safety filters)
+  - Routes image generation to your preferred provider
+  - Handles placeholder/invalid keys gracefully
+
+### How Fallback Works
+
+1. **Invalid/Missing Google Key**: Automatically routes all calls to OpenRouter
+2. **Google Safety Block**: Detects `finish_reason=2`, retries via OpenRouter
+3. **Image Generation**: Routes based on `IMAGE_MODEL` config (supports both providers)
+
+### Other Configuration
 
 ```bash
-# Required (choose one):
-OPENROUTER_API_KEY=your_key      # Includes Google models
-# OR
-GOOGLE_API_KEY=your_key          # Direct Google AI access
-
-# Optional:
+# Database (optional)
 DATABASE_URL=sqlite:///./timepoint_local.db  # Default
-LOGFIRE_TOKEN=your_token         # Observability (optional)
-DEBUG=true                       # Enable API docs
+
+# Observability (optional)
+LOGFIRE_TOKEN=your_token
+
+# Development (optional)
+DEBUG=true                       # Enable API docs at /api/docs
 ```
 
 See `.env.example` for all options.
@@ -433,17 +470,33 @@ Typical timepoint generation:
 python3 --version  # Should show 3.11 or higher
 ```
 
-### "No API key found" or "OPENROUTER_API_KEY not configured"
+### "No API key found" or API key errors
+**Problem**: Missing, invalid, or placeholder API keys
+
 **Solution 1**: Run setup script interactively:
 ```bash
 ./setup.sh  # Will prompt for API key
 ```
 
-**Solution 2**: Manual edit:
+**Solution 2**: Manual edit (.env file):
 ```bash
+# Option A: OpenRouter only (easiest)
 echo "OPENROUTER_API_KEY=your_key_here" >> .env
 # Get free key at: https://openrouter.ai/keys
+
+# Option B: Google AI (faster, but may block historical content)
+echo "GOOGLE_API_KEY=your_key_here" >> .env
+# Get key at: https://aistudio.google.com/app/apikey
+
+# Option C: Both (recommended - automatic fallback)
+echo "GOOGLE_API_KEY=your_google_key" >> .env
+echo "OPENROUTER_API_KEY=your_openrouter_key" >> .env
 ```
+
+**Note**: System automatically handles:
+- Invalid/placeholder keys → routes to fallback provider
+- Google safety blocks → retries via OpenRouter
+- Missing keys → shows clear error message
 
 ### "Port already in use" (Address already in use: 8000)
 **Solution**: Use a different port:
