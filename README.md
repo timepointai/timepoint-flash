@@ -54,7 +54,7 @@ git checkout archive/v1-legacy
 - 📅 **Week 7**: Testing & polish
 - 📅 **Week 8**: Launch v2.0.0
 
-See `archive/REFACTOR.md` for complete plan.
+See `REFACTOR.md` for complete plan.
 
 ---
 

@@ -7,7 +7,6 @@ This directory contains documentation from TIMEPOINT Flash v1.0, archived during
 - **README-v1.md** - Original README from v1.0
 - **QUICKSTART-v1.md** - Original quick start guide
 - **TESTING-v1.md** - Original testing documentation
-- **REFACTOR.md** - v2.0 refactor plan that initiated this cleanup
 
 ## Accessing v1.0 Code
 
@@ -37,7 +36,7 @@ TIMEPOINT Flash v2.0 is a complete architectural rebuild featuring:
 5. **Test-Driven Development** - >80% coverage with pytest
 6. **Production FastAPI** - Tight server with OpenAPI and HTMX viewer
 
-See `REFACTOR.md` in this directory for the complete migration plan.
+See `REFACTOR.md` in the root directory for the complete migration plan.
 
 ---
 
