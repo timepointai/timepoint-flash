@@ -19,6 +19,52 @@ else:
 
 T = TypeVar('T', bound=BaseModel)
 
+def _truncate_long_fields(data: dict, model: Type[BaseModel]) -> dict:
+    """
+    Truncate string fields that exceed max_length constraints in the Pydantic model.
+
+    This is a safety net for when LLMs don't respect character limits in prompts.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    # Get field info from Pydantic model
+    model_fields = model.model_fields
+
+    truncated = {}
+    for key, value in data.items():
+        if key not in model_fields:
+            truncated[key] = value
+            continue
+
+        field_info = model_fields[key]
+
+        # Check for max_length constraint on string fields
+        if isinstance(value, str) and hasattr(field_info, 'metadata'):
+            for constraint in field_info.metadata:
+                if hasattr(constraint, 'max_length') and constraint.max_length:
+                    if len(value) > constraint.max_length:
+                        logger.warning(
+                            f"[Truncation] Field '{key}' exceeded {constraint.max_length} chars "
+                            f"({len(value)} chars), truncating..."
+                        )
+                        value = value[:constraint.max_length]
+                        break
+
+        # Recursively handle nested Pydantic models
+        if hasattr(field_info.annotation, '__bases__') and BaseModel in field_info.annotation.__bases__:
+            value = _truncate_long_fields(value, field_info.annotation)
+        # Handle lists of Pydantic models
+        elif isinstance(value, list) and value:
+            if hasattr(field_info.annotation, '__args__'):
+                item_type = field_info.annotation.__args__[0]
+                if hasattr(item_type, '__bases__') and BaseModel in item_type.__bases__:
+                    value = [_truncate_long_fields(item, item_type) for item in value]
+
+        truncated[key] = value
+
+    return truncated
+
 def _is_valid_google_key() -> bool:
     """Check if GOOGLE_API_KEY is valid (not None, empty, or placeholder)."""
     if not settings.GOOGLE_API_KEY:
@@ -160,36 +206,97 @@ async def call_llm(
 
         logger.info(f"[GoogleAI] Calling {actual_model}")
 
-        # Get Pydantic schema and clean it for Google AI compatibility
-        raw_schema = response_model.model_json_schema()
-        cleaned_schema = _clean_schema_for_google(raw_schema)
+        # Create enhanced system prompt with schema information
+        schema_prompt = f"{system_prompt}\n\nIMPORTANT: You MUST return valid JSON that EXACTLY matches this schema:\n{json.dumps(response_model.model_json_schema(), indent=2)}"
 
-        logger.debug(f"[GoogleAI] Using cleaned schema: {json.dumps(cleaned_schema, indent=2)[:500]}")
-
-        # Create the model
-        # Note: system_instruction is supported in newer SDK versions
+        # Create the model without response_schema (instructor will handle validation)
+        # Note: Using JSON mode without schema for better compatibility
         gen_model = genai.GenerativeModel(
             model_name=actual_model,
-            system_instruction=system_prompt,
+            system_instruction=schema_prompt,
             safety_settings=_get_safety_settings(),
             generation_config=genai.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
-                response_mime_type="application/json",
-                response_schema=cleaned_schema
+                response_mime_type="application/json"
+                # Not using response_schema - let instructor validate instead
             )
         )
 
         # Generate content
         response = await gen_model.generate_content_async(user_prompt)
-        
+
+        # Check if response was blocked by safety filters
+        # finish_reason = 2 means SAFETY block
+        if not response.parts and hasattr(response, 'candidates'):
+            for candidate in response.candidates:
+                if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                    logger.warning(
+                        f"[GoogleAI] Content blocked by safety filters (finish_reason=2), "
+                        f"falling back to OpenRouter"
+                    )
+                    # Fall back to OpenRouter
+                    from app.services.openrouter import call_llm as openrouter_call_llm
+
+                    openrouter_models = {
+                        "gemini-2.5-flash": "google/gemini-2.5-flash",
+                        "gemini-2.5-pro": "google/gemini-2.5-pro",
+                        "gemini-1.5-flash": "google/gemini-pro-1.5",
+                        "gemini-1.5-pro": "google/gemini-pro-1.5",
+                        "gemini-1.5-flash-latest": "google/gemini-pro-1.5",
+                        "gemini-1.5-pro-latest": "google/gemini-pro-1.5",
+                    }
+                    openrouter_model = openrouter_models.get(actual_model, f"google/{actual_model}")
+
+                    return await openrouter_call_llm(
+                        model=openrouter_model,
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        response_model=response_model,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+
         # Parse result
         json_text = response.text
         logger.info(f"[GoogleAI] Response received ({len(json_text)} chars)")
-        
-        # Parse into Pydantic model
-        return response_model.model_validate_json(json_text)
 
+        # Parse JSON to dict first
+        data = json.loads(json_text)
+
+        # Truncate any overly long fields (safety net)
+        data = _truncate_long_fields(data, response_model)
+
+        # Validate with Pydantic
+        return response_model.model_validate(data)
+
+    except ValueError as e:
+        # Handle cases where response.text fails (blocked content)
+        if "finish_reason" in str(e) and settings.OPENROUTER_API_KEY:
+            logger.warning(f"[GoogleAI] Response blocked, falling back to OpenRouter: {e}")
+            from app.services.openrouter import call_llm as openrouter_call_llm
+
+            openrouter_models = {
+                "gemini-2.5-flash": "google/gemini-2.5-flash",
+                "gemini-2.5-pro": "google/gemini-2.5-pro",
+                "gemini-1.5-flash": "google/gemini-pro-1.5",
+                "gemini-1.5-pro": "google/gemini-pro-1.5",
+                "gemini-1.5-flash-latest": "google/gemini-pro-1.5",
+                "gemini-1.5-pro-latest": "google/gemini-pro-1.5",
+            }
+            openrouter_model = openrouter_models.get(actual_model, f"google/{actual_model}")
+
+            return await openrouter_call_llm(
+                model=openrouter_model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_model=response_model,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+        else:
+            logger.error(f"[GoogleAI] Error calling {model}: {e}", exc_info=True)
+            raise
     except Exception as e:
         logger.error(f"[GoogleAI] Error calling {model}: {e}", exc_info=True)
         raise
