@@ -86,12 +86,19 @@ CRITICAL RULES FOR LOCATION DETAILS:
 - If it's a named street/area, describe the actual historical environment
 - Never use generic descriptions - be specific to the named location
 
+CRITICAL CHARACTER LIMITS:
+- background_details: MAXIMUM 300 characters (be concise!)
+- historical_context: MAXIMUM 300 characters (be concise!)
+- Each prop description: MAXIMUM 200 characters
+- Each prop historical_significance: MAXIMUM 150 characters
+
 Focus on:
 - Historical accuracy for THIS SPECIFIC LOCATION (architecture, materials, design)
 - Visual richness with location-specific details
 - Spatial clarity (clear description of this specific environment)
 - Period-appropriate details accurate to {timeline['year']}
 - Authentic props and objects that would exist at this location
+- CONCISE descriptions that stay within character limits
 
 Example: If location is "Borough Market, London", describe the actual medieval market stalls, Thames River proximity, specific merchant types, authentic architecture of that period in that location.
 
