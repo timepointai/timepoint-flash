@@ -19,6 +19,13 @@ else:
 
 T = TypeVar('T', bound=BaseModel)
 
+def _is_valid_google_key() -> bool:
+    """Check if GOOGLE_API_KEY is valid (not None, empty, or placeholder)."""
+    if not settings.GOOGLE_API_KEY:
+        return False
+    invalid_values = {"placeholder", "your_key_here", "YOUR_API_KEY", ""}
+    return settings.GOOGLE_API_KEY.strip() not in invalid_values
+
 def _get_safety_settings():
     return {
         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
@@ -122,17 +129,23 @@ async def call_llm(
         elif model == "creative":
             actual_model = settings.CREATIVE_MODEL
 
-        # If no Google API key, route to OpenRouter
-        if not settings.GOOGLE_API_KEY:
-            logger.info(f"[GoogleAI] No Google API key, routing to OpenRouter for {actual_model}")
+        # If no valid Google API key, route to OpenRouter
+        if not _is_valid_google_key():
+            logger.info(f"[GoogleAI] No valid Google API key, routing to OpenRouter for {actual_model}")
             from app.services.openrouter import call_llm as openrouter_call_llm
 
             # Map model names to OpenRouter equivalents
+            # Gemini 2.5 models use same name in OpenRouter: google/gemini-2.5-*
+            # Gemini 1.5 models have different naming on OpenRouter
             openrouter_models = {
-                "gemini-1.5-flash": "google/gemini-1.5-flash",
-                "gemini-1.5-pro": "google/gemini-1.5-pro",
-                "gemini-1.5-flash-latest": "google/gemini-1.5-flash",
-                "gemini-1.5-pro-latest": "google/gemini-1.5-pro",
+                # Gemini 2.5 (current, recommended)
+                "gemini-2.5-flash": "google/gemini-2.5-flash",
+                "gemini-2.5-pro": "google/gemini-2.5-pro",
+                # Gemini 1.5 (legacy, may be deprecated on OpenRouter)
+                "gemini-1.5-flash": "google/gemini-pro-1.5",  # fallback to pro
+                "gemini-1.5-pro": "google/gemini-pro-1.5",
+                "gemini-1.5-flash-latest": "google/gemini-pro-1.5",
+                "gemini-1.5-pro-latest": "google/gemini-pro-1.5",
             }
             openrouter_model = openrouter_models.get(actual_model, f"google/{actual_model}")
 
@@ -192,8 +205,8 @@ async def generate_image(prompt: str, model: str = None) -> str:
     if not model:
         model = settings.IMAGE_MODEL
 
-    # If no Google API key OR model is an OpenRouter path, use OpenRouter
-    if not settings.GOOGLE_API_KEY or model.startswith("google/"):
+    # If no valid Google API key OR model is an OpenRouter path, use OpenRouter
+    if not _is_valid_google_key() or model.startswith("google/"):
         logger.info(f"[Imagen] Routing to OpenRouter for {model}")
         from app.services.openrouter import generate_image as openrouter_generate_image
         return await openrouter_generate_image(prompt, model)
@@ -250,8 +263,8 @@ async def segment_image(
     if not model:
         model = settings.IMAGE_MODEL  # Use image model for segmentation
 
-    # If no Google API key OR model is an OpenRouter path, use OpenRouter
-    if not settings.GOOGLE_API_KEY or model.startswith("google/"):
+    # If no valid Google API key OR model is an OpenRouter path, use OpenRouter
+    if not _is_valid_google_key() or model.startswith("google/"):
         logger.info(f"[Vision] Routing to OpenRouter for segmentation with {model}")
         from app.services.openrouter import segment_image as openrouter_segment_image
         return await openrouter_segment_image(image_data, objects_to_segment, model)

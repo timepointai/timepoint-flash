@@ -33,10 +33,10 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: Optional[str] = None
 
     # Models
-    # Using Gemini 1.5 Flash for fast logic/judging
-    JUDGE_MODEL: str = "gemini-1.5-flash"
-    # Using Gemini 1.5 Pro for complex creative generation (scenes, dialog)
-    CREATIVE_MODEL: str = "gemini-1.5-pro"
+    # Using Gemini 2.5 Flash for fast logic/judging (OpenRouter compatible)
+    JUDGE_MODEL: str = "gemini-2.5-flash"
+    # Using Gemini 2.5 Pro for complex creative generation (scenes, dialog)
+    CREATIVE_MODEL: str = "gemini-2.5-pro"
 
     # Image Generation: Nano Banana Models 🍌
     # RECOMMENDED: Nano Banana Pro (Gemini 3 Pro Image) - CHEAPER + BETTER!
