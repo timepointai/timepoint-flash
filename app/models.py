@@ -177,6 +177,7 @@ class Timepoint(Base):
     # Image generation
     image_prompt: Mapped[str | None] = mapped_column(Text, default=None)
     image_url: Mapped[str | None] = mapped_column(Text, default=None)
+    image_base64: Mapped[str | None] = mapped_column(Text, default=None)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -263,7 +264,7 @@ class Timepoint(Base):
     @property
     def has_image(self) -> bool:
         """Check if timepoint has generated image."""
-        return self.image_url is not None
+        return self.image_url is not None or self.image_base64 is not None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses.
