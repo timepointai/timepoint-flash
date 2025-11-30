@@ -5,9 +5,13 @@ Contains all v1 API routes.
 
 from fastapi import APIRouter
 
+from app.api.v1.models import router as models_router
+from app.api.v1.temporal import router as temporal_router
 from app.api.v1.timepoints import router as timepoints_router
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(timepoints_router)
+router.include_router(temporal_router)
+router.include_router(models_router)
 
 __all__ = ["router"]

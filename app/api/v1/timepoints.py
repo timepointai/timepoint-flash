@@ -4,9 +4,12 @@ Provides REST API for timepoint generation and retrieval.
 
 Endpoints:
     POST /api/v1/timepoints/generate - Start timepoint generation
+    POST /api/v1/timepoints/generate/sync - Synchronous generation
+    POST /api/v1/timepoints/generate/stream - SSE streaming generation
     GET /api/v1/timepoints/{id} - Get timepoint by ID
     GET /api/v1/timepoints/slug/{slug} - Get timepoint by slug
     GET /api/v1/timepoints - List timepoints
+    DELETE /api/v1/timepoints/{id} - Delete timepoint
 
 Examples:
     >>> # Generate a timepoint
@@ -19,21 +22,26 @@ Examples:
 Tests:
     - tests/integration/test_api_timepoints.py::test_generate_endpoint
     - tests/integration/test_api_timepoints.py::test_get_timepoint
+    - tests/unit/test_api_streaming.py::test_stream_endpoint
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
-from typing import Any
+import time
+from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.pipeline import GenerationPipeline
+from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
-from app.models import Timepoint, TimepointStatus
+from app.models import GenerationLog, Timepoint, TimepointStatus
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +56,7 @@ class GenerateRequest(BaseModel):
 
     Attributes:
         query: The temporal query to generate
+        generate_image: Whether to generate the image
     """
 
     query: str = Field(
@@ -57,6 +66,35 @@ class GenerateRequest(BaseModel):
         description="Temporal query (e.g., 'signing of the declaration')",
         examples=["signing of the declaration", "rome 50 BCE", "battle of thermopylae"],
     )
+    generate_image: bool = Field(
+        default=False,
+        description="Whether to generate an image (adds ~30s)",
+    )
+
+
+class StreamEvent(BaseModel):
+    """Server-Sent Event for streaming generation.
+
+    Attributes:
+        event: Event type (step_start, step_complete, error, done)
+        step: Current pipeline step
+        data: Event data
+        progress: Progress percentage (0-100)
+    """
+
+    event: str
+    step: str | None = None
+    data: dict[str, Any] | None = None
+    progress: int = 0
+    error: str | None = None
+
+
+class DeleteResponse(BaseModel):
+    """Response after deleting a timepoint."""
+
+    id: str
+    deleted: bool
+    message: str
 
 
 class TimepointResponse(BaseModel):
@@ -86,6 +124,7 @@ class TimepointResponse(BaseModel):
     location: str | None = None
     image_prompt: str | None = None
     image_url: str | None = None
+    image_base64: str | None = None
     created_at: str | None = None
     error: str | None = None
 
@@ -118,12 +157,13 @@ class GenerateResponse(BaseModel):
 # Helper Functions
 
 
-def timepoint_to_response(tp: Timepoint, include_full: bool = False) -> TimepointResponse:
+def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_image: bool = False) -> TimepointResponse:
     """Convert Timepoint model to response.
 
     Args:
         tp: Timepoint model
         include_full: Whether to include full metadata
+        include_image: Whether to include base64 image data
 
     Returns:
         TimepointResponse
@@ -142,6 +182,7 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False) -> Timepoin
         location=tp.location,
         image_prompt=tp.image_prompt,
         image_url=tp.image_url,
+        image_base64=tp.image_base64 if include_image else None,
         created_at=tp.created_at.isoformat() if tp.created_at else None,
         error=tp.error_message,
     )
@@ -153,6 +194,109 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False) -> Timepoin
         response.dialog = tp.dialog_json
 
     return response
+
+
+# SSE Streaming Generator
+
+
+async def stream_generation(
+    query: str,
+    generate_image: bool = False,
+) -> AsyncGenerator[str, None]:
+    """Generate SSE events for pipeline progress.
+
+    Yields SSE-formatted events for each pipeline step.
+
+    Args:
+        query: The query to generate
+        generate_image: Whether to generate image
+
+    Yields:
+        SSE-formatted event strings
+    """
+    # Step mapping with progress percentages
+    step_progress = {
+        PipelineStep.JUDGE: 10,
+        PipelineStep.TIMELINE: 20,
+        PipelineStep.SCENE: 30,
+        PipelineStep.CHARACTERS: 40,
+        PipelineStep.MOMENT: 50,
+        PipelineStep.DIALOG: 60,
+        PipelineStep.CAMERA: 70,
+        PipelineStep.GRAPH: 80,
+        PipelineStep.IMAGE_PROMPT: 90,
+        PipelineStep.IMAGE_GENERATION: 100,
+    }
+
+    def format_sse(event: StreamEvent) -> str:
+        """Format event as SSE."""
+        data = event.model_dump_json()
+        return f"data: {data}\n\n"
+
+    try:
+        pipeline = GenerationPipeline()
+
+        # Send start event
+        yield format_sse(StreamEvent(
+            event="start",
+            step="initialization",
+            data={"query": query},
+            progress=0,
+        ))
+
+        # Run pipeline step by step
+        # Note: For true streaming, we'd need to modify the pipeline
+        # For now, we run the full pipeline and emit events
+        start_time = time.perf_counter()
+        state = await pipeline.run(query, generate_image=generate_image)
+
+        # Emit events for each completed step
+        for result in state.step_results:
+            progress = step_progress.get(result.step, 0)
+            if result.success:
+                yield format_sse(StreamEvent(
+                    event="step_complete",
+                    step=result.step.value,
+                    data={
+                        "latency_ms": result.latency_ms,
+                        "model_used": result.model_used,
+                    },
+                    progress=progress,
+                ))
+            else:
+                yield format_sse(StreamEvent(
+                    event="step_error",
+                    step=result.step.value,
+                    error=result.error,
+                    progress=progress,
+                ))
+
+        # Send final result
+        total_time = int((time.perf_counter() - start_time) * 1000)
+        timepoint = pipeline.state_to_timepoint(state)
+
+        yield format_sse(StreamEvent(
+            event="done",
+            step="complete",
+            data={
+                "timepoint_id": timepoint.id,
+                "slug": timepoint.slug,
+                "status": timepoint.status.value,
+                "year": timepoint.year,
+                "location": timepoint.location,
+                "total_latency_ms": total_time,
+                "has_image": state.image_base64 is not None,
+            },
+            progress=100,
+        ))
+
+    except Exception as e:
+        logger.error(f"Streaming generation failed: {e}")
+        yield format_sse(StreamEvent(
+            event="error",
+            error=str(e),
+            progress=0,
+        ))
 
 
 # Background Task for Generation
@@ -428,4 +572,94 @@ async def list_timepoints(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.post("/generate/stream")
+async def generate_timepoint_stream(
+    request: GenerateRequest,
+) -> StreamingResponse:
+    """Generate timepoint with SSE streaming progress.
+
+    Returns Server-Sent Events for each pipeline step.
+    Use EventSource API or similar to consume the stream.
+
+    Event types:
+        - start: Generation started
+        - step_complete: A pipeline step completed
+        - step_error: A pipeline step failed
+        - done: Generation complete with final data
+        - error: Fatal error occurred
+
+    Args:
+        request: Generation request with query
+
+    Returns:
+        StreamingResponse with SSE events
+
+    Example:
+        ```javascript
+        const eventSource = new EventSource('/api/v1/timepoints/generate/stream');
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log(data.event, data.progress);
+        };
+        ```
+    """
+    logger.info(f"Stream generate request: {request.query}")
+
+    return StreamingResponse(
+        stream_generation(request.query, request.generate_image),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
+
+
+@router.delete("/{timepoint_id}", response_model=DeleteResponse)
+async def delete_timepoint(
+    timepoint_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> DeleteResponse:
+    """Delete a timepoint by ID.
+
+    Also deletes associated generation logs.
+
+    Args:
+        timepoint_id: Timepoint UUID
+        session: Database session
+
+    Returns:
+        DeleteResponse confirming deletion
+
+    Raises:
+        HTTPException: If timepoint not found
+    """
+    # Check if exists
+    result = await session.execute(
+        select(Timepoint).where(Timepoint.id == timepoint_id)
+    )
+    timepoint = result.scalar_one_or_none()
+
+    if not timepoint:
+        raise HTTPException(status_code=404, detail="Timepoint not found")
+
+    # Delete generation logs first
+    await session.execute(
+        delete(GenerationLog).where(GenerationLog.timepoint_id == timepoint_id)
+    )
+
+    # Delete timepoint
+    await session.delete(timepoint)
+    await session.commit()
+
+    logger.info(f"Deleted timepoint: {timepoint_id}")
+
+    return DeleteResponse(
+        id=timepoint_id,
+        deleted=True,
+        message=f"Timepoint {timepoint_id} deleted successfully",
     )
