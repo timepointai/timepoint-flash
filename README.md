@@ -147,6 +147,27 @@ LOGFIRE_TOKEN=your-token  # for observability
 
 ---
 
+## Deployment
+
+### Docker
+
+```bash
+# Production (with PostgreSQL)
+docker compose up -d
+
+# Development (with hot reload)
+docker compose -f docker-compose.dev.yml up
+```
+
+### Cloud Platforms
+
+- **Railway**: Auto-deploys with `railway.json`
+- **Render**: Uses `render.yaml` Blueprint
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete deployment guide.
+
+---
+
 ## Development
 
 ### Run Tests
@@ -196,6 +217,7 @@ timepoint-flash/
 - [QUICKSTART.md](QUICKSTART.md) - Step-by-step getting started guide
 - [docs/API.md](docs/API.md) - Complete API reference
 - [docs/TEMPORAL.md](docs/TEMPORAL.md) - Temporal navigation guide
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide
 - [REFACTOR.md](REFACTOR.md) - v2.0 architecture plan
 - [HANDOFF.md](HANDOFF.md) - Development handoff guide
 
@@ -209,7 +231,7 @@ timepoint-flash/
 - [x] Phase 4: Agent rebuild (10 agents)
 - [x] Phase 5: API completion (streaming, temporal, models)
 - [x] Phase 6: Testing & documentation
-- [ ] Phase 7: Deployment & production
+- [x] Phase 7: Deployment & production
 
 ---
 
@@ -221,4 +243,4 @@ MIT License - see LICENSE file for details.
 
 **Built with** FastAPI | LangGraph | Google Gemini | Pydantic | SQLAlchemy
 
-**v2.0 Status**: Phase 6 Complete (Testing & Documentation)
+**v2.0 Status**: Complete - Ready for Production
