@@ -69,10 +69,10 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
-        "description": "Fastest generation - Llama 8B + fast image gen via OpenRouter",
-        "text_model": "meta-llama/llama-3.1-8b-instruct",
-        "judge_model": "meta-llama/llama-3.1-8b-instruct",
-        "image_model": "openai/gpt-5-image-mini",
+        "description": "Fastest generation - Gemini 2.0 Flash via OpenRouter + fast image",
+        "text_model": "google/gemini-2.0-flash-001",  # Fast AND handles JSON well
+        "judge_model": "google/gemini-2.0-flash-001",
+        "image_model": "google/gemini-2.5-flash-image",  # Nano Banana via OpenRouter
         "image_provider": ProviderType.OPENROUTER,
         "text_provider": ProviderType.OPENROUTER,
         "max_tokens": 1024,  # Reduced for speed
