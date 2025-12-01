@@ -29,20 +29,20 @@ CURRENT_PRESET=""
 select_preset() {
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
-    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 3 Pro, high reasoning)"
-    echo -e "     ${DIM}Slowest but highest fidelity results${NC}"
-    echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash)"
+    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 3 Pro + Nano Banana Pro)"
+    echo -e "     ${DIM}2K images, high reasoning, slowest but best fidelity${NC}"
+    echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash + Nano Banana)"
     echo -e "     ${DIM}Default mode, good speed and quality${NC}"
-    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Llama 3.1 8B via OpenRouter)"
-    echo -e "     ${DIM}Fastest generation, reduced tokens${NC}"
+    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Llama 3.1 8B + fast image gen)"
+    echo -e "     ${DIM}OpenRouter, fastest generation, reduced tokens${NC}"
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
     read -r preset_choice
 
     case "$preset_choice" in
-        1) CURRENT_PRESET="$PRESET_HD"; echo -e "${MAGENTA}Using HD preset${NC}" ;;
-        3) CURRENT_PRESET="$PRESET_HYPER"; echo -e "${CYAN}Using Hyper preset${NC}" ;;
-        *) CURRENT_PRESET="$PRESET_BALANCED"; echo -e "${GREEN}Using Balanced preset${NC}" ;;
+        1) CURRENT_PRESET="$PRESET_HD"; echo -e "${MAGENTA}Using HD preset (Nano Banana Pro)${NC}" ;;
+        3) CURRENT_PRESET="$PRESET_HYPER"; echo -e "${CYAN}Using Hyper preset (OpenRouter)${NC}" ;;
+        *) CURRENT_PRESET="$PRESET_BALANCED"; echo -e "${GREEN}Using Balanced preset (Nano Banana)${NC}" ;;
     esac
     echo ""
 }
@@ -71,7 +71,8 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\  | | |   |  _| | |___ / ___ \ ___) |  _  |"
     echo "   |_| |___|_|  |_|_____|_|    \___/___|_| \_| |_|   |_|   |_____/_/   \_\____/|_| |_|"
     echo -e "${NC}"
-    echo -e "${BOLD}AI-Powered Temporal Simulation Engine${NC}"
+    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.0.3${NC}"
+    echo -e "${DIM}Google Nano Banana Pro | OpenRouter | Quality Presets${NC}"
     echo ""
 }
 
