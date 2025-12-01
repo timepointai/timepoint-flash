@@ -39,6 +39,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import QualityPreset
 from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
 from app.models import GenerationLog, Timepoint, TimepointStatus
@@ -57,6 +58,7 @@ class GenerateRequest(BaseModel):
     Attributes:
         query: The temporal query to generate
         generate_image: Whether to generate the image
+        preset: Quality preset (hd, hyper, balanced)
     """
 
     query: str = Field(
@@ -69,6 +71,11 @@ class GenerateRequest(BaseModel):
     generate_image: bool = Field(
         default=False,
         description="Whether to generate an image (adds ~30s)",
+    )
+    preset: str | None = Field(
+        default=None,
+        description="Quality preset: 'hd' (best quality), 'hyper' (fastest), 'balanced' (default)",
+        examples=["hd", "hyper", "balanced"],
     )
 
 
@@ -202,6 +209,7 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
 async def stream_generation(
     query: str,
     generate_image: bool = False,
+    preset: QualityPreset | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -211,6 +219,7 @@ async def stream_generation(
     Args:
         query: The query to generate
         generate_image: Whether to generate image
+        preset: Quality preset (HD, HYPER, BALANCED)
 
     Yields:
         SSE-formatted event strings
@@ -234,7 +243,7 @@ async def stream_generation(
         data = event.model_dump_json()
         return f"data: {data}\n\n"
 
-    pipeline = GenerationPipeline()
+    pipeline = GenerationPipeline(preset=preset)
     state = None
     start_time = time.perf_counter()
 
@@ -613,7 +622,7 @@ async def generate_timepoint_stream(
         - error: Fatal error occurred
 
     Args:
-        request: Generation request with query
+        request: Generation request with query and optional preset
 
     Returns:
         StreamingResponse with SSE events
@@ -626,11 +635,26 @@ async def generate_timepoint_stream(
             console.log(data.event, data.progress);
         };
         ```
+
+    Presets:
+        - hd: Highest quality (Gemini 3 Pro + Google image gen)
+        - hyper: Fastest speed (Llama 8B + fast image gen)
+        - balanced: Default balance of quality and speed
     """
-    logger.info(f"Stream generate request: {request.query}")
+    # Parse preset
+    preset = None
+    if request.preset:
+        try:
+            preset = QualityPreset(request.preset.lower())
+            logger.info(f"Stream generate request: {request.query} (preset: {preset.value})")
+        except ValueError:
+            logger.warning(f"Invalid preset '{request.preset}', using default")
+            logger.info(f"Stream generate request: {request.query}")
+    else:
+        logger.info(f"Stream generate request: {request.query}")
 
     return StreamingResponse(
-        stream_generation(request.query, request.generate_image),
+        stream_generation(request.query, request.generate_image, preset),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

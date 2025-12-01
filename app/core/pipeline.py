@@ -46,6 +46,7 @@ from app.agents.image_gen import ImageGenInput
 from app.agents.image_prompt import ImagePromptInput
 from app.agents.scene import SceneInput
 from app.agents.timeline import TimelineInput
+from app.config import QualityPreset
 from app.core.llm_router import LLMRouter
 from app.models import GenerationLog, Timepoint, TimepointStatus, generate_slug
 from app.schemas import (
@@ -167,21 +168,32 @@ class GenerationPipeline:
 
     Attributes:
         router: LLM router for making API calls
+        preset: Quality preset (HD, HYPER, BALANCED)
 
     Examples:
         >>> pipeline = GenerationPipeline()
         >>> result = await pipeline.run("rome 50 BCE")
         >>> print(result.timeline_data.year)
         -50
+
+        >>> # With preset for fast generation
+        >>> pipeline = GenerationPipeline(preset=QualityPreset.HYPER)
+        >>> result = await pipeline.run("rome 50 BCE")
     """
 
-    def __init__(self, router: LLMRouter | None = None) -> None:
+    def __init__(
+        self,
+        router: LLMRouter | None = None,
+        preset: QualityPreset | None = None,
+    ) -> None:
         """Initialize pipeline.
 
         Args:
             router: LLM router (creates one if not provided)
+            preset: Quality preset (HD, HYPER, BALANCED)
         """
         self._router = router
+        self._preset = preset
         self._agents_initialized = False
 
         # Agents (lazy initialization)
@@ -198,9 +210,9 @@ class GenerationPipeline:
 
     @property
     def router(self) -> LLMRouter:
-        """Get or create LLM router."""
+        """Get or create LLM router (with preset if specified)."""
         if self._router is None:
-            self._router = LLMRouter()
+            self._router = LLMRouter(preset=self._preset)
         return self._router
 
     def _init_agents(self) -> None:

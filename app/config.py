@@ -32,12 +32,63 @@ class ProviderType(str, Enum):
     OPENROUTER = "openrouter"
 
 
+class QualityPreset(str, Enum):
+    """Quality preset for generation pipeline.
+
+    - HD: Highest quality with Gemini 3 Pro + Google image generation
+    - HYPER: Fastest speed with Llama 8B + fast image generation
+    - BALANCED: Default balance of quality and speed
+    """
+
+    HD = "hd"
+    HYPER = "hyper"
+    BALANCED = "balanced"
+
+
 class Environment(str, Enum):
     """Application environment."""
 
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
+
+
+# Quality Preset Configurations
+PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
+    QualityPreset.HD: {
+        "name": "HD Quality",
+        "description": "Highest quality - Gemini 3 Pro for text, Google image generation",
+        "text_model": "gemini-3-pro-preview",
+        "judge_model": "gemini-2.5-flash",
+        "image_model": "google/gemini-2.5-flash-image",  # Via OpenRouter
+        "image_provider": ProviderType.OPENROUTER,  # Image via OpenRouter for reliability
+        "text_provider": ProviderType.GOOGLE,
+        "max_tokens": 4096,
+        "thinking_level": "high",
+    },
+    QualityPreset.HYPER: {
+        "name": "Hyper Speed",
+        "description": "Fastest generation - Llama 8B + fast image gen",
+        "text_model": "meta-llama/llama-3.1-8b-instruct",
+        "judge_model": "meta-llama/llama-3.1-8b-instruct",
+        "image_model": "openai/gpt-5-image-mini",
+        "image_provider": ProviderType.OPENROUTER,
+        "text_provider": ProviderType.OPENROUTER,
+        "max_tokens": 1024,  # Reduced for speed
+        "thinking_level": None,  # No extended thinking
+    },
+    QualityPreset.BALANCED: {
+        "name": "Balanced",
+        "description": "Balance of quality and speed - Gemini 2.5 Flash",
+        "text_model": "gemini-2.5-flash",
+        "judge_model": "gemini-2.5-flash",
+        "image_model": "google/gemini-2.5-flash-image",
+        "image_provider": ProviderType.OPENROUTER,
+        "text_provider": ProviderType.GOOGLE,
+        "max_tokens": 2048,
+        "thinking_level": "medium",
+    },
+}
 
 
 class Settings(BaseSettings):
@@ -100,8 +151,8 @@ class Settings(BaseSettings):
         description="Model for creative generation (quality)",
     )
     IMAGE_MODEL: str = Field(
-        default="google/gemini-3-pro-image-preview",
-        description="Model for image generation",
+        default="google/gemini-2.5-flash-image",
+        description="Model for image generation (via OpenRouter)",
     )
 
     # Observability
@@ -219,6 +270,17 @@ class Settings(BaseSettings):
             "creative": self.CREATIVE_MODEL,
             "image": self.IMAGE_MODEL,
         }
+
+    def get_preset_config(self, preset: QualityPreset) -> dict[str, Any]:
+        """Get configuration for a quality preset.
+
+        Args:
+            preset: The quality preset.
+
+        Returns:
+            dict: Preset configuration with models, providers, and settings.
+        """
+        return PRESET_CONFIGS[preset]
 
 
 @lru_cache
