@@ -256,9 +256,30 @@ class OpenRouterProvider(LLMProvider):
         # Add response format for structured output
         if response_model is not None:
             payload["response_format"] = {"type": "json_object"}
-            # Add schema hint in system message
-            schema_str = response_model.model_json_schema()
-            schema_message = f"Respond with valid JSON matching this schema: {schema_str}"
+            # Add explicit schema hint in system message
+            # Be very explicit to avoid models returning schema instead of data
+            schema = response_model.model_json_schema()
+            required_fields = schema.get("required", [])
+            properties = schema.get("properties", {})
+
+            # Build example-style prompt with field descriptions
+            field_hints = []
+            for field_name, field_info in properties.items():
+                field_type = field_info.get("type", "any")
+                field_desc = field_info.get("description", "")
+                if field_desc:
+                    field_hints.append(f'  "{field_name}": <{field_type}> - {field_desc}')
+                else:
+                    field_hints.append(f'  "{field_name}": <{field_type}>')
+
+            fields_str = "\n".join(field_hints)
+            schema_message = (
+                f"You MUST respond with valid JSON containing actual data values (not a schema definition).\n"
+                f"Required fields: {', '.join(required_fields)}\n"
+                f"Expected format:\n{{\n{fields_str}\n}}\n"
+                f"Fill in actual values based on the request. Do NOT return type definitions."
+            )
+
             if messages and messages[0]["role"] == "system":
                 messages[0]["content"] += f"\n\n{schema_message}"
             else:
