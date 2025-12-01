@@ -215,12 +215,12 @@ class GoogleProvider(LLMProvider):
             else:
                 content = response.text or ""
 
-            # Extract usage
+            # Extract usage - use `or 0` to handle None values from getattr
             usage: dict[str, int] = {}
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage = {
-                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0),
-                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0),
+                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
                 }
 
             return LLMResponse(
@@ -371,12 +371,12 @@ class GoogleProvider(LLMProvider):
             except json.JSONDecodeError:
                 content = {"analysis": response.text}
 
-            # Extract usage
+            # Extract usage - use `or 0` to handle None values from getattr
             usage: dict[str, int] = {}
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage = {
-                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0),
-                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0),
+                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
                 }
 
             return LLMResponse(
@@ -397,17 +397,24 @@ class GoogleProvider(LLMProvider):
         """Check if Google provider is accessible.
 
         Makes a minimal API call to verify connectivity.
+        Note: gemini-2.5-flash may return empty text for simple prompts,
+        so we just verify the API responds without error.
 
         Returns:
             bool: True if provider is healthy.
         """
         try:
-            response = await self.call_text(
-                prompt="Say 'ok'",
+            # Make a minimal API call - we just need to verify connectivity
+            # gemini-2.5-flash may return empty text, but that's OK for health check
+            from google.genai import types
+
+            response = await self.client.aio.models.generate_content(
                 model="gemini-2.5-flash",
-                max_tokens=10,
+                contents="ping",
+                config=types.GenerateContentConfig(max_output_tokens=10),
             )
-            return bool(response.content)
+            # If we get here without exception, the API is accessible
+            return True
         except Exception as e:
             logger.warning(f"Google health check failed: {e}")
             return False

@@ -338,3 +338,106 @@ def cleanup_test_files():
     for filepath in files_to_cleanup:
         if os.path.exists(filepath):
             os.remove(filepath)
+
+
+# ============================================================================
+# E2E Fixtures (Real API calls)
+# ============================================================================
+
+
+@pytest.fixture
+def real_settings():
+    """Get settings with real API keys from environment/.env.
+
+    Unlike test_settings, this uses actual API keys for e2e testing.
+    Will skip test if no real API keys are configured.
+    """
+    from dotenv import load_dotenv
+
+    from app.config import Settings
+
+    # Force reload of .env file to get real keys (not the test defaults set at import time)
+    load_dotenv(override=True)
+
+    # Clear the lru_cache to force fresh settings load
+    from app.config import get_settings
+    get_settings.cache_clear()
+
+    settings = Settings()
+
+    # Skip if using dummy test keys
+    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.startswith("test-"):
+        pytest.skip("Real GOOGLE_API_KEY required for e2e tests")
+    if not settings.GOOGLE_API_KEY and not settings.OPENROUTER_API_KEY:
+        pytest.skip("No real API keys configured for e2e tests")
+
+    return settings
+
+
+@pytest_asyncio.fixture
+async def real_router(real_settings):
+    """Get real LLM router for e2e tests.
+
+    Uses actual API keys to make real LLM calls.
+    Automatically closes router after test.
+    """
+    from app.core.llm_router import LLMRouter
+
+    router = LLMRouter()
+    yield router
+    await router.close()
+
+
+@pytest_asyncio.fixture
+async def real_google_provider(real_settings):
+    """Get real Google provider for e2e tests.
+
+    Creates a GoogleProvider with actual API key.
+    Skips if Google API key not configured.
+    """
+    from app.core.providers.google import GoogleProvider
+
+    if not real_settings.GOOGLE_API_KEY:
+        pytest.skip("GOOGLE_API_KEY not configured")
+
+    provider = GoogleProvider(api_key=real_settings.GOOGLE_API_KEY)
+    yield provider
+
+
+@pytest_asyncio.fixture
+async def real_openrouter_provider(real_settings):
+    """Get real OpenRouter provider for e2e tests.
+
+    Creates an OpenRouterProvider with actual API key.
+    Skips if OpenRouter API key not configured.
+    """
+    from app.core.providers.openrouter import OpenRouterProvider
+
+    if not real_settings.OPENROUTER_API_KEY:
+        pytest.skip("OPENROUTER_API_KEY not configured")
+
+    provider = OpenRouterProvider(api_key=real_settings.OPENROUTER_API_KEY)
+    yield provider
+    await provider.close()
+
+
+@pytest_asyncio.fixture
+async def e2e_test_db():
+    """Create e2e test database with cleanup.
+
+    Similar to test_db but specifically for e2e tests.
+    Uses a separate database file to avoid conflicts.
+    """
+    from app.database import close_db, drop_db, init_db
+
+    # Use a separate e2e test database
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./e2e_test_timepoint.db"
+
+    await init_db()
+    yield
+    await drop_db()
+    await close_db()
+
+    # Clean up the database file
+    if os.path.exists("./e2e_test_timepoint.db"):
+        os.remove("./e2e_test_timepoint.db")
