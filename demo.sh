@@ -33,8 +33,8 @@ select_preset() {
     echo -e "     ${DIM}2K images, high reasoning, slowest but best fidelity${NC}"
     echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash + Nano Banana)"
     echo -e "     ${DIM}Default mode, good speed and quality${NC}"
-    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Llama 3.1 8B + fast image gen)"
-    echo -e "     ${DIM}OpenRouter, fastest generation, reduced tokens${NC}"
+    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
+    echo -e "     ${DIM}Fast generation with reduced tokens, uses OpenRouter${NC}"
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
     read -r preset_choice
