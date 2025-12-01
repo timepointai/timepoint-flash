@@ -245,13 +245,19 @@ class GoogleProvider(LLMProvider):
     ) -> LLMResponse[str]:
         """Generate an image from a prompt.
 
-        Uses Imagen 3 via google.genai SDK.
+        Automatically selects the appropriate API based on model:
+        - Imagen models (imagen-*): Uses generate_images() API
+        - Gemini models (gemini-*-image*): Uses generate_content() with image modality
 
         Args:
             prompt: The image generation prompt.
-            model: Model ID (e.g., "imagen-3.0-generate-002").
+            model: Model ID. Supported models:
+                - "imagen-3.0-generate-002": Imagen 3 (legacy)
+                - "gemini-2.5-flash-image": Nano Banana (fast)
+                - "gemini-3-pro-image-preview": Nano Banana Pro (best quality)
             **kwargs: Additional parameters:
-                - aspect_ratio: Image aspect ratio ("1:1", "16:9", etc.)
+                - aspect_ratio: Image aspect ratio ("1:1", "16:9", "3:2", etc.)
+                - image_size: For Gemini models ("1K", "2K", "4K")
                 - number_of_images: Number of images to generate (1-4)
 
         Returns:
@@ -263,8 +269,111 @@ class GoogleProvider(LLMProvider):
         Examples:
             >>> response = await provider.generate_image(
             ...     prompt="A sunset over mountains",
-            ...     model="imagen-3.0-generate-002"
+            ...     model="gemini-3-pro-image-preview"
             ... )
+        """
+        # Route to appropriate method based on model type
+        if model.startswith("gemini-") and "image" in model.lower():
+            return await self._generate_image_gemini(prompt, model, **kwargs)
+        else:
+            return await self._generate_image_imagen(prompt, model, **kwargs)
+
+    async def _generate_image_gemini(
+        self,
+        prompt: str,
+        model: str,
+        **kwargs: Any,
+    ) -> LLMResponse[str]:
+        """Generate image using Gemini native image models (Nano Banana / Nano Banana Pro).
+
+        Uses generate_content() with response_modalities=['IMAGE'].
+
+        Args:
+            prompt: The image generation prompt.
+            model: Gemini image model (e.g., "gemini-2.5-flash-image", "gemini-3-pro-image-preview").
+            **kwargs: Additional parameters:
+                - aspect_ratio: Image aspect ratio ("1:1", "16:9", "3:2", etc.)
+                - image_size: Resolution ("1K", "2K", "4K")
+
+        Returns:
+            LLMResponse containing base64-encoded image.
+        """
+        start_time = time.perf_counter()
+
+        try:
+            from google.genai import types
+
+            # Build image config
+            image_config_params: dict[str, Any] = {}
+            if "aspect_ratio" in kwargs:
+                image_config_params["aspect_ratio"] = kwargs["aspect_ratio"]
+            if "image_size" in kwargs:
+                image_config_params["image_size"] = kwargs["image_size"]
+
+            # Build generation config with image output modality
+            config_params: dict[str, Any] = {
+                "response_modalities": ["IMAGE"],
+            }
+            if image_config_params:
+                config_params["image_config"] = types.ImageConfig(**image_config_params)
+
+            config = types.GenerateContentConfig(**config_params)
+
+            # Make API call
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Extract image from response parts
+            image_b64 = None
+            if response.candidates and response.candidates[0].content:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, "inline_data") and part.inline_data:
+                        image_data = part.inline_data.data
+                        image_b64 = base64.b64encode(image_data).decode("utf-8")
+                        break
+
+            if not image_b64:
+                raise ProviderError(
+                    message="No image generated from Gemini model",
+                    provider=ProviderType.GOOGLE,
+                )
+
+            return LLMResponse(
+                content=image_b64,
+                model=model,
+                provider=self.provider_type,
+                latency_ms=latency_ms,
+            )
+
+        except Exception as e:
+            logger.error(f"Gemini image generation error: {e}")
+            self._handle_error(e)
+            raise
+
+    async def _generate_image_imagen(
+        self,
+        prompt: str,
+        model: str,
+        **kwargs: Any,
+    ) -> LLMResponse[str]:
+        """Generate image using Imagen API (legacy).
+
+        Uses generate_images() for Imagen 3 models.
+
+        Args:
+            prompt: The image generation prompt.
+            model: Imagen model ID (e.g., "imagen-3.0-generate-002").
+            **kwargs: Additional parameters:
+                - aspect_ratio: Image aspect ratio ("1:1", "16:9", etc.)
+                - number_of_images: Number of images to generate (1-4)
+
+        Returns:
+            LLMResponse containing base64-encoded image.
         """
         start_time = time.perf_counter()
 
@@ -303,7 +412,7 @@ class GoogleProvider(LLMProvider):
             )
 
         except Exception as e:
-            logger.error(f"Google image generation error: {e}")
+            logger.error(f"Google Imagen error: {e}")
             self._handle_error(e)
             raise
 
