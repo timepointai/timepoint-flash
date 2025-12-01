@@ -11,12 +11,41 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m' # No Color
 
 # Store timepoint IDs for quick access
 declare -a TIMEPOINT_IDS=()
+
+# Quality presets
+PRESET_HD="hd"
+PRESET_HYPER="hyper"
+PRESET_BALANCED="balanced"
+CURRENT_PRESET=""
+
+# Preset selection helper
+select_preset() {
+    echo -e "${BOLD}Select Quality Preset:${NC}"
+    echo ""
+    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 3 Pro, high reasoning)"
+    echo -e "     ${DIM}Slowest but highest fidelity results${NC}"
+    echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash)"
+    echo -e "     ${DIM}Default mode, good speed and quality${NC}"
+    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Llama 3.1 8B via OpenRouter)"
+    echo -e "     ${DIM}Fastest generation, reduced tokens${NC}"
+    echo ""
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r preset_choice
+
+    case "$preset_choice" in
+        1) CURRENT_PRESET="$PRESET_HD"; echo -e "${MAGENTA}Using HD preset${NC}" ;;
+        3) CURRENT_PRESET="$PRESET_HYPER"; echo -e "${CYAN}Using Hyper preset${NC}" ;;
+        *) CURRENT_PRESET="$PRESET_BALANCED"; echo -e "${GREEN}Using Balanced preset${NC}" ;;
+    esac
+    echo ""
+}
 
 # Sample templates
 declare -a TEMPLATES=(
@@ -147,6 +176,8 @@ generate_sync() {
     fi
 
     echo ""
+    select_preset
+
     echo -e "Generate image? (adds ~30s) ${YELLOW}(y/n)${NC} \c"
     read -r gen_image
     generate_image="false"
@@ -159,15 +190,26 @@ generate_sync() {
     if [ "$generate_image" = "true" ]; then
         echo -e "${YELLOW}This may take 5-10 minutes (with image)...${NC}"
     else
-        echo -e "${YELLOW}This may take 5-10 minutes...${NC}"
+        if [ "$CURRENT_PRESET" = "$PRESET_HYPER" ]; then
+            echo -e "${CYAN}Hyper mode: Should complete in ~1-2 minutes...${NC}"
+        else
+            echo -e "${YELLOW}This may take 5-10 minutes...${NC}"
+        fi
     fi
     echo ""
 
     start_time=$(date +%s)
 
+    # Build JSON payload with preset
+    json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
+    if [ -n "$CURRENT_PRESET" ]; then
+        json_payload="$json_payload, \"preset\": \"$CURRENT_PRESET\""
+    fi
+    json_payload="$json_payload}"
+
     response=$(curl -s -X POST "$API_BASE/api/v1/timepoints/generate/sync" \
         -H "Content-Type: application/json" \
-        -d "{\"query\": \"$query\", \"generate_image\": $generate_image}")
+        -d "$json_payload")
 
     end_time=$(date +%s)
     duration=$((end_time - start_time))
@@ -200,6 +242,7 @@ generate_stream() {
     local query="$1"
     local skip_prompt="${2:-false}"
     local generate_image="${3:-false}"
+    local preset="${4:-}"
 
     if [ "$skip_prompt" = "false" ]; then
         echo -e "${BOLD}=== Streaming Generation ===${NC}"
@@ -214,6 +257,9 @@ generate_stream() {
         fi
 
         echo ""
+        select_preset
+        preset="$CURRENT_PRESET"
+
         echo -e "Generate image? (adds ~30s) ${YELLOW}(y/n)${NC} \c"
         read -r gen_image
         if [ "$gen_image" = "y" ] || [ "$gen_image" = "Y" ]; then
@@ -230,17 +276,26 @@ generate_stream() {
     echo -e "${CYAN}Streaming generation for: ${BOLD}$query${NC}"
     if [ "$generate_image" = "true" ]; then
         echo -e "${YELLOW}Watch the progress (with image generation)...${NC}"
+    elif [ "$preset" = "$PRESET_HYPER" ]; then
+        echo -e "${CYAN}Hyper mode: Fast generation in progress...${NC}"
     else
         echo -e "${YELLOW}Watch the progress...${NC}"
     fi
     echo ""
+
+    # Build JSON payload with preset
+    json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
+    if [ -n "$preset" ]; then
+        json_payload="$json_payload, \"preset\": \"$preset\""
+    fi
+    json_payload="$json_payload}"
 
     # Clear temp file
     rm -f /tmp/timepoint_last_id
 
     curl -N -s -X POST "$API_BASE/api/v1/timepoints/generate/stream" \
         -H "Content-Type: application/json" \
-        -d "{\"query\": \"$query\", \"generate_image\": $generate_image}" | while IFS= read -r line; do
+        -d "$json_payload" | while IFS= read -r line; do
         if [[ "$line" == data:* ]]; then
             data="${line#data: }"
             event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
@@ -334,6 +389,9 @@ generate_from_template() {
         echo ""
         echo -e "${CYAN}Selected: ${BOLD}$query${NC}"
         echo ""
+
+        select_preset
+
         echo -e "Generate image? (adds ~30s) ${YELLOW}(y/n)${NC} \c"
         read -r gen_image
         generate_image="false"
@@ -347,13 +405,24 @@ generate_from_template() {
         echo -e "${YELLOW}> ${NC}\c"
         read -r mode
 
+        # Build JSON payload with preset
+        json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
+        if [ -n "$CURRENT_PRESET" ]; then
+            json_payload="$json_payload, \"preset\": \"$CURRENT_PRESET\""
+        fi
+        json_payload="$json_payload}"
+
         if [ "$mode" = "1" ]; then
             echo ""
-            echo -e "${YELLOW}Generating... (5-10 minutes)${NC}"
+            if [ "$CURRENT_PRESET" = "$PRESET_HYPER" ]; then
+                echo -e "${CYAN}Hyper mode: Should complete in ~1-2 minutes...${NC}"
+            else
+                echo -e "${YELLOW}Generating... (5-10 minutes)${NC}"
+            fi
             start_time=$(date +%s)
             response=$(curl -s -X POST "$API_BASE/api/v1/timepoints/generate/sync" \
                 -H "Content-Type: application/json" \
-                -d "{\"query\": \"$query\", \"generate_image\": $generate_image}")
+                -d "$json_payload")
             end_time=$(date +%s)
             duration=$((end_time - start_time))
 
@@ -369,8 +438,8 @@ generate_from_template() {
                 save_image_if_exists "$tp_id"
             fi
         else
-            # Use streaming with pre-set query
-            generate_stream "$query" "true" "$generate_image"
+            # Use streaming with pre-set query and preset
+            generate_stream "$query" "true" "$generate_image" "$CURRENT_PRESET"
         fi
     else
         echo -e "${RED}Invalid selection${NC}"
