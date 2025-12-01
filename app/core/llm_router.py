@@ -28,7 +28,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.config import ProviderType, get_settings
+from app.config import PRESET_CONFIGS, ProviderType, QualityPreset, get_settings
 from app.core.providers import (
     LLMProvider,
     LLMResponse,
@@ -55,12 +55,14 @@ class LLMRouter:
     Attributes:
         config: Provider configuration
         providers: Dictionary of initialized providers
+        preset: Quality preset for model selection
 
     Features:
         - Automatic provider selection based on capability
         - Fallback to secondary provider on failure
         - Retry with exponential backoff for transient errors
         - Mirascope-style structured outputs via Pydantic models
+        - Quality presets (HD, HYPER, BALANCED) for different use cases
 
     Examples:
         >>> router = LLMRouter()
@@ -68,6 +70,9 @@ class LLMRouter:
         ...     prompt="Hello",
         ...     capability=ModelCapability.TEXT
         ... )
+
+        >>> # With preset for fast generation
+        >>> router = LLMRouter(preset=QualityPreset.HYPER)
 
         >>> # With structured output
         >>> class MyResponse(BaseModel):
@@ -82,24 +87,40 @@ class LLMRouter:
     def __init__(
         self,
         config: ProviderConfig | None = None,
+        preset: QualityPreset | None = None,
     ) -> None:
         """Initialize LLM router.
 
         Args:
             config: Provider configuration. If not provided, uses settings.
+            preset: Quality preset (HD, HYPER, BALANCED). Overrides config models.
         """
         settings = get_settings()
+        self.preset = preset
+        self._preset_config = PRESET_CONFIGS.get(preset) if preset else None
 
         # Build config from settings if not provided
         if config is None:
+            # Use preset models if preset is specified
+            if self._preset_config:
+                text_model = self._preset_config["text_model"]
+                judge_model = self._preset_config["judge_model"]
+                image_model = self._preset_config["image_model"]
+                primary = self._preset_config.get("text_provider", settings.PRIMARY_PROVIDER)
+            else:
+                text_model = settings.CREATIVE_MODEL
+                judge_model = settings.JUDGE_MODEL
+                image_model = settings.IMAGE_MODEL
+                primary = settings.PRIMARY_PROVIDER
+
             config = ProviderConfig(
-                primary=settings.PRIMARY_PROVIDER,
+                primary=primary,
                 fallback=settings.FALLBACK_PROVIDER,
                 capabilities={
-                    ModelCapability.TEXT: settings.CREATIVE_MODEL,
-                    ModelCapability.CODE: settings.CREATIVE_MODEL,
-                    ModelCapability.VISION: settings.JUDGE_MODEL,
-                    ModelCapability.IMAGE: settings.IMAGE_MODEL,
+                    ModelCapability.TEXT: text_model,
+                    ModelCapability.CODE: text_model,
+                    ModelCapability.VISION: judge_model,
+                    ModelCapability.IMAGE: image_model,
                 },
             )
 
@@ -297,6 +318,9 @@ class LLMRouter:
     ) -> LLMResponse[str]:
         """Generate an image from a prompt.
 
+        Uses OpenRouter for image generation by default (more reliable).
+        Falls back to Google native if OpenRouter is unavailable.
+
         Args:
             prompt: The image generation prompt.
             **kwargs: Additional parameters.
@@ -307,8 +331,19 @@ class LLMRouter:
         Raises:
             ProviderError: If image generation fails.
         """
-        provider = self._get_provider(self.config.primary)
-        model = self._get_model_for_capability(ModelCapability.IMAGE, self.config.primary)
+        # Determine provider for image generation
+        # Prefer preset's image_provider, then OpenRouter, then primary
+        if self._preset_config and "image_provider" in self._preset_config:
+            image_provider = self._preset_config["image_provider"]
+        elif ProviderType.OPENROUTER in self.providers:
+            image_provider = ProviderType.OPENROUTER
+        else:
+            image_provider = self.config.primary
+
+        provider = self._get_provider(image_provider)
+        model = self._get_model_for_capability(ModelCapability.IMAGE, image_provider)
+
+        logger.debug(f"Image generation: using {image_provider.value} with model {model}")
 
         return await provider.generate_image(prompt, model, **kwargs)
 
