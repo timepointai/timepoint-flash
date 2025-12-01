@@ -24,7 +24,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from app.agents import (
     CameraAgent,
@@ -290,6 +290,91 @@ class GenerationPipeline:
 
         logger.info(f"Pipeline complete for: {query}")
         return state
+
+    async def run_streaming(
+        self, query: str, generate_image: bool = False
+    ) -> AsyncGenerator[tuple[PipelineStep, StepResult, PipelineState], None]:
+        """Run the pipeline with streaming, yielding after each step.
+
+        This method yields a tuple of (step, result, state) after each pipeline
+        step completes, enabling real-time progress updates.
+
+        Args:
+            query: The user's temporal query
+            generate_image: Whether to generate the image
+
+        Yields:
+            Tuple of (PipelineStep, StepResult, PipelineState) after each step
+
+        Examples:
+            >>> async for step, result, state in pipeline.run_streaming("rome"):
+            ...     print(f"{step.value}: {'OK' if result.success else 'FAIL'}")
+        """
+        self._init_agents()
+        state = PipelineState(query=query)
+        logger.info(f"Starting streaming pipeline for query: {query}")
+
+        # Step 1: Judge
+        state = await self._step_judge(state)
+        yield (PipelineStep.JUDGE, state.step_results[-1], state)
+        if not state.is_valid:
+            logger.warning(f"Query invalid: {state.judge_result.reason}")
+            return
+
+        # Step 2: Timeline
+        state = await self._step_timeline(state)
+        yield (PipelineStep.TIMELINE, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 3: Scene
+        state = await self._step_scene(state)
+        yield (PipelineStep.SCENE, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 4: Characters
+        state = await self._step_characters(state)
+        yield (PipelineStep.CHARACTERS, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 5: Moment
+        state = await self._step_moment(state)
+        yield (PipelineStep.MOMENT, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 6: Dialog
+        state = await self._step_dialog(state)
+        yield (PipelineStep.DIALOG, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 7: Camera
+        state = await self._step_camera(state)
+        yield (PipelineStep.CAMERA, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 8: Graph
+        state = await self._step_graph(state)
+        yield (PipelineStep.GRAPH, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 9: Image Prompt
+        state = await self._step_image_prompt(state)
+        yield (PipelineStep.IMAGE_PROMPT, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 10: Image Generation (optional)
+        if generate_image:
+            state = await self._step_image_generation(state)
+            yield (PipelineStep.IMAGE_GENERATION, state.step_results[-1], state)
+
+        logger.info(f"Streaming pipeline complete for: {query}")
 
     async def _step_judge(self, state: PipelineState) -> PipelineState:
         """Execute the judge step using JudgeAgent."""
@@ -609,7 +694,6 @@ class GenerationPipeline:
             timeline=state.timeline_data,
             scene=state.scene_data,
             characters=state.character_data,
-            camera=state.camera_data,
             dialog=state.dialog_data,
         )
         result = await self._image_prompt_agent.run(input_data)

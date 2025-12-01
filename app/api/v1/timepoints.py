@@ -203,9 +203,10 @@ async def stream_generation(
     query: str,
     generate_image: bool = False,
 ) -> AsyncGenerator[str, None]:
-    """Generate SSE events for pipeline progress.
+    """Generate SSE events for pipeline progress with real-time streaming.
 
-    Yields SSE-formatted events for each pipeline step.
+    Yields SSE-formatted events as each pipeline step completes,
+    providing real-time progress updates.
 
     Args:
         query: The query to generate
@@ -233,9 +234,11 @@ async def stream_generation(
         data = event.model_dump_json()
         return f"data: {data}\n\n"
 
-    try:
-        pipeline = GenerationPipeline()
+    pipeline = GenerationPipeline()
+    state = None
+    start_time = time.perf_counter()
 
+    try:
         # Send start event
         yield format_sse(StreamEvent(
             event="start",
@@ -244,19 +247,15 @@ async def stream_generation(
             progress=0,
         ))
 
-        # Run pipeline step by step
-        # Note: For true streaming, we'd need to modify the pipeline
-        # For now, we run the full pipeline and emit events
-        start_time = time.perf_counter()
-        state = await pipeline.run(query, generate_image=generate_image)
+        # Stream pipeline execution - yields after each step completes
+        async for step, result, current_state in pipeline.run_streaming(query, generate_image):
+            state = current_state  # Keep reference to final state
+            progress = step_progress.get(step, 0)
 
-        # Emit events for each completed step
-        for result in state.step_results:
-            progress = step_progress.get(result.step, 0)
             if result.success:
                 yield format_sse(StreamEvent(
                     event="step_complete",
-                    step=result.step.value,
+                    step=step.value,
                     data={
                         "latency_ms": result.latency_ms,
                         "model_used": result.model_used,
@@ -266,29 +265,49 @@ async def stream_generation(
             else:
                 yield format_sse(StreamEvent(
                     event="step_error",
-                    step=result.step.value,
+                    step=step.value,
                     error=result.error,
                     progress=progress,
                 ))
 
-        # Send final result
-        total_time = int((time.perf_counter() - start_time) * 1000)
-        timepoint = pipeline.state_to_timepoint(state)
+        # Send final result if we have state
+        if state is not None:
+            total_time = int((time.perf_counter() - start_time) * 1000)
+            timepoint = pipeline.state_to_timepoint(state)
 
-        yield format_sse(StreamEvent(
-            event="done",
-            step="complete",
-            data={
-                "timepoint_id": timepoint.id,
-                "slug": timepoint.slug,
-                "status": timepoint.status.value,
-                "year": timepoint.year,
-                "location": timepoint.location,
-                "total_latency_ms": total_time,
-                "has_image": state.image_base64 is not None,
-            },
-            progress=100,
-        ))
+            # Save to database
+            from app.database import get_session
+            try:
+                async with get_session() as session:
+                    session.add(timepoint)
+                    await session.commit()
+                    await session.refresh(timepoint)
+
+                    # Also save generation logs
+                    logs = pipeline.state_to_generation_logs(state)
+                    for log in logs:
+                        session.add(log)
+                    await session.commit()
+
+                    logger.info(f"Streaming generation saved: {timepoint.id} ({timepoint.status})")
+            except Exception as db_error:
+                logger.error(f"Failed to save streaming result: {db_error}")
+
+            yield format_sse(StreamEvent(
+                event="done",
+                step="complete",
+                data={
+                    "timepoint_id": timepoint.id,
+                    "slug": timepoint.slug,
+                    "status": timepoint.status.value,
+                    "year": timepoint.year,
+                    "location": timepoint.location,
+                    "total_latency_ms": total_time,
+                    "has_image": state.image_base64 is not None,
+                    "saved": True,
+                },
+                progress=100,
+            ))
 
     except Exception as e:
         logger.error(f"Streaming generation failed: {e}")
@@ -472,6 +491,7 @@ async def generate_timepoint_sync(
 async def get_timepoint(
     timepoint_id: str,
     full: bool = Query(False, description="Include full metadata"),
+    include_image: bool = Query(False, description="Include base64 image data"),
     session: AsyncSession = Depends(get_db_session),
 ) -> TimepointResponse:
     """Get timepoint by ID.
@@ -479,6 +499,7 @@ async def get_timepoint(
     Args:
         timepoint_id: Timepoint UUID
         full: Whether to include full metadata
+        include_image: Whether to include base64 image data
         session: Database session
 
     Returns:
@@ -495,7 +516,7 @@ async def get_timepoint(
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    return timepoint_to_response(timepoint, include_full=full)
+    return timepoint_to_response(timepoint, include_full=full, include_image=include_image)
 
 
 @router.get("/slug/{slug}", response_model=TimepointResponse)

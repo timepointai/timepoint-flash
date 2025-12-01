@@ -67,7 +67,7 @@ Generate a new timepoint from a natural language query.
 
 ### POST /api/v1/timepoints/generate/stream
 
-Generate a timepoint with real-time SSE progress events.
+Generate a timepoint with real-time SSE progress events. Events are emitted **immediately after each pipeline step completes**, providing true real-time progress updates.
 
 **Request Body:**
 ```json
@@ -80,9 +80,15 @@ Generate a timepoint with real-time SSE progress events.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | query | string | Yes | - | Natural language temporal query |
-| generate_image | boolean | No | false | Whether to generate image |
+| generate_image | boolean | No | false | Whether to generate image (adds image_gen step) |
 
 **Response:** Server-Sent Events (text/event-stream)
+
+**Streaming Behavior:**
+- Each event is sent **as soon as** the corresponding pipeline step finishes
+- Progress percentages indicate approximate completion (not wall-clock time)
+- The pipeline uses an async generator to yield results after each step
+- If `generate_image=true`, an additional `image_gen` step runs at 95%
 
 **Event Types:**
 
@@ -107,9 +113,17 @@ data: {"event": "step_complete", "step": "graph", "progress": 80, "data": {...}}
 
 data: {"event": "step_complete", "step": "image_prompt", "progress": 90, "data": {...}}
 
+data: {"event": "step_complete", "step": "image_gen", "progress": 95, "data": {...}}  // if generate_image=true
+
 data: {"event": "done", "step": "complete", "progress": 100, "data": {"timepoint_id": "..."}}
 
 data: {"event": "error", "error": "Error message", "progress": 0}
+```
+
+**Step Error Handling:**
+If a step fails, an error event is emitted but the pipeline continues if possible:
+```
+data: {"event": "step_error", "step": "image_gen", "error": "Image generation failed", "progress": 95}
 ```
 
 ---
@@ -122,6 +136,11 @@ Get a timepoint by ID.
 | Name | Type | Description |
 |------|------|-------------|
 | id | string | Timepoint UUID |
+
+**Query Parameters:**
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| include_image | boolean | false | Include base64 image data if available |
 
 **Response (200 OK):**
 ```json

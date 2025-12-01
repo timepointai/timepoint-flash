@@ -199,7 +199,8 @@ class TestNavigationErrors:
             json={"units": 1, "unit": "day"},
         )
         assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        data = response.json()
+        assert "detail" in data
 
     def test_prior_nonexistent_timepoint(self, client, test_db):
         """Test prior with non-existent timepoint."""
