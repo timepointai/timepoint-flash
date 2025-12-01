@@ -27,7 +27,11 @@ def client():
 @pytest.fixture
 async def async_client():
     """Create async test client."""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    from httpx import ASGITransport
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as ac:
         yield ac
 
 
@@ -59,7 +63,7 @@ class TestGenerateEndpointValidation:
 class TestGenerateEndpoint:
     """Tests for POST /api/v1/timepoints/generate (requires DB)."""
 
-    def test_generate_endpoint_accepts_valid_query(self, client):
+    def test_generate_endpoint_accepts_valid_query(self, client, test_db):
         """Test that valid query is accepted."""
         response = client.post(
             "/api/v1/timepoints/generate",
@@ -80,12 +84,12 @@ class TestGenerateEndpoint:
 class TestGetTimepointEndpoint:
     """Tests for GET /api/v1/timepoints/{id} (requires DB)."""
 
-    def test_get_nonexistent_timepoint(self, client):
+    def test_get_nonexistent_timepoint(self, client, test_db):
         """Test getting a non-existent timepoint."""
         response = client.get("/api/v1/timepoints/nonexistent-id")
         assert response.status_code == 404
 
-    def test_get_timepoint_by_invalid_id(self, client):
+    def test_get_timepoint_by_invalid_id(self, client, test_db):
         """Test getting timepoint with invalid ID format."""
         response = client.get("/api/v1/timepoints/not-a-uuid")
         assert response.status_code == 404
@@ -98,7 +102,7 @@ class TestGetTimepointEndpoint:
 class TestGetBySlugEndpoint:
     """Tests for GET /api/v1/timepoints/slug/{slug} (requires DB)."""
 
-    def test_get_nonexistent_slug(self, client):
+    def test_get_nonexistent_slug(self, client, test_db):
         """Test getting a non-existent slug."""
         response = client.get("/api/v1/timepoints/slug/nonexistent-slug")
         assert response.status_code == 404
@@ -129,7 +133,7 @@ class TestListTimepointsValidation:
 class TestListTimepointsEndpoint:
     """Tests for GET /api/v1/timepoints (requires DB)."""
 
-    def test_list_timepoints_empty(self, client):
+    def test_list_timepoints_empty(self, client, test_db):
         """Test listing timepoints when empty."""
         response = client.get("/api/v1/timepoints")
         assert response.status_code == 200
@@ -139,7 +143,7 @@ class TestListTimepointsEndpoint:
         assert "page" in data
         assert "page_size" in data
 
-    def test_list_timepoints_pagination_params(self, client):
+    def test_list_timepoints_pagination_params(self, client, test_db):
         """Test pagination parameters."""
         response = client.get("/api/v1/timepoints?page=1&page_size=10")
         assert response.status_code == 200
@@ -155,7 +159,7 @@ class TestListTimepointsEndpoint:
 class TestTimepointResponseModel:
     """Tests for response model structure (requires DB)."""
 
-    def test_generate_response_structure(self, client):
+    def test_generate_response_structure(self, client, test_db):
         """Test generate response has correct structure."""
         response = client.post(
             "/api/v1/timepoints/generate",
@@ -169,7 +173,7 @@ class TestTimepointResponseModel:
         assert "status" in data
         assert "message" in data
 
-    def test_list_response_structure(self, client):
+    def test_list_response_structure(self, client, test_db):
         """Test list response has correct structure."""
         response = client.get("/api/v1/timepoints")
         assert response.status_code == 200
@@ -190,7 +194,7 @@ class TestDatabaseIntegration:
     """Integration tests that interact with database."""
 
     @pytest.mark.asyncio
-    async def test_create_and_retrieve_timepoint(self, async_client, test_session):
+    async def test_create_and_retrieve_timepoint(self, async_client, db_session):
         """Test creating and retrieving a timepoint."""
         # Create a timepoint directly in DB
         timepoint = Timepoint.create(
@@ -198,9 +202,9 @@ class TestDatabaseIntegration:
             status=TimepointStatus.COMPLETED,
             year=1776,
         )
-        test_session.add(timepoint)
-        await test_session.commit()
-        await test_session.refresh(timepoint)
+        db_session.add(timepoint)
+        await db_session.commit()
+        await db_session.refresh(timepoint)
 
         # Retrieve via API
         response = await async_client.get(f"/api/v1/timepoints/{timepoint.id}")

@@ -31,6 +31,7 @@ env/
 
 # Environment variables (keep .env for local dev)
 # .env is NOT ignored - it exists and has real keys
+.env
 .env.production
 .env.staging
 
