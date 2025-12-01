@@ -318,12 +318,14 @@ class LLMRouter:
     ) -> LLMResponse[str]:
         """Generate an image from a prompt.
 
-        Uses OpenRouter for image generation by default (more reliable).
-        Falls back to Google native if OpenRouter is unavailable.
+        Routes to appropriate provider based on preset configuration:
+        - HD: Google native Nano Banana Pro (2K resolution)
+        - Balanced: Google native Nano Banana
+        - Hyper: OpenRouter fast image model
 
         Args:
             prompt: The image generation prompt.
-            **kwargs: Additional parameters.
+            **kwargs: Additional parameters (aspect_ratio, image_size).
 
         Returns:
             LLMResponse containing base64-encoded image.
@@ -332,9 +334,11 @@ class LLMRouter:
             ProviderError: If image generation fails.
         """
         # Determine provider for image generation
-        # Prefer preset's image_provider, then OpenRouter, then primary
+        # Prefer preset's image_provider, then Google native, then fallback
         if self._preset_config and "image_provider" in self._preset_config:
             image_provider = self._preset_config["image_provider"]
+        elif ProviderType.GOOGLE in self.providers:
+            image_provider = ProviderType.GOOGLE
         elif ProviderType.OPENROUTER in self.providers:
             image_provider = ProviderType.OPENROUTER
         else:
@@ -343,9 +347,17 @@ class LLMRouter:
         provider = self._get_provider(image_provider)
         model = self._get_model_for_capability(ModelCapability.IMAGE, image_provider)
 
+        # Merge preset config params (image_size, etc.) with kwargs
+        image_kwargs = dict(kwargs)
+        if self._preset_config:
+            if "image_size" in self._preset_config and "image_size" not in image_kwargs:
+                image_kwargs["image_size"] = self._preset_config["image_size"]
+            if "aspect_ratio" in self._preset_config and "aspect_ratio" not in image_kwargs:
+                image_kwargs["aspect_ratio"] = self._preset_config["aspect_ratio"]
+
         logger.debug(f"Image generation: using {image_provider.value} with model {model}")
 
-        return await provider.generate_image(prompt, model, **kwargs)
+        return await provider.generate_image(prompt, model, **image_kwargs)
 
     async def analyze_image(
         self,
