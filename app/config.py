@@ -57,18 +57,19 @@ class Environment(str, Enum):
 PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     QualityPreset.HD: {
         "name": "HD Quality",
-        "description": "Highest quality - Gemini 3 Pro for text, Google image generation",
+        "description": "Highest quality - Gemini 3 Pro + Nano Banana Pro (native Google)",
         "text_model": "gemini-3-pro-preview",
         "judge_model": "gemini-2.5-flash",
-        "image_model": "google/gemini-2.5-flash-image",  # Via OpenRouter
-        "image_provider": ProviderType.OPENROUTER,  # Image via OpenRouter for reliability
+        "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro (native Google)
+        "image_provider": ProviderType.GOOGLE,  # Native Google for best quality
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 4096,
         "thinking_level": "high",
+        "image_size": "2K",  # High resolution
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
-        "description": "Fastest generation - Llama 8B + fast image gen",
+        "description": "Fastest generation - Llama 8B + fast image gen via OpenRouter",
         "text_model": "meta-llama/llama-3.1-8b-instruct",
         "judge_model": "meta-llama/llama-3.1-8b-instruct",
         "image_model": "openai/gpt-5-image-mini",
@@ -79,11 +80,11 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     },
     QualityPreset.BALANCED: {
         "name": "Balanced",
-        "description": "Balance of quality and speed - Gemini 2.5 Flash",
+        "description": "Balance of quality and speed - Gemini 2.5 Flash + Nano Banana",
         "text_model": "gemini-2.5-flash",
         "judge_model": "gemini-2.5-flash",
-        "image_model": "google/gemini-2.5-flash-image",
-        "image_provider": ProviderType.OPENROUTER,
+        "image_model": "gemini-2.5-flash-image",  # Nano Banana (native Google)
+        "image_provider": ProviderType.GOOGLE,  # Native Google
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 2048,
         "thinking_level": "medium",
