@@ -18,6 +18,7 @@ Tests:
     - tests/integration/test_llm_router.py::test_google_provider_integration
 """
 
+import asyncio
 import base64
 import logging
 import time
@@ -82,6 +83,7 @@ class GoogleProvider(LLMProvider):
         provider_type: ProviderType.GOOGLE
         api_key: Google AI API key
         client: Gen AI client instance
+        timeout: Request timeout in seconds (default: 120)
 
     Available Models:
         - gemini-3-pro-preview: Flagship model for complex reasoning
@@ -99,14 +101,19 @@ class GoogleProvider(LLMProvider):
 
     provider_type = ProviderType.GOOGLE
 
-    def __init__(self, api_key: str) -> None:
+    # Default timeout for API calls (seconds)
+    DEFAULT_TIMEOUT = 120
+
+    def __init__(self, api_key: str, timeout: float = DEFAULT_TIMEOUT) -> None:
         """Initialize Google provider.
 
         Args:
             api_key: Google AI API key.
+            timeout: Request timeout in seconds (default: 120).
         """
         super().__init__(api_key)
         self._client: Any = None  # Lazy initialization
+        self.timeout = timeout
 
     @property
     def client(self) -> Any:
@@ -132,6 +139,12 @@ class GoogleProvider(LLMProvider):
             raise AuthenticationError(ProviderType.GOOGLE) from error
         elif "429" in error_str or "rate limit" in error_str:
             raise RateLimitError(ProviderType.GOOGLE) from error
+        elif isinstance(error, asyncio.TimeoutError):
+            raise ProviderError(
+                message=f"Request timed out after {self.timeout}s",
+                provider=ProviderType.GOOGLE,
+                retryable=True,
+            ) from error
         else:
             raise ProviderError(
                 message=str(error),
@@ -197,11 +210,15 @@ class GoogleProvider(LLMProvider):
 
             config = types.GenerateContentConfig(**config_params) if config_params else None
 
-            # Make API call
-            response = await self.client.aio.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
+            # Make API call with timeout
+            logger.debug(f"Calling Google API: model={model}, timeout={self.timeout}s")
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=self.timeout,
             )
 
             latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -319,11 +336,16 @@ class GoogleProvider(LLMProvider):
 
             config = types.GenerateContentConfig(**config_params)
 
-            # Make API call
-            response = await self.client.aio.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
+            # Make API call with timeout (image gen can take longer)
+            image_timeout = self.timeout * 2  # Double timeout for image generation
+            logger.debug(f"Calling Google image API: model={model}, timeout={image_timeout}s")
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=image_timeout,
             )
 
             latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -386,10 +408,16 @@ class GoogleProvider(LLMProvider):
             if "number_of_images" in kwargs:
                 config_params["number_of_images"] = kwargs["number_of_images"]
 
-            response = await self.client.aio.models.generate_images(
-                model=model,
-                prompt=prompt,
-                config=types.GenerateImagesConfig(**config_params) if config_params else None,
+            # Make API call with timeout (image gen can take longer)
+            image_timeout = self.timeout * 2  # Double timeout for image generation
+            logger.debug(f"Calling Imagen API: model={model}, timeout={image_timeout}s")
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_images(
+                    model=model,
+                    prompt=prompt,
+                    config=types.GenerateImagesConfig(**config_params) if config_params else None,
+                ),
+                timeout=image_timeout,
             )
 
             latency_ms = int((time.perf_counter() - start_time) * 1000)

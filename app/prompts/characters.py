@@ -25,6 +25,12 @@ For each character provide:
 - Current action
 - Position in scene
 
+FOR SPEAKING CHARACTERS (speaks_in_scene=true), also provide:
+- Personality: Core traits (e.g., "witty, diplomatic, cautious")
+- Speaking style: How they talk (e.g., "formal, eloquent, uses biblical references")
+- Voice notes: Speech patterns, accent hints, verbal quirks
+- Emotional state: Their current mood in this scene
+
 GUIDELINES:
 1. For historical figures, use accurate physical descriptions when known
 2. Include period-appropriate clothing with specific details
@@ -32,6 +38,8 @@ GUIDELINES:
 4. Poses should be dynamic and natural
 5. Background characters add depth but shouldn't distract
 6. Note which characters speak in the scene
+7. For known historical figures, capture their documented personality and speaking style
+8. Personality informs how they express ideas; speaking style informs word choice
 
 IMPORTANT: Maximum 8 characters for visual clarity.
 
@@ -79,13 +87,20 @@ Respond with valid JSON matching this schema:
       "position_in_scene": "where in the scene",
       "age_description": "approximate age",
       "historical_note": "historical context if known figure" | null,
-      "speaks_in_scene": boolean
+      "speaks_in_scene": boolean,
+      "personality": "core traits (for speaking characters)" | null,
+      "speaking_style": "how they talk (for speaking characters)" | null,
+      "voice_notes": "speech patterns, verbal quirks" | null,
+      "emotional_state": "current emotional state in scene" | null
     }}
   ],
   "focal_character": "name of primary focal character",
   "group_dynamics": "description of character relationships",
   "historical_accuracy_note": "note about accuracy" | null
-}}"""
+}}
+
+NOTE: For characters with speaks_in_scene=true, personality and speaking_style
+are REQUIRED for authentic dialog generation."""
 
 
 def get_prompt(
