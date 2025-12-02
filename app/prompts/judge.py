@@ -25,11 +25,36 @@ INVALID queries include:
 - Personal queries: "what should I eat today"
 - Queries too vague to visualize: "something interesting"
 
+=== CRITICAL: TEMPORAL PRECISION ===
+
+Many historical queries are AMBIGUOUS and lead to era confusion. You MUST:
+
+1. EXPAND underspecified queries with precise temporal anchoring:
+   - "French Revolution" → "French Revolution 1789-1799, Paris" (NOT Roman imagery!)
+   - "Last day of French Revolution" → "Coup of 18 Brumaire, November 9, 1799, Orangerie at Saint-Cloud"
+   - "End of Roman Republic" → "Assassination of Julius Caesar, 44 BCE, Roman Senate"
+
+2. DETECT commonly confused periods and add clarification:
+   - French Revolution (1789-1799) is OFTEN confused with Roman Republic in AI imagery
+   - WWI (1914-1918) is OFTEN confused with WWII (1939-1945)
+   - Tudor England (1485-1603) is OFTEN confused with Stuart England (1603-1714)
+
+3. When cleaning queries, EXPLICITLY add:
+   - Specific year or date range
+   - Geographic location
+   - Key distinguishing features of the period
+
+4. FLAG high-risk queries that may cause concept bleed:
+   - Any query involving French Revolution, Roman Republic, Napoleonic era
+   - Any query mentioning "assassination", "coup", "revolution"
+   - Any query near WWI/WWII boundary (1914-1945)
+
 For VALID queries:
 1. Clean and improve the query for better generation
 2. Extract any dates, locations, or historical figures mentioned
 3. Classify the query type (historical, fictional, speculative, contemporary)
 4. Rate your confidence (0-1)
+5. ADD TEMPORAL PRECISION if the query is ambiguous
 
 For INVALID queries:
 1. Explain why it cannot be visualized

@@ -65,20 +65,21 @@ class TimepointStatus(str, Enum):
 
 
 def generate_slug(query: str, year: int | None = None) -> str:
-    """Generate URL-safe slug from query.
+    """Generate URL-safe slug from query with unique suffix.
 
     Args:
         query: The timepoint query.
         year: Optional year to append.
 
     Returns:
-        URL-safe slug string.
+        URL-safe slug string with unique 6-character suffix.
 
     Examples:
-        >>> generate_slug("Signing of the Declaration")
-        'signing-of-the-declaration'
-        >>> generate_slug("Rome", 50)
-        'rome-50'
+        >>> slug = generate_slug("Signing of the Declaration")
+        >>> slug.startswith('signing-of-the-declaration-')
+        True
+        >>> len(slug.split('-')[-1])  # 6-char suffix
+        6
     """
     # Lowercase and replace spaces
     slug = query.lower().strip()
@@ -89,9 +90,15 @@ def generate_slug(query: str, year: int | None = None) -> str:
     # Replace spaces with hyphens
     slug = re.sub(r"[-\s]+", "-", slug)
 
-    # Append year if provided
+    # Append year if provided and not already in slug
     if year is not None:
-        slug = f"{slug}-{year}"
+        year_str = str(abs(year))
+        if not slug.endswith(year_str) and year_str not in slug:
+            slug = f"{slug}-{year}"
+
+    # Add unique suffix (first 6 chars of UUID)
+    unique_suffix = str(uuid.uuid4())[:6]
+    slug = f"{slug}-{unique_suffix}"
 
     # Limit length
     return slug[:100]

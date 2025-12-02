@@ -19,22 +19,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.agents.base import AgentResult, BaseAgent
+from app.core.historical_validation import validate_historical_scene
 from app.core.llm_router import LLMRouter
 from app.prompts import image_prompt as image_prompt_prompts
 from app.schemas import (
+    CameraData,
     CharacterData,
     DialogData,
     ImagePromptData,
+    MomentData,
     SceneData,
     TimelineData,
 )
+from app.schemas.graph import GraphData
 
 
 @dataclass
 class ImagePromptInput:
     """Input data for Image Prompt Agent.
 
-    Contains all the data needed to assemble a complete image prompt.
+    Contains ALL data from the pipeline for maximum image quality.
     """
 
     query: str
@@ -53,6 +57,14 @@ class ImagePromptInput:
     focal_point: str | None = None
     character_descriptions: list[str] = field(default_factory=list)
     dialog_context: str | None = None
+    # NEW: Additional context from other agents
+    relationship_context: str | None = None  # From Graph Agent
+    tension_arc: str | None = None  # From Moment Agent
+    plot_beat: str | None = None  # From Moment Agent
+    camera_shot: str | None = None  # From Camera Agent
+    camera_angle: str | None = None  # From Camera Agent
+    camera_movement: str | None = None  # From Camera Agent
+    composition: str | None = None  # From Camera Agent
 
     @classmethod
     def from_data(
@@ -62,8 +74,11 @@ class ImagePromptInput:
         scene: SceneData,
         characters: CharacterData,
         dialog: DialogData | None = None,
+        graph: GraphData | None = None,
+        moment: MomentData | None = None,
+        camera: CameraData | None = None,
     ) -> "ImagePromptInput":
-        """Create ImagePromptInput from all previous agent data.
+        """Create ImagePromptInput from ALL previous agent data.
 
         Args:
             query: Original/cleaned query
@@ -71,6 +86,9 @@ class ImagePromptInput:
             scene: SceneData from Scene Agent
             characters: CharacterData from Characters Agent
             dialog: DialogData from Dialog Agent (optional)
+            graph: GraphData from Graph Agent (relationships)
+            moment: MomentData from Moment Agent (plot/tension)
+            camera: CameraData from Camera Agent (composition)
 
         Returns:
             ImagePromptInput with all context assembled
@@ -82,6 +100,33 @@ class ImagePromptInput:
         dialog_context = None
         if dialog:
             dialog_context = dialog.to_script()
+
+        # Build relationship context from graph
+        relationship_context = None
+        if graph and graph.relationships:
+            rel_parts = []
+            for rel in graph.relationships[:5]:  # Limit to top 5 relationships
+                rel_parts.append(f"{rel.from_character} and {rel.to_character}: {rel.relationship_type}")
+            relationship_context = "; ".join(rel_parts)
+
+        # Extract moment data
+        tension_arc = None
+        plot_beat = None
+        if moment:
+            tension_arc = moment.tension_arc
+            if moment.emotional_beats:
+                plot_beat = moment.emotional_beats[0] if moment.emotional_beats else None
+
+        # Extract camera data
+        camera_shot = None
+        camera_angle = None
+        camera_movement = None
+        composition = None
+        if camera:
+            camera_shot = camera.shot_type
+            camera_angle = camera.angle
+            camera_movement = camera.movement
+            composition = camera.composition_rule
 
         return cls(
             query=query,
@@ -100,6 +145,13 @@ class ImagePromptInput:
             focal_point=scene.focal_point,
             character_descriptions=char_descriptions,
             dialog_context=dialog_context,
+            relationship_context=relationship_context,
+            tension_arc=tension_arc,
+            plot_beat=plot_beat,
+            camera_shot=camera_shot,
+            camera_angle=camera_angle,
+            camera_movement=camera_movement,
+            composition=composition,
         )
 
 
@@ -174,10 +226,31 @@ class ImagePromptAgent(BaseAgent[ImagePromptInput, ImagePromptData]):
         Returns:
             AgentResult containing ImagePromptData
         """
+        # Run historical validation to get era-specific negative prompts
+        validation = validate_historical_scene(
+            year=input_data.year,
+            location=input_data.location,
+            query=input_data.query,
+        )
+
         result = await self._call_llm(input_data, temperature=0.6)
 
         if result.success and result.content:
+            # Inject era-specific negative prompts (anachronism prevention)
+            result.content.era_negative_prompts = validation.negative_prompts
+            result.content.historical_confidence = validation.confidence_score
+            result.content.anachronism_warnings = validation.accuracy_warnings
+            result.content.distinguishing_guidance = validation.get_distinguishing_guidance()
+
+            # Add metadata
             result.metadata["prompt_length"] = result.content.prompt_length
             result.metadata["style"] = result.content.style
+            result.metadata["historical_confidence"] = validation.confidence_score
+            result.metadata["era"] = validation.era
+            result.metadata["era_negative_count"] = len(validation.negative_prompts)
+
+            # Log warnings if any
+            if validation.accuracy_warnings:
+                result.metadata["anachronism_warnings"] = validation.accuracy_warnings[:3]
 
         return result

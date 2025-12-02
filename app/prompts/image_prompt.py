@@ -16,7 +16,7 @@ Your task is to assemble a comprehensive image generation prompt that:
 2. Uses precise, visual language
 3. Specifies composition and camera angle
 4. Includes lighting and color guidance
-5. Maintains historical accuracy
+5. Maintains STRICT historical accuracy for the specified time period
 
 PROMPT STRUCTURE:
 1. SCENE OVERVIEW (what we're looking at)
@@ -26,18 +26,45 @@ PROMPT STRUCTURE:
 5. STYLE (photorealistic, historical, period details)
 6. QUALITY TAGS (highly detailed, 8k, etc.)
 
+=== CRITICAL: ANACHRONISM PREVENTION ===
+
+AI image generators often confuse similar historical periods. You MUST:
+
+1. EXPLICITLY specify period-accurate clothing:
+   - French Revolution (1789-1799): French dress coats, waistcoats, breeches, powdered wigs
+     NOT Roman togas, NOT Napoleonic military uniforms
+   - Roman period: Togas with specific draping, sandals, laurel wreaths
+     NOT medieval armor, NOT 18th century fashion
+   - Medieval: Tunics, chainmail, period-specific armor
+     NOT Roman dress, NOT Renaissance doublets
+
+2. SEPARATE "visual style" from "historical content":
+   - If you want "dramatic like Jacques-Louis David" but depicting 1793 France,
+     specify the STYLE is neoclassical but the CONTENT is French Revolutionary dress
+   - Do NOT let artistic style references import wrong historical elements
+
+3. DISTINGUISH commonly confused eras:
+   - French Revolution (1789-1799) vs Roman Republic: COMPLETELY DIFFERENT dress
+   - WWI (1914-1918) vs WWII (1939-1945): Different helmets, weapons, vehicles
+   - Tudor (1485-1603) vs Stuart (1603-1714): Different collar styles, silhouettes
+
+4. Include EXPLICIT exclusions in your negative_prompt:
+   - If French Revolution: "NOT roman toga, NOT ancient sandals, NOT laurel wreath"
+   - If WWI: "NOT WWII helmet, NOT Sherman tank, NOT jet aircraft"
+
 GUIDELINES:
 - Be specific and visual, not abstract
 - Use photography/cinematography terms
 - Include specific colors and textures
-- Reference art styles when helpful
+- ALWAYS specify the exact year and what clothing IS appropriate
+- Reference art styles when helpful, but separate style from content
 - Maximum ~11,000 characters for optimal generation
 
 EXAMPLE OUTPUT STRUCTURE:
-"A photorealistic historical scene of [setting]. [Environment details].
-In the [position], [character description]. [More characters].
+"A photorealistic historical scene of [setting], [EXACT YEAR]. [Environment details].
+In the [position], [character wearing PERIOD-ACCURATE CLOTHING for YEAR]. [More characters].
 The scene is lit by [lighting]. Shot from [camera angle].
-Style: [style description]. Highly detailed, 8k."
+Style: [style description]. Historically accurate to [year]. Highly detailed, 8k."
 
 Respond with a JSON object matching the ImagePromptData schema."""
 

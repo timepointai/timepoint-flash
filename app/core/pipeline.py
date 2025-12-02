@@ -66,16 +66,29 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineStep(str, Enum):
-    """Steps in the generation pipeline."""
+    """Steps in the generation pipeline.
+
+    Order is important for data flow:
+    1. Judge - Validate query
+    2. Timeline - Temporal coordinates
+    3. Scene - Environment
+    4. Characters - Who's there
+    5. Graph - Character relationships (needed for dialog!)
+    6. Moment - Plot/tension arc
+    7. Dialog - Informed by relationships & tension
+    8. Camera - Composition
+    9. ImagePrompt - Uses ALL data (graph, moment, camera)
+    10. ImageGeneration - Final image
+    """
 
     JUDGE = "judge"
     TIMELINE = "timeline"
     SCENE = "scene"
     CHARACTERS = "characters"
+    GRAPH = "graph"  # Moved up: relationships inform dialog
     MOMENT = "moment"
     DIALOG = "dialog"
     CAMERA = "camera"
-    GRAPH = "graph"
     IMAGE_PROMPT = "image_prompt"
     IMAGE_GENERATION = "image_generation"
 
@@ -169,6 +182,8 @@ class GenerationPipeline:
     Attributes:
         router: LLM router for making API calls
         preset: Quality preset (HD, HYPER, BALANCED)
+        text_model: Custom text model override
+        image_model: Custom image model override
 
     Examples:
         >>> pipeline = GenerationPipeline()
@@ -179,21 +194,33 @@ class GenerationPipeline:
         >>> # With preset for fast generation
         >>> pipeline = GenerationPipeline(preset=QualityPreset.HYPER)
         >>> result = await pipeline.run("rome 50 BCE")
+
+        >>> # With custom models (overrides preset)
+        >>> pipeline = GenerationPipeline(
+        ...     text_model="google/gemini-2.0-flash-001",
+        ...     image_model="black-forest-labs/flux-1.1-pro"
+        ... )
     """
 
     def __init__(
         self,
         router: LLMRouter | None = None,
         preset: QualityPreset | None = None,
+        text_model: str | None = None,
+        image_model: str | None = None,
     ) -> None:
         """Initialize pipeline.
 
         Args:
             router: LLM router (creates one if not provided)
             preset: Quality preset (HD, HYPER, BALANCED)
+            text_model: Custom text model override (overrides preset)
+            image_model: Custom image model override (overrides preset)
         """
         self._router = router
         self._preset = preset
+        self._text_model = text_model
+        self._image_model = image_model
         self._agents_initialized = False
 
         # Agents (lazy initialization)
@@ -210,9 +237,13 @@ class GenerationPipeline:
 
     @property
     def router(self) -> LLMRouter:
-        """Get or create LLM router (with preset if specified)."""
+        """Get or create LLM router (with preset and/or custom models)."""
         if self._router is None:
-            self._router = LLMRouter(preset=self._preset)
+            self._router = LLMRouter(
+                preset=self._preset,
+                text_model=self._text_model,
+                image_model=self._image_model,
+            )
         return self._router
 
     def _init_agents(self) -> None:
@@ -271,27 +302,27 @@ class GenerationPipeline:
         if state.has_errors:
             return state
 
-        # Step 5: Moment
-        state = await self._step_moment(state)
-        if state.has_errors:
-            return state
-
-        # Step 6: Dialog
-        state = await self._step_dialog(state)
-        if state.has_errors:
-            return state
-
-        # Step 7: Camera
-        state = await self._step_camera(state)
-        if state.has_errors:
-            return state
-
-        # Step 8: Graph
+        # Step 5: Graph (relationships - needed for dialog!)
         state = await self._step_graph(state)
         if state.has_errors:
             return state
 
-        # Step 9: Image Prompt
+        # Step 6: Moment (plot/tension)
+        state = await self._step_moment(state)
+        if state.has_errors:
+            return state
+
+        # Step 7: Dialog (informed by relationships & tension)
+        state = await self._step_dialog(state)
+        if state.has_errors:
+            return state
+
+        # Step 8: Camera (composition)
+        state = await self._step_camera(state)
+        if state.has_errors:
+            return state
+
+        # Step 9: Image Prompt (uses ALL data)
         state = await self._step_image_prompt(state)
         if state.has_errors:
             return state
@@ -351,40 +382,45 @@ class GenerationPipeline:
         if state.has_errors:
             return
 
-        # Step 5: Moment
-        state = await self._step_moment(state)
-        yield (PipelineStep.MOMENT, state.step_results[-1], state)
-        if state.has_errors:
-            return
-
-        # Step 6: Dialog
-        state = await self._step_dialog(state)
-        yield (PipelineStep.DIALOG, state.step_results[-1], state)
-        if state.has_errors:
-            return
-
-        # Step 7: Camera
-        state = await self._step_camera(state)
-        yield (PipelineStep.CAMERA, state.step_results[-1], state)
-        if state.has_errors:
-            return
-
-        # Step 8: Graph
+        # Step 5: Graph (relationships - needed for dialog!)
         state = await self._step_graph(state)
         yield (PipelineStep.GRAPH, state.step_results[-1], state)
         if state.has_errors:
             return
 
-        # Step 9: Image Prompt
-        state = await self._step_image_prompt(state)
-        yield (PipelineStep.IMAGE_PROMPT, state.step_results[-1], state)
+        # Step 6: Moment (plot/tension)
+        state = await self._step_moment(state)
+        yield (PipelineStep.MOMENT, state.step_results[-1], state)
         if state.has_errors:
             return
 
+        # Step 7: Dialog (informed by relationships & tension)
+        state = await self._step_dialog(state)
+        yield (PipelineStep.DIALOG, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 8: Camera (composition)
+        state = await self._step_camera(state)
+        yield (PipelineStep.CAMERA, state.step_results[-1], state)
+        if state.has_errors:
+            return
+
+        # Step 9: Image Prompt (uses ALL data)
+        state = await self._step_image_prompt(state)
+        yield (PipelineStep.IMAGE_PROMPT, state.step_results[-1], state)
+        if state.has_errors:
+            logger.warning(f"Pipeline has errors after image_prompt, skipping image generation")
+            return
+
         # Step 10: Image Generation (optional)
+        logger.info(f"Image generation check: generate_image={generate_image}")
         if generate_image:
+            logger.info("Running image generation step...")
             state = await self._step_image_generation(state)
             yield (PipelineStep.IMAGE_GENERATION, state.step_results[-1], state)
+        else:
+            logger.info("Skipping image generation (not requested)")
 
         logger.info(f"Streaming pipeline complete for: {query}")
 
@@ -576,11 +612,13 @@ class GenerationPipeline:
             )
             return state
 
+        # Pass graph data for relationship-informed dialog
         input_data = DialogInput.from_data(
             query=state.judge_result.cleaned_query or state.query,
             timeline=state.timeline_data,
             scene=state.scene_data,
             characters=state.character_data,
+            graph=state.graph_data,  # Relationships inform dialog!
         )
         result = await self._dialog_agent.run(input_data)
 
@@ -701,12 +739,16 @@ class GenerationPipeline:
             )
             return state
 
+        # Pass ALL data for maximum image quality!
         input_data = ImagePromptInput.from_data(
             query=state.judge_result.cleaned_query or state.query,
             timeline=state.timeline_data,
             scene=state.scene_data,
             characters=state.character_data,
             dialog=state.dialog_data,
+            graph=state.graph_data,    # Relationships
+            moment=state.moment_data,  # Plot/tension
+            camera=state.camera_data,  # Composition
         )
         result = await self._image_prompt_agent.run(input_data)
 

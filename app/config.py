@@ -54,13 +54,17 @@ class Environment(str, Enum):
 
 
 # Quality Preset Configurations
+# Google native image generation models (verified from API):
+#   - gemini-2.5-flash-image: Nano Banana (fast)
+#   - gemini-3-pro-image-preview: Nano Banana Pro (high quality)
+#   - gemini-2.0-flash-exp-image-generation: Experimental
 PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     QualityPreset.HD: {
         "name": "HD Quality",
         "description": "Highest quality - Gemini 3 Pro + Nano Banana Pro (native Google)",
         "text_model": "gemini-3-pro-preview",
         "judge_model": "gemini-2.5-flash",
-        "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro (native Google)
+        "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro (high quality)
         "image_provider": ProviderType.GOOGLE,  # Native Google for best quality
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 4096,
@@ -69,21 +73,22 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
-        "description": "Fastest generation - Gemini 2.0 Flash via OpenRouter + fast image",
+        "description": "Fastest generation - Gemini 2.0 Flash (OpenRouter) + Nano Banana (Google)",
         "text_model": "google/gemini-2.0-flash-001",  # Fast AND handles JSON well
         "judge_model": "google/gemini-2.0-flash-001",
-        "image_model": "google/gemini-2.5-flash-image",  # Nano Banana via OpenRouter
-        "image_provider": ProviderType.OPENROUTER,
+        "image_model": "gemini-2.5-flash-image",  # Nano Banana (fast)
+        "image_provider": ProviderType.GOOGLE,  # Native Google for working image gen
         "text_provider": ProviderType.OPENROUTER,
         "max_tokens": 1024,  # Reduced for speed
         "thinking_level": None,  # No extended thinking
+        "image_supported": True,  # Hyper mode supports fast image generation
     },
     QualityPreset.BALANCED: {
         "name": "Balanced",
         "description": "Balance of quality and speed - Gemini 2.5 Flash + Nano Banana",
         "text_model": "gemini-2.5-flash",
         "judge_model": "gemini-2.5-flash",
-        "image_model": "gemini-2.5-flash-image",  # Nano Banana (native Google)
+        "image_model": "gemini-2.5-flash-image",  # Nano Banana (fast)
         "image_provider": ProviderType.GOOGLE,  # Native Google
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 2048,
@@ -152,8 +157,8 @@ class Settings(BaseSettings):
         description="Model for creative generation (quality)",
     )
     IMAGE_MODEL: str = Field(
-        default="google/gemini-2.5-flash-image",
-        description="Model for image generation (via OpenRouter)",
+        default="gemini-2.5-flash-image",
+        description="Model for image generation (via native Google)",
     )
 
     # Observability
