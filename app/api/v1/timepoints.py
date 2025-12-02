@@ -59,6 +59,8 @@ class GenerateRequest(BaseModel):
         query: The temporal query to generate
         generate_image: Whether to generate the image
         preset: Quality preset (hd, hyper, balanced)
+        text_model: Custom text model override (ignores preset)
+        image_model: Custom image model override (ignores preset)
     """
 
     query: str = Field(
@@ -76,6 +78,16 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Quality preset: 'hd' (best quality), 'hyper' (fastest), 'balanced' (default)",
         examples=["hd", "hyper", "balanced"],
+    )
+    text_model: str | None = Field(
+        default=None,
+        description="Custom text model override (e.g., 'google/gemini-2.0-flash-001'). Overrides preset.",
+        examples=["google/gemini-2.0-flash-001", "meta-llama/llama-3.1-8b-instruct"],
+    )
+    image_model: str | None = Field(
+        default=None,
+        description="Custom image model override (e.g., 'google/imagen-3'). Overrides preset.",
+        examples=["google/imagen-3", "black-forest-labs/flux-1.1-pro"],
     )
 
 
@@ -114,7 +126,9 @@ class TimepointResponse(BaseModel):
         status: Generation status
         year: Temporal year
         location: Geographic location
+        has_image: Whether an image was generated
         image_url: Generated image URL (if available)
+        image_base64: Base64 image data (only if include_image=true)
         error: Error message (if failed)
     """
 
@@ -130,8 +144,9 @@ class TimepointResponse(BaseModel):
     era: str | None = None
     location: str | None = None
     image_prompt: str | None = None
+    has_image: bool = False  # Always included - indicates if image exists
     image_url: str | None = None
-    image_base64: str | None = None
+    image_base64: str | None = None  # Only included if include_image=true
     created_at: str | None = None
     error: str | None = None
 
@@ -188,6 +203,7 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         era=tp.era,
         location=tp.location,
         image_prompt=tp.image_prompt,
+        has_image=tp.has_image,  # Always include whether image exists
         image_url=tp.image_url,
         image_base64=tp.image_base64 if include_image else None,
         created_at=tp.created_at.isoformat() if tp.created_at else None,
@@ -210,6 +226,8 @@ async def stream_generation(
     query: str,
     generate_image: bool = False,
     preset: QualityPreset | None = None,
+    text_model: str | None = None,
+    image_model: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -220,6 +238,8 @@ async def stream_generation(
         query: The query to generate
         generate_image: Whether to generate image
         preset: Quality preset (HD, HYPER, BALANCED)
+        text_model: Custom text model override
+        image_model: Custom image model override
 
     Yields:
         SSE-formatted event strings
@@ -243,16 +263,23 @@ async def stream_generation(
         data = event.model_dump_json()
         return f"data: {data}\n\n"
 
-    pipeline = GenerationPipeline(preset=preset)
+    pipeline = GenerationPipeline(
+        preset=preset,
+        text_model=text_model,
+        image_model=image_model,
+    )
     state = None
     start_time = time.perf_counter()
+
+    # Debug log to verify generate_image value
+    logger.info(f"Stream generation: query='{query}', generate_image={generate_image}, preset={preset}, text_model={text_model}, image_model={image_model}")
 
     try:
         # Send start event
         yield format_sse(StreamEvent(
             event="start",
             step="initialization",
-            data={"query": query},
+            data={"query": query, "generate_image": generate_image},
             progress=0,
         ))
 
@@ -286,6 +313,7 @@ async def stream_generation(
 
             # Save to database
             from app.database import get_session
+            saved = False
             try:
                 async with get_session() as session:
                     session.add(timepoint)
@@ -298,25 +326,40 @@ async def stream_generation(
                         session.add(log)
                     await session.commit()
 
+                    saved = True
                     logger.info(f"Streaming generation saved: {timepoint.id} ({timepoint.status})")
+
+                    # Send done event ONLY after successful database save
+                    yield format_sse(StreamEvent(
+                        event="done",
+                        step="complete",
+                        data={
+                            "timepoint_id": timepoint.id,
+                            "slug": timepoint.slug,
+                            "status": timepoint.status.value,
+                            "year": timepoint.year,
+                            "location": timepoint.location,
+                            "total_latency_ms": total_time,
+                            "has_image": state.image_base64 is not None,
+                            "saved": True,
+                        },
+                        progress=100,
+                    ))
             except Exception as db_error:
                 logger.error(f"Failed to save streaming result: {db_error}")
-
-            yield format_sse(StreamEvent(
-                event="done",
-                step="complete",
-                data={
-                    "timepoint_id": timepoint.id,
-                    "slug": timepoint.slug,
-                    "status": timepoint.status.value,
-                    "year": timepoint.year,
-                    "location": timepoint.location,
-                    "total_latency_ms": total_time,
-                    "has_image": state.image_base64 is not None,
-                    "saved": True,
-                },
-                progress=100,
-            ))
+                # Send error event when database save fails
+                yield format_sse(StreamEvent(
+                    event="error",
+                    step="database_save",
+                    error=f"Failed to save timepoint: {db_error}",
+                    data={
+                        "timepoint_id": timepoint.id,
+                        "status": "save_failed",
+                        "total_latency_ms": total_time,
+                        "saved": False,
+                    },
+                    progress=100,
+                ))
 
     except Exception as e:
         logger.error(f"Streaming generation failed: {e}")
@@ -471,9 +514,21 @@ async def generate_timepoint_sync(
     logger.info(f"Sync generate request: {request.query}")
 
     try:
+        # Parse preset
+        preset = None
+        if request.preset:
+            try:
+                preset = QualityPreset(request.preset.lower())
+            except ValueError:
+                logger.warning(f"Invalid preset '{request.preset}', using default")
+
         # Run pipeline
-        pipeline = GenerationPipeline()
-        state = await pipeline.run(request.query)
+        pipeline = GenerationPipeline(
+            preset=preset,
+            text_model=request.text_model,
+            image_model=request.image_model,
+        )
+        state = await pipeline.run(request.query, request.generate_image)
 
         # Convert to timepoint
         timepoint = pipeline.state_to_timepoint(state)
@@ -654,7 +709,13 @@ async def generate_timepoint_stream(
         logger.info(f"Stream generate request: {request.query}")
 
     return StreamingResponse(
-        stream_generation(request.query, request.generate_image, preset),
+        stream_generation(
+            request.query,
+            request.generate_image,
+            preset,
+            text_model=request.text_model,
+            image_model=request.image_model,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

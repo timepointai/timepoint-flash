@@ -3,6 +3,12 @@
 This module provides unified LLM routing with automatic provider selection,
 fallback handling, and Mirascope integration for structured outputs.
 
+Features:
+    - Automatic provider selection based on capability
+    - Graceful fallback for free model rate limits
+    - Retry with exponential backoff for transient errors
+    - Model cascade: free model -> paid model -> different provider
+
 Examples:
     >>> from app.core.llm_router import LLMRouter
     >>> router = LLMRouter()
@@ -17,16 +23,11 @@ Tests:
     - tests/integration/test_llm_router.py::test_router_fallback
 """
 
+import asyncio
 import logging
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from app.config import PRESET_CONFIGS, ProviderType, QualityPreset, get_settings
 from app.core.providers import (
@@ -45,6 +46,30 @@ logger = logging.getLogger(__name__)
 # Type variable for structured response models
 T = TypeVar("T", bound=BaseModel)
 
+# Default fallback model for when free models hit rate limits
+PAID_FALLBACK_MODEL = "google/gemini-2.0-flash-001"
+
+# Rate limit retry settings
+MAX_RETRIES = 5
+INITIAL_BACKOFF = 2.0  # seconds
+MAX_BACKOFF = 120.0  # seconds (2 minutes)
+BACKOFF_MULTIPLIER = 2.0
+
+
+def is_free_model(model_id: str) -> bool:
+    """Check if a model is a free tier model on OpenRouter.
+
+    Args:
+        model_id: The model identifier
+
+    Returns:
+        True if the model appears to be a free tier model
+    """
+    if not model_id:
+        return False
+    model_lower = model_id.lower()
+    return ":free" in model_lower or "/free" in model_lower
+
 
 class LLMRouter:
     """Route LLM calls with provider selection and fallback.
@@ -61,6 +86,7 @@ class LLMRouter:
         - Automatic provider selection based on capability
         - Fallback to secondary provider on failure
         - Retry with exponential backoff for transient errors
+        - Graceful degradation from free to paid models on rate limits
         - Mirascope-style structured outputs via Pydantic models
         - Quality presets (HD, HYPER, BALANCED) for different use cases
 
@@ -88,39 +114,56 @@ class LLMRouter:
         self,
         config: ProviderConfig | None = None,
         preset: QualityPreset | None = None,
+        text_model: str | None = None,
+        image_model: str | None = None,
     ) -> None:
         """Initialize LLM router.
 
         Args:
             config: Provider configuration. If not provided, uses settings.
             preset: Quality preset (HD, HYPER, BALANCED). Overrides config models.
+            text_model: Custom text model override (overrides preset).
+            image_model: Custom image model override (overrides preset).
         """
         settings = get_settings()
         self.preset = preset
         self._preset_config = PRESET_CONFIGS.get(preset) if preset else None
+        self._custom_text_model = text_model
+        self._custom_image_model = image_model
 
         # Build config from settings if not provided
         if config is None:
-            # Use preset models if preset is specified
+            # Start with preset or default models
             if self._preset_config:
-                text_model = self._preset_config["text_model"]
+                effective_text_model = self._preset_config["text_model"]
                 judge_model = self._preset_config["judge_model"]
-                image_model = self._preset_config["image_model"]
+                effective_image_model = self._preset_config["image_model"]
                 primary = self._preset_config.get("text_provider", settings.PRIMARY_PROVIDER)
             else:
-                text_model = settings.CREATIVE_MODEL
+                effective_text_model = settings.CREATIVE_MODEL
                 judge_model = settings.JUDGE_MODEL
-                image_model = settings.IMAGE_MODEL
+                effective_image_model = settings.IMAGE_MODEL
                 primary = settings.PRIMARY_PROVIDER
+
+            # Apply custom model overrides (highest priority)
+            if text_model:
+                effective_text_model = text_model
+                logger.info(f"Using custom text model: {text_model}")
+                # If custom model looks like OpenRouter model, adjust primary provider
+                if "/" in text_model and not text_model.startswith("gemini"):
+                    primary = ProviderType.OPENROUTER
+            if image_model:
+                effective_image_model = image_model
+                logger.info(f"Using custom image model: {image_model}")
 
             config = ProviderConfig(
                 primary=primary,
                 fallback=settings.FALLBACK_PROVIDER,
                 capabilities={
-                    ModelCapability.TEXT: text_model,
-                    ModelCapability.CODE: text_model,
+                    ModelCapability.TEXT: effective_text_model,
+                    ModelCapability.CODE: effective_text_model,
                     ModelCapability.VISION: judge_model,
-                    ModelCapability.IMAGE: image_model,
+                    ModelCapability.IMAGE: effective_image_model,
                 },
             )
 
@@ -192,21 +235,87 @@ class LLMRouter:
                 "imagen-3.0-generate-002": "google/gemini-3-pro-image-preview",
             }
             model = google_to_openrouter.get(model, model)
+        elif provider == ProviderType.GOOGLE:
+            # Strip OpenRouter-style prefixes for native Google provider
+            # e.g., "google/gemini-2.5-flash-image" -> "gemini-2.5-flash-image"
+            if model.startswith("google/"):
+                model = model[len("google/"):]
+                logger.debug(f"Stripped google/ prefix for native Google: {model}")
 
         return model
 
-    @retry(
-        retry=retry_if_exception_type((RateLimitError,)),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
-    )
+    async def _call_with_retry(
+        self,
+        provider: LLMProvider,
+        model: str,
+        prompt: str,
+        response_model: type[T] | None = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Call provider with exponential backoff retry.
+
+        Handles rate limits gracefully with increasing wait times.
+
+        Args:
+            provider: The LLM provider to use
+            model: Model ID
+            prompt: The prompt text
+            response_model: Optional Pydantic model for structured output
+            **kwargs: Additional parameters
+
+        Returns:
+            LLMResponse from the provider
+
+        Raises:
+            ProviderError: If all retries fail
+        """
+        last_error = None
+        backoff = INITIAL_BACKOFF
+
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                return await provider.call_text(
+                    prompt, model, response_model=response_model, **kwargs
+                )
+            except RateLimitError as e:
+                last_error = e
+
+                # Get retry-after from headers if available
+                wait_time = e.retry_after if e.retry_after else backoff
+                wait_time = min(wait_time, MAX_BACKOFF)
+
+                if attempt < MAX_RETRIES:
+                    logger.warning(
+                        f"Rate limit hit on {model} (attempt {attempt}/{MAX_RETRIES}). "
+                        f"Waiting {wait_time:.1f}s before retry..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
+                else:
+                    logger.warning(
+                        f"Rate limit persists after {MAX_RETRIES} attempts on {model}"
+                    )
+            except ProviderError as e:
+                # Non-rate-limit errors should not be retried
+                raise
+
+        # All retries exhausted
+        raise last_error or ProviderError(
+            message="All retry attempts exhausted",
+            provider=provider.provider_type,
+            retryable=False,
+        )
+
     async def call(
         self,
         prompt: str,
         capability: ModelCapability = ModelCapability.TEXT,
         **kwargs: Any,
     ) -> LLMResponse[str]:
-        """Call LLM with automatic provider selection.
+        """Call LLM with automatic provider selection and fallback.
+
+        Implements a cascade: primary model -> fallback model -> different provider.
+        For free models, automatically falls back to paid model on rate limits.
 
         Args:
             prompt: The input prompt.
@@ -226,13 +335,47 @@ class LLMRouter:
             ...     temperature=0.7
             ... )
         """
+        primary_model = self._get_model_for_capability(capability, self.config.primary)
+
         # Try primary provider
         try:
             provider = self._get_provider(self.config.primary)
-            model = self._get_model_for_capability(capability, self.config.primary)
+            logger.debug(f"Calling {self.config.primary.value} with model {primary_model}")
+            return await self._call_with_retry(provider, primary_model, prompt, **kwargs)
 
-            logger.debug(f"Calling {self.config.primary.value} with model {model}")
-            return await provider.call_text(prompt, model, **kwargs)
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exhausted on {primary_model}: {e}")
+
+            # If using a free model, try falling back to paid model on same provider
+            if is_free_model(primary_model) and self.config.primary == ProviderType.OPENROUTER:
+                logger.info(f"Free model rate limited. Falling back to paid model: {PAID_FALLBACK_MODEL}")
+                try:
+                    provider = self._get_provider(ProviderType.OPENROUTER)
+                    return await self._call_with_retry(
+                        provider, PAID_FALLBACK_MODEL, prompt, **kwargs
+                    )
+                except (ProviderError, RateLimitError) as e2:
+                    logger.warning(f"Paid model fallback also failed: {e2}")
+
+            # Try Google provider as ultimate fallback
+            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+                logger.info("Falling back to Google provider")
+                try:
+                    provider = self._get_provider(ProviderType.GOOGLE)
+                    settings = get_settings()
+                    google_model = settings.CREATIVE_MODEL
+                    return await self._call_with_retry(
+                        provider, google_model, prompt, **kwargs
+                    )
+                except ProviderError as e3:
+                    logger.warning(f"Google provider fallback failed: {e3}")
+
+            # All fallbacks exhausted
+            raise ProviderError(
+                message=f"All providers failed. Last error: {e}",
+                provider=self.config.primary,
+                retryable=False,
+            ) from e
 
         except ProviderError as e:
             logger.warning(f"Primary provider failed: {e}")
@@ -240,20 +383,16 @@ class LLMRouter:
             # Try fallback if configured
             if self.config.fallback and self.config.fallback in self.providers:
                 logger.info(f"Falling back to {self.config.fallback.value}")
+                try:
+                    provider = self._get_provider(self.config.fallback)
+                    model = self._get_model_for_capability(capability, self.config.fallback)
+                    return await self._call_with_retry(provider, model, prompt, **kwargs)
+                except ProviderError as e2:
+                    logger.warning(f"Fallback provider also failed: {e2}")
 
-                provider = self._get_provider(self.config.fallback)
-                model = self._get_model_for_capability(capability, self.config.fallback)
-
-                return await provider.call_text(prompt, model, **kwargs)
-
-            # No fallback available
+            # No fallback available or fallback failed
             raise
 
-    @retry(
-        retry=retry_if_exception_type((RateLimitError,)),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
-    )
     async def call_structured(
         self,
         prompt: str,
@@ -289,13 +428,51 @@ class LLMRouter:
             ... )
             >>> print(response.content.location)
         """
+        primary_model = self._get_model_for_capability(capability, self.config.primary)
+
         # Try primary provider
         try:
             provider = self._get_provider(self.config.primary)
-            model = self._get_model_for_capability(capability, self.config.primary)
+            logger.debug(f"Calling {self.config.primary.value} structured with model {primary_model}")
+            return await self._call_with_retry(
+                provider, primary_model, prompt, response_model=response_model, **kwargs
+            )
 
-            logger.debug(f"Calling {self.config.primary.value} structured with model {model}")
-            return await provider.call_text(prompt, model, response_model=response_model, **kwargs)
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exhausted on {primary_model}: {e}")
+
+            # If using a free model, try falling back to paid model on same provider
+            if is_free_model(primary_model) and self.config.primary == ProviderType.OPENROUTER:
+                logger.info(f"Free model rate limited. Falling back to paid model: {PAID_FALLBACK_MODEL}")
+                try:
+                    provider = self._get_provider(ProviderType.OPENROUTER)
+                    return await self._call_with_retry(
+                        provider, PAID_FALLBACK_MODEL, prompt,
+                        response_model=response_model, **kwargs
+                    )
+                except (ProviderError, RateLimitError) as e2:
+                    logger.warning(f"Paid model fallback also failed: {e2}")
+
+            # Try Google provider as ultimate fallback
+            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+                logger.info("Falling back to Google provider")
+                try:
+                    provider = self._get_provider(ProviderType.GOOGLE)
+                    settings = get_settings()
+                    google_model = settings.CREATIVE_MODEL
+                    return await self._call_with_retry(
+                        provider, google_model, prompt,
+                        response_model=response_model, **kwargs
+                    )
+                except ProviderError as e3:
+                    logger.warning(f"Google provider fallback failed: {e3}")
+
+            # All fallbacks exhausted
+            raise ProviderError(
+                message=f"All providers failed. Last error: {e}",
+                provider=self.config.primary,
+                retryable=False,
+            ) from e
 
         except ProviderError as e:
             logger.warning(f"Primary provider failed: {e}")
@@ -303,11 +480,14 @@ class LLMRouter:
             # Try fallback if configured
             if self.config.fallback and self.config.fallback in self.providers:
                 logger.info(f"Falling back to {self.config.fallback.value}")
-
-                provider = self._get_provider(self.config.fallback)
-                model = self._get_model_for_capability(capability, self.config.fallback)
-
-                return await provider.call_text(prompt, model, response_model=response_model, **kwargs)
+                try:
+                    provider = self._get_provider(self.config.fallback)
+                    model = self._get_model_for_capability(capability, self.config.fallback)
+                    return await self._call_with_retry(
+                        provider, model, prompt, response_model=response_model, **kwargs
+                    )
+                except ProviderError as e2:
+                    logger.warning(f"Fallback provider also failed: {e2}")
 
             raise
 

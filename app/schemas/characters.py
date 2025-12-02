@@ -100,6 +100,24 @@ class Character(BaseModel):
         description="Historical context for known figures",
     )
 
+    # Dialog and personality (for roleplay-informed dialog generation)
+    personality: str | None = Field(
+        default=None,
+        description="Core personality traits (e.g., 'witty, diplomatic, cautious')",
+    )
+    speaking_style: str | None = Field(
+        default=None,
+        description="How they speak (e.g., 'formal, verbose, uses metaphors')",
+    )
+    voice_notes: str | None = Field(
+        default=None,
+        description="Speech patterns, accent hints, verbal quirks",
+    )
+    emotional_state: str | None = Field(
+        default=None,
+        description="Current emotional state in this scene",
+    )
+
     # Dialog participation
     speaks_in_scene: bool = Field(
         default=False,
@@ -120,6 +138,89 @@ class Character(BaseModel):
         if self.action:
             parts.append(f"action: {self.action}")
         return ", ".join(parts)
+
+    def to_dialog_context(self) -> str:
+        """Convert to context string for dialog generation.
+
+        Provides personality and speaking style information for
+        roleplay-informed dialog generation.
+
+        Returns:
+            Formatted context string with character's voice profile.
+        """
+        lines = [f"**{self.name}** ({self.role.value})"]
+
+        if self.historical_note:
+            lines.append(f"  Historical: {self.historical_note}")
+        if self.personality:
+            lines.append(f"  Personality: {self.personality}")
+        if self.speaking_style:
+            lines.append(f"  Speaking Style: {self.speaking_style}")
+        if self.voice_notes:
+            lines.append(f"  Voice Notes: {self.voice_notes}")
+        if self.emotional_state:
+            lines.append(f"  Current State: {self.emotional_state}")
+        if self.action:
+            lines.append(f"  Action: {self.action}")
+
+        return "\n".join(lines)
+
+    def to_system_prompt(self, year: int, location: str, era: str | None = None) -> str:
+        """Convert to roleplay system prompt for sequential dialog generation.
+
+        Creates a system prompt that makes the LLM "become" this character,
+        enabling authentic, personality-driven dialog generation.
+
+        Args:
+            year: The year of the scene
+            location: The location of the scene
+            era: Historical era (e.g., "Colonial America")
+
+        Returns:
+            System prompt string for roleplay-based dialog generation.
+
+        Examples:
+            >>> char = Character(name="Ben Franklin", personality="witty", ...)
+            >>> prompt = char.to_system_prompt(1776, "Philadelphia")
+            >>> # "You are Ben Franklin..."
+        """
+        era_str = f" ({era})" if era else ""
+        year_display = f"{abs(year)} BCE" if year < 0 else str(year)
+
+        lines = [f"You are {self.name}."]
+
+        # Add historical context if known figure
+        if self.historical_note:
+            lines.append(f"\nHISTORICAL CONTEXT: {self.historical_note}")
+
+        # Add personality and speaking characteristics
+        if self.personality:
+            lines.append(f"\nPERSONALITY: {self.personality}")
+        if self.speaking_style:
+            lines.append(f"SPEAKING STYLE: {self.speaking_style}")
+        if self.voice_notes:
+            lines.append(f"VOICE: {self.voice_notes}")
+        if self.emotional_state:
+            lines.append(f"CURRENT EMOTIONAL STATE: {self.emotional_state}")
+        if self.action:
+            lines.append(f"CURRENT ACTION: {self.action}")
+
+        # Add scene context
+        lines.append(f"\nSCENE: You are in {location}, {year_display}{era_str}.")
+
+        # Add roleplay instructions
+        lines.append("""
+INSTRUCTIONS:
+- Stay completely in character as this person
+- Match your personality traits in HOW you speak
+- Use your speaking style for word choice and sentence structure
+- Reflect your emotional state in your delivery
+- Respond naturally to what others say
+- Give only your spoken dialog (1-2 sentences)
+- Do NOT include stage directions or your name
+- Do NOT break character or add meta-commentary""")
+
+        return "\n".join(lines)
 
 
 class CharacterData(BaseModel):

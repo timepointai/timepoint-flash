@@ -25,26 +25,615 @@ PRESET_HYPER="hyper"
 PRESET_BALANCED="balanced"
 CURRENT_PRESET=""
 
-# Preset selection helper
+# Custom model selection (when not using presets)
+CUSTOM_TEXT_MODEL=""
+CUSTOM_IMAGE_MODEL=""
+USE_CUSTOM_MODELS="false"
+
+# Timing estimates (in minutes) based on empirical testing
+# Format: [text_only, with_image]
+TIMING_HD=(5 8)       # HD: slow but highest quality
+TIMING_BALANCED=(3 5) # Balanced: good middle ground
+TIMING_HYPER=(1 3)    # Hyper: fastest
+
+# Get timing estimate string
+get_timing_estimate() {
+    local preset="$1"
+    local with_image="$2"
+
+    case "$preset" in
+        "$PRESET_HD")
+            if [ "$with_image" = "true" ]; then
+                echo "~${TIMING_HD[1]} min"
+            else
+                echo "~${TIMING_HD[0]} min"
+            fi
+            ;;
+        "$PRESET_HYPER")
+            if [ "$with_image" = "true" ]; then
+                echo "~${TIMING_HYPER[1]} min"
+            else
+                echo "~${TIMING_HYPER[0]} min"
+            fi
+            ;;
+        *)
+            if [ "$with_image" = "true" ]; then
+                echo "~${TIMING_BALANCED[1]} min"
+            else
+                echo "~${TIMING_BALANCED[0]} min"
+            fi
+            ;;
+    esac
+}
+
+# Preset selection helper with timing estimates
 select_preset() {
+    # Reset custom models
+    USE_CUSTOM_MODELS="false"
+    CUSTOM_TEXT_MODEL=""
+    CUSTOM_IMAGE_MODEL=""
+
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
     echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 3 Pro + Nano Banana Pro)"
-    echo -e "     ${DIM}2K images, high reasoning, slowest but best fidelity${NC}"
+    echo -e "     ${DIM}2K images, high reasoning | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
     echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash + Nano Banana)"
-    echo -e "     ${DIM}Default mode, good speed and quality${NC}"
+    echo -e "     ${DIM}Recommended default | ~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min${NC}"
     echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
-    echo -e "     ${DIM}Fast generation with reduced tokens, uses OpenRouter${NC}"
+    echo -e "     ${DIM}Fast generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
+    echo -e "  ${YELLOW}4)${NC} ${BOLD}Browse models...${NC} - Choose your own"
+    echo -e "     ${DIM}Interactive model selection from available providers${NC}"
+    echo -e "  ${BLUE}5)${NC} ${BOLD}Natural language...${NC} - Describe what you want"
+    echo -e "     ${DIM}AI interprets your request (experimental)${NC}"
+    echo ""
+    echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
+    echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
+    echo -e "  ${GREEN}7)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
+    echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
     read -r preset_choice
 
     case "$preset_choice" in
-        1) CURRENT_PRESET="$PRESET_HD"; echo -e "${MAGENTA}Using HD preset (Nano Banana Pro)${NC}" ;;
-        3) CURRENT_PRESET="$PRESET_HYPER"; echo -e "${CYAN}Using Hyper preset (OpenRouter)${NC}" ;;
-        *) CURRENT_PRESET="$PRESET_BALANCED"; echo -e "${GREEN}Using Balanced preset (Nano Banana)${NC}" ;;
+        1)
+            CURRENT_PRESET="$PRESET_HD"
+            echo -e "${MAGENTA}Using HD preset (~${TIMING_HD[0]}-${TIMING_HD[1]} min)${NC}"
+            ;;
+        3)
+            CURRENT_PRESET="$PRESET_HYPER"
+            echo -e "${CYAN}Using Hyper preset (~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min)${NC}"
+            ;;
+        4)
+            browse_models
+            ;;
+        5)
+            natural_language_models
+            ;;
+        6)
+            select_free_model "best"
+            ;;
+        7)
+            select_free_model "fastest"
+            ;;
+        *)
+            CURRENT_PRESET="$PRESET_BALANCED"
+            echo -e "${GREEN}Using Balanced preset (~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min)${NC}"
+            ;;
     esac
     echo ""
+}
+
+# Select free model (best or fastest)
+select_free_model() {
+    local mode="$1"  # "best" or "fastest"
+
+    echo ""
+    echo -e "${BOLD}=== Free Model Selection ===${NC}"
+    echo -e "${DIM}Fetching available free models from OpenRouter...${NC}"
+    echo ""
+
+    # Fetch free models from the API
+    free_response=$(curl -s "$API_BASE/api/v1/models/free")
+
+    if [ -z "$free_response" ] || echo "$free_response" | grep -q "error"; then
+        echo -e "${RED}Failed to fetch free models. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    # Parse the response with Python
+    FREE_DATA="$free_response" FREE_MODE="$mode" python3 << 'PYEOF'
+import os, json, sys
+
+try:
+    data = json.loads(os.environ['FREE_DATA'])
+    mode = os.environ.get('FREE_MODE', 'best')
+
+    total = data.get('total', 0)
+    note = data.get('note', '')
+
+    print(f"\033[32mFound {total} free models\033[0m")
+    if note:
+        print(f"\033[2m{note}\033[0m")
+    print()
+
+    # Get recommended model based on mode
+    if mode == 'best':
+        model = data.get('best')
+        if model:
+            print(f"\033[1mBest Free Model (highest capability):\033[0m")
+            print(f"  ID:      \033[36m{model.get('id')}\033[0m")
+            print(f"  Name:    {model.get('name')}")
+            print(f"  Context: {model.get('context_length', 'N/A'):,} tokens")
+            with open('/tmp/free_model_id', 'w') as f:
+                f.write(model.get('id', ''))
+        else:
+            print("\033[31mNo best model available\033[0m")
+            sys.exit(1)
+    else:  # fastest
+        model = data.get('fastest')
+        if model:
+            print(f"\033[1mFastest Free Model (quickest inference):\033[0m")
+            print(f"  ID:      \033[36m{model.get('id')}\033[0m")
+            print(f"  Name:    {model.get('name')}")
+            print(f"  Context: {model.get('context_length', 'N/A'):,} tokens")
+            with open('/tmp/free_model_id', 'w') as f:
+                f.write(model.get('id', ''))
+        else:
+            print("\033[31mNo fastest model available\033[0m")
+            sys.exit(1)
+
+    # Show other free models
+    all_free = data.get('all_free', [])
+    if len(all_free) > 1:
+        print()
+        print(f"\033[2mOther free models available: {len(all_free) - 1}\033[0m")
+        for m in all_free[1:6]:  # Show next 5
+            print(f"  \033[2m- {m.get('id')}\033[0m")
+        if len(all_free) > 6:
+            print(f"  \033[2m... and {len(all_free) - 6} more\033[0m")
+
+except Exception as e:
+    print(f"\033[31mError parsing free models: {e}\033[0m")
+    sys.exit(1)
+PYEOF
+
+    result=$?
+
+    if [ $result -ne 0 ]; then
+        echo -e "${RED}Failed to parse free models. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    # Read the selected model
+    if [ -f /tmp/free_model_id ]; then
+        CUSTOM_TEXT_MODEL=$(cat /tmp/free_model_id)
+        rm -f /tmp/free_model_id
+
+        if [ -n "$CUSTOM_TEXT_MODEL" ]; then
+            echo ""
+            echo -e "${YELLOW}Note: Free models do not include image generation.${NC}"
+            echo -e "${DIM}You can still generate images with the paid image model.${NC}"
+            echo ""
+            echo -e "${YELLOW}Use this free model? (y/n)${NC} \c"
+            read -r confirm
+
+            if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                USE_CUSTOM_MODELS="true"
+                CURRENT_PRESET=""
+                # Don't set image model - will use default paid model if requested
+                echo -e "${GREEN}Using free model: $CUSTOM_TEXT_MODEL${NC}"
+            else
+                echo -e "${DIM}Cancelled. Using balanced preset.${NC}"
+                USE_CUSTOM_MODELS="false"
+                CUSTOM_TEXT_MODEL=""
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
+        else
+            echo -e "${RED}No free model selected. Using balanced preset.${NC}"
+            CURRENT_PRESET="$PRESET_BALANCED"
+        fi
+    else
+        echo -e "${RED}Failed to get free model. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+    fi
+}
+
+# Browse and select models interactively
+browse_models() {
+    echo ""
+    echo -e "${BOLD}=== Browse Models ===${NC}"
+    echo ""
+
+    # Fetch available models
+    echo -e "${DIM}Fetching available models...${NC}"
+    models_response=$(curl -s "$API_BASE/api/v1/models?fetch_remote=true")
+
+    if [ -z "$models_response" ]; then
+        echo -e "${RED}Failed to fetch models. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    # Parse and display text models
+    echo ""
+    echo -e "${CYAN}=== Text Generation Models ===${NC}"
+    echo ""
+    echo -e "Filter by provider: ${YELLOW}(g)oogle, (o)penrouter, (a)ll${NC} [a]: \c"
+    read -r text_provider_filter
+    text_provider_filter="${text_provider_filter:-a}"
+
+    echo ""
+    echo -e "Search filter (or Enter for all): \c"
+    read -r text_search
+
+    # Display text models with Python
+    TEXT_MODEL_RESPONSE="$models_response" TEXT_PROVIDER="$text_provider_filter" TEXT_SEARCH="$text_search" python3 << 'PYEOF'
+import os, json, sys
+
+data = json.loads(os.environ['TEXT_MODEL_RESPONSE'])
+provider_filter = os.environ.get('TEXT_PROVIDER', 'a').lower()
+search_filter = os.environ.get('TEXT_SEARCH', '').lower()
+
+models = data.get('models', [])
+
+# Filter for text models
+text_models = [m for m in models if 'text' in m.get('capabilities', [])]
+
+# Apply provider filter
+if provider_filter == 'g':
+    text_models = [m for m in text_models if m.get('provider') == 'google']
+elif provider_filter == 'o':
+    text_models = [m for m in text_models if m.get('provider') == 'openrouter']
+
+# Apply search filter
+if search_filter:
+    text_models = [m for m in text_models if search_filter in m.get('id', '').lower() or search_filter in m.get('name', '').lower()]
+
+# Limit to 15 for display
+text_models = text_models[:15]
+
+if not text_models:
+    print("\033[31mNo matching text models found\033[0m")
+    sys.exit(1)
+
+# Write to temp file for bash to read
+ids = []
+for i, m in enumerate(text_models, 1):
+    provider = m.get('provider', 'unknown')[:10]
+    model_id = m.get('id', 'unknown')
+    name = m.get('name', model_id)[:35]
+    ids.append(model_id)
+    print(f"  \033[1m{i:2})\033[0m [{provider:10}] {name}")
+
+with open('/tmp/text_model_ids', 'w') as f:
+    f.write('\n'.join(ids))
+PYEOF
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}No text models found. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Select text model [1-15]: ${NC}\c"
+    read -r text_choice
+
+    # Read selected model
+    if [ -f /tmp/text_model_ids ]; then
+        text_model_ids=()
+        while IFS= read -r line; do
+            text_model_ids+=("$line")
+        done < /tmp/text_model_ids
+        rm -f /tmp/text_model_ids
+
+        idx=$((text_choice - 1))
+        if [ $idx -ge 0 ] && [ $idx -lt ${#text_model_ids[@]} ]; then
+            CUSTOM_TEXT_MODEL="${text_model_ids[$idx]}"
+            echo -e "${GREEN}Selected: $CUSTOM_TEXT_MODEL${NC}"
+        else
+            echo -e "${RED}Invalid selection. Using default.${NC}"
+            CURRENT_PRESET="$PRESET_BALANCED"
+            return
+        fi
+    fi
+
+    # Now select image model
+    echo ""
+    echo -e "${CYAN}=== Image Generation Models ===${NC}"
+    echo ""
+
+    # Display image models with Python
+    IMAGE_MODEL_RESPONSE="$models_response" python3 << 'PYEOF'
+import os, json
+
+data = json.loads(os.environ['IMAGE_MODEL_RESPONSE'])
+models = data.get('models', [])
+
+# Filter for image models
+image_models = [m for m in models if 'image_generation' in m.get('capabilities', [])]
+
+# Add "none" option
+print(f"  \033[1m 1)\033[0m [skip      ] No image generation")
+
+ids = ['none']
+for i, m in enumerate(image_models, 2):
+    provider = m.get('provider', 'unknown')[:10]
+    model_id = m.get('id', 'unknown')
+    name = m.get('name', model_id)[:35]
+    ids.append(model_id)
+    print(f"  \033[1m{i:2})\033[0m [{provider:10}] {name}")
+
+with open('/tmp/image_model_ids', 'w') as f:
+    f.write('\n'.join(ids))
+PYEOF
+
+    echo ""
+    echo -e "${YELLOW}Select image model [1-n]: ${NC}\c"
+    read -r image_choice
+
+    # Read selected image model
+    if [ -f /tmp/image_model_ids ]; then
+        image_model_ids=()
+        while IFS= read -r line; do
+            image_model_ids+=("$line")
+        done < /tmp/image_model_ids
+        rm -f /tmp/image_model_ids
+
+        idx=$((image_choice - 1))
+        if [ $idx -ge 0 ] && [ $idx -lt ${#image_model_ids[@]} ]; then
+            selected_image="${image_model_ids[$idx]}"
+            if [ "$selected_image" = "none" ]; then
+                CUSTOM_IMAGE_MODEL=""
+                echo -e "${DIM}No image generation selected${NC}"
+            else
+                CUSTOM_IMAGE_MODEL="$selected_image"
+                echo -e "${GREEN}Selected: $CUSTOM_IMAGE_MODEL${NC}"
+            fi
+        fi
+    fi
+
+    # Set custom mode
+    USE_CUSTOM_MODELS="true"
+    CURRENT_PRESET=""  # Clear preset when using custom
+
+    echo ""
+    echo -e "${BOLD}Custom Configuration:${NC}"
+    echo -e "  Text:  ${CYAN}$CUSTOM_TEXT_MODEL${NC}"
+    if [ -n "$CUSTOM_IMAGE_MODEL" ]; then
+        echo -e "  Image: ${CYAN}$CUSTOM_IMAGE_MODEL${NC}"
+    else
+        echo -e "  Image: ${DIM}(none)${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}Proceed with this configuration? (y/n)${NC} \c"
+    read -r confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo -e "${DIM}Cancelled. Using balanced preset.${NC}"
+        USE_CUSTOM_MODELS="false"
+        CURRENT_PRESET="$PRESET_BALANCED"
+    fi
+}
+
+# Natural language model selection (experimental)
+natural_language_models() {
+    echo ""
+    echo -e "${BOLD}=== Natural Language Model Selection ===${NC}"
+    echo -e "${YELLOW}(experimental)${NC}"
+    echo ""
+    echo -e "Describe what models you want. Examples:"
+    echo -e "  ${DIM}- 'fastest possible'${NC}"
+    echo -e "  ${DIM}- 'claude for text, flux for images'${NC}"
+    echo -e "  ${DIM}- 'smallest llama model, no image'${NC}"
+    echo -e "  ${DIM}- 'best quality gemini'${NC}"
+    echo ""
+    echo -e "${YELLOW}Your request: ${NC}\c"
+    read -r nl_request
+
+    if [ -z "$nl_request" ]; then
+        echo -e "${RED}Empty request. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    echo ""
+    echo -e "${DIM}Interpreting your request...${NC}"
+
+    # Fetch available models for context
+    models_response=$(curl -s "$API_BASE/api/v1/models?fetch_remote=true")
+
+    # Use Python to call Gemini for interpretation
+    NL_REQUEST="$nl_request" MODELS_DATA="$models_response" python3 << 'PYEOF'
+import os, json, sys
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    print("ERROR:Google AI SDK not installed")
+    sys.exit(1)
+
+# Get API key from environment
+api_key = os.environ.get('GOOGLE_API_KEY')
+if not api_key:
+    # Try to read from .env
+    try:
+        with open('.env') as f:
+            for line in f:
+                if line.startswith('GOOGLE_API_KEY='):
+                    api_key = line.split('=', 1)[1].strip().strip('"').strip("'")
+                    break
+    except:
+        pass
+
+if not api_key:
+    print("ERROR:No GOOGLE_API_KEY found")
+    sys.exit(1)
+
+genai.configure(api_key=api_key)
+
+user_request = os.environ['NL_REQUEST']
+models_data = json.loads(os.environ.get('MODELS_DATA', '{"models":[]}'))
+
+# Build available models list
+text_models = []
+image_models = []
+for m in models_data.get('models', []):
+    caps = m.get('capabilities', [])
+    model_entry = f"{m.get('provider', 'unknown')}/{m.get('id', 'unknown')}"
+    if 'text' in caps:
+        text_models.append(model_entry)
+    if 'image_generation' in caps:
+        image_models.append(model_entry)
+
+# Add known models
+text_models.extend([
+    "google/gemini-2.5-flash",
+    "google/gemini-3-pro-preview",
+    "google/gemini-2.0-flash",
+    "openrouter/anthropic/claude-3.5-sonnet",
+    "openrouter/openai/gpt-4o",
+    "openrouter/meta-llama/llama-3.3-70b-instruct",
+    "openrouter/meta-llama/llama-3.2-3b-instruct",
+])
+image_models.extend([
+    "google/imagen-3.0-generate-002",
+    "google/gemini-2.5-flash-image",
+    "openrouter/black-forest-labs/flux-1.1-pro",
+])
+
+# Deduplicate
+text_models = list(set(text_models))[:30]
+image_models = list(set(image_models))[:10]
+
+system_prompt = f"""You are a model selector for TIMEPOINT Flash, a historical image generation pipeline.
+
+AVAILABLE TEXT MODELS:
+{chr(10).join(f'- {m}' for m in text_models)}
+
+AVAILABLE IMAGE MODELS:
+{chr(10).join(f'- {m}' for m in image_models)}
+- none (skip image generation)
+
+The user will describe what models they want. Return ONLY valid JSON (no markdown):
+{{"text_model": "provider/model-id", "image_model": "provider/model-id or none", "reasoning": "brief explanation"}}
+
+RULES:
+- ONLY select from available models above
+- If user mentions unavailable model, pick closest match
+- "fastest" = gemini-2.0-flash or small llama
+- "best quality" = gemini-3-pro-preview or claude
+- "no image" = set image_model to "none"
+- Default to gemini-2.5-flash if unclear
+
+User request: {user_request}"""
+
+try:
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    response = model.generate_content(system_prompt)
+    result_text = response.text.strip()
+
+    # Clean up response (remove markdown if present)
+    if result_text.startswith('```'):
+        lines = result_text.split('\n')
+        result_text = '\n'.join(lines[1:-1])
+
+    result = json.loads(result_text)
+
+    # Validate and extract
+    text_model = result.get('text_model', 'gemini-2.5-flash')
+    image_model = result.get('image_model', 'none')
+    reasoning = result.get('reasoning', '')
+
+    # Remove provider prefix if it's just "google/" for google models
+    if text_model.startswith('google/'):
+        text_model = text_model.replace('google/', '', 1)
+
+    # Write results
+    with open('/tmp/nl_text_model', 'w') as f:
+        f.write(text_model)
+    with open('/tmp/nl_image_model', 'w') as f:
+        f.write(image_model if image_model != 'none' else '')
+    with open('/tmp/nl_reasoning', 'w') as f:
+        f.write(reasoning)
+
+    print(f"OK:{text_model}|{image_model}|{reasoning}")
+
+except Exception as e:
+    print(f"ERROR:{e}")
+    sys.exit(1)
+PYEOF
+
+    result=$?
+
+    if [ $result -ne 0 ]; then
+        echo -e "${RED}Failed to interpret request. Using balanced preset.${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        return
+    fi
+
+    # Read results
+    if [ -f /tmp/nl_text_model ]; then
+        CUSTOM_TEXT_MODEL=$(cat /tmp/nl_text_model)
+        rm -f /tmp/nl_text_model
+    fi
+    if [ -f /tmp/nl_image_model ]; then
+        CUSTOM_IMAGE_MODEL=$(cat /tmp/nl_image_model)
+        rm -f /tmp/nl_image_model
+    fi
+    if [ -f /tmp/nl_reasoning ]; then
+        reasoning=$(cat /tmp/nl_reasoning)
+        rm -f /tmp/nl_reasoning
+    fi
+
+    echo ""
+    echo -e "${GREEN}Interpreted Configuration:${NC}"
+    echo -e "  Text:  ${CYAN}$CUSTOM_TEXT_MODEL${NC}"
+    if [ -n "$CUSTOM_IMAGE_MODEL" ]; then
+        echo -e "  Image: ${CYAN}$CUSTOM_IMAGE_MODEL${NC}"
+    else
+        echo -e "  Image: ${DIM}(none)${NC}"
+    fi
+    if [ -n "$reasoning" ]; then
+        echo -e "  ${DIM}Reasoning: $reasoning${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}Proceed with this configuration? (y/n)${NC} \c"
+    read -r confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        USE_CUSTOM_MODELS="true"
+        CURRENT_PRESET=""
+    else
+        echo -e "${DIM}Cancelled. Using balanced preset.${NC}"
+        USE_CUSTOM_MODELS="false"
+        CURRENT_PRESET="$PRESET_BALANCED"
+    fi
+}
+
+# Build JSON payload with preset or custom models
+build_json_payload() {
+    local query="$1"
+    local generate_image="$2"
+    local preset="$3"
+
+    local payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
+
+    if [ "$USE_CUSTOM_MODELS" = "true" ]; then
+        # Custom model mode
+        if [ -n "$CUSTOM_TEXT_MODEL" ]; then
+            payload="$payload, \"text_model\": \"$CUSTOM_TEXT_MODEL\""
+        fi
+        if [ -n "$CUSTOM_IMAGE_MODEL" ]; then
+            payload="$payload, \"image_model\": \"$CUSTOM_IMAGE_MODEL\""
+        fi
+    elif [ -n "$preset" ]; then
+        # Preset mode
+        payload="$payload, \"preset\": \"$preset\""
+    fi
+
+    payload="$payload}"
+    echo "$payload"
 }
 
 # Sample templates
@@ -82,9 +671,12 @@ print_menu() {
     echo -e "  ${GREEN}1)${NC} Generate timepoint (sync) - Wait for full result"
     echo -e "  ${GREEN}2)${NC} Generate timepoint (streaming) - See live progress"
     echo -e "  ${GREEN}3)${NC} Generate from template"
-    echo -e "  ${GREEN}4)${NC} Browse timepoints"
-    echo -e "  ${GREEN}5)${NC} Health check"
-    echo -e "  ${GREEN}6)${NC} API documentation"
+    echo -e "  ${CYAN}4)${NC} ${BOLD}RAPID TEST${NC} - One-click hyper + image (streaming)"
+    echo -e "  ${GREEN}5)${NC} ${BOLD}RAPID TEST FREE${NC} - One-click fastest free model + image"
+    echo -e "  ${GREEN}6)${NC} Browse timepoints"
+    echo -e "  ${GREEN}7)${NC} Health check"
+    echo -e "  ${GREEN}8)${NC} API documentation"
+    echo -e "  ${CYAN}9)${NC} Test endpoints"
     echo -e "  ${RED}q)${NC} Quit"
     echo ""
 }
@@ -158,6 +750,18 @@ view_timepoint_by_id() {
         echo -e "  ${BOLD}API (JSON):${NC}  $API_BASE/api/v1/timepoints/$tp_id?full=true"
         echo -e "  ${BOLD}Swagger:${NC}     $API_BASE/docs#/timepoints/get_timepoint_api_v1_timepoints__timepoint_id__get"
         echo ""
+
+        # Check if this timepoint has an image and offer to view it
+        has_image=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print('yes' if d.get('image_base64') or d.get('has_image') else 'no')" 2>/dev/null || echo "no")
+
+        if [ "$has_image" = "yes" ]; then
+            echo -e "${GREEN}This timepoint has an image!${NC}"
+            echo -e "View/save image? ${YELLOW}(y/n)${NC} \c"
+            read -r view_img
+            if [ "$view_img" = "y" ] || [ "$view_img" = "Y" ]; then
+                save_image_if_exists "$tp_id"
+            fi
+        fi
     fi
 
     return 0
@@ -201,12 +805,8 @@ generate_sync() {
 
     start_time=$(date +%s)
 
-    # Build JSON payload with preset
-    json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
-    if [ -n "$CURRENT_PRESET" ]; then
-        json_payload="$json_payload, \"preset\": \"$CURRENT_PRESET\""
-    fi
-    json_payload="$json_payload}"
+    # Build JSON payload with preset or custom models
+    json_payload=$(build_json_payload "$query" "$generate_image" "$CURRENT_PRESET")
 
     response=$(curl -s -X POST "$API_BASE/api/v1/timepoints/generate/sync" \
         -H "Content-Type: application/json" \
@@ -275,6 +875,12 @@ generate_stream() {
 
     echo ""
     echo -e "${CYAN}Streaming generation for: ${BOLD}$query${NC}"
+
+    # Get timing estimate
+    time_est=$(get_timing_estimate "$preset" "$generate_image")
+    echo -e "${DIM}Estimated time: $time_est${NC}"
+    echo ""
+
     if [ "$generate_image" = "true" ]; then
         echo -e "${YELLOW}Watch the progress (with image generation)...${NC}"
     elif [ "$preset" = "$PRESET_HYPER" ]; then
@@ -284,15 +890,12 @@ generate_stream() {
     fi
     echo ""
 
-    # Build JSON payload with preset
-    json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
-    if [ -n "$preset" ]; then
-        json_payload="$json_payload, \"preset\": \"$preset\""
-    fi
-    json_payload="$json_payload}"
+    # Build JSON payload with preset or custom models
+    json_payload=$(build_json_payload "$query" "$generate_image" "$preset")
 
-    # Clear temp file
+    # Clear temp file and record start time
     rm -f /tmp/timepoint_last_id
+    echo "$(date +%s)" > /tmp/timepoint_start_time
 
     curl -N -s -X POST "$API_BASE/api/v1/timepoints/generate/stream" \
         -H "Content-Type: application/json" \
@@ -303,17 +906,31 @@ generate_stream() {
             step=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('step',''))" 2>/dev/null || echo "")
             progress=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',0))" 2>/dev/null || echo "0")
 
+            # Calculate elapsed time
+            if [ -f /tmp/timepoint_start_time ]; then
+                start_ts=$(cat /tmp/timepoint_start_time)
+                now_ts=$(date +%s)
+                elapsed=$((now_ts - start_ts))
+                elapsed_str="${elapsed}s"
+            else
+                elapsed_str="..."
+            fi
+
             case "$event" in
                 "start")
-                    echo -e "${GREEN}[START]${NC} Initializing pipeline..."
+                    # Extract generate_image value and preset from start event data
+                    gen_img_val=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('generate_image','?'))" 2>/dev/null || echo "?")
+                    preset_val=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('preset','balanced'))" 2>/dev/null || echo "balanced")
+                    echo -e "${GREEN}[START]${NC} Initializing pipeline... (preset=$preset_val, image=$gen_img_val)"
+                    echo -e "${DIM}Pipeline: judge > timeline > scene > characters > graph > moment > dialog > camera > image_prompt${NC}"
                     ;;
                 "step_complete")
                     bar=$(printf '%*s' $((progress/5)) '' | tr ' ' '#')
                     empty=$(printf '%*s' $((20-progress/5)) '' | tr ' ' '-')
-                    echo -e "${GREEN}[${bar}${empty}] ${progress}%${NC} Completed: $step"
+                    echo -e "${GREEN}[${bar}${empty}] ${progress}%${NC} ${elapsed_str} - Completed: $step"
                     ;;
                 "step_error")
-                    echo -e "${RED}[ERROR]${NC} Step failed: $step"
+                    echo -e "${RED}[ERROR]${NC} ${elapsed_str} - Step failed: $step"
                     ;;
                 "done")
                     echo ""
@@ -406,12 +1023,8 @@ generate_from_template() {
         echo -e "${YELLOW}> ${NC}\c"
         read -r mode
 
-        # Build JSON payload with preset
-        json_payload="{\"query\": \"$query\", \"generate_image\": $generate_image"
-        if [ -n "$CURRENT_PRESET" ]; then
-            json_payload="$json_payload, \"preset\": \"$CURRENT_PRESET\""
-        fi
-        json_payload="$json_payload}"
+        # Build JSON payload with preset or custom models
+        json_payload=$(build_json_payload "$query" "$generate_image" "$CURRENT_PRESET")
 
         if [ "$mode" = "1" ]; then
             echo ""
@@ -447,6 +1060,86 @@ generate_from_template() {
     fi
 }
 
+# Rapid test - one-click hyper + image streaming
+rapid_test() {
+    echo -e "${BOLD}=== RAPID TEST ===${NC}"
+    echo ""
+    echo -e "${CYAN}One-click hyper speed test with image generation${NC}"
+    echo ""
+
+    # Pick a random template
+    template_count=${#TEMPLATES[@]}
+    random_idx=$((RANDOM % template_count))
+    query="${TEMPLATES[$random_idx]}"
+
+    echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
+    echo -e "${DIM}Using: Hyper preset + Image generation + Streaming${NC}"
+    echo ""
+
+    # Run streaming with hyper preset and image enabled, skip all prompts
+    CURRENT_PRESET="$PRESET_HYPER"
+    USE_CUSTOM_MODELS="false"
+    generate_stream "$query" "true" "true" "$PRESET_HYPER"
+}
+
+# Rapid test with FREE model - one-click fastest free model + image streaming
+rapid_test_free() {
+    echo -e "${BOLD}=== RAPID TEST FREE ===${NC}"
+    echo ""
+    echo -e "${GREEN}One-click test using fastest FREE model${NC}"
+    echo ""
+
+    # Fetch fastest free model from API
+    echo -e "${DIM}Fetching fastest free model from OpenRouter...${NC}"
+    free_response=$(curl -s "$API_BASE/api/v1/models/free")
+
+    if [ -z "$free_response" ] || echo "$free_response" | grep -q "error"; then
+        echo -e "${RED}Failed to fetch free models. Falling back to hyper preset.${NC}"
+        rapid_test
+        return
+    fi
+
+    # Parse the fastest model
+    fastest_model=$(echo "$free_response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    fastest = data.get('fastest')
+    if fastest:
+        print(fastest.get('id', ''))
+    else:
+        print('')
+except:
+    print('')
+" 2>/dev/null)
+
+    if [ -z "$fastest_model" ]; then
+        echo -e "${RED}No fastest free model available. Falling back to hyper preset.${NC}"
+        rapid_test
+        return
+    fi
+
+    # Pick a random template
+    template_count=${#TEMPLATES[@]}
+    random_idx=$((RANDOM % template_count))
+    query="${TEMPLATES[$random_idx]}"
+
+    echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
+    echo -e "${CYAN}Free model:${NC} ${BOLD}$fastest_model${NC}"
+    echo -e "${DIM}Using: Fastest free model + Image generation + Streaming${NC}"
+    echo -e "${YELLOW}Note: Free models rotate frequently on OpenRouter${NC}"
+    echo ""
+
+    # Set custom model mode with the free model
+    USE_CUSTOM_MODELS="true"
+    CUSTOM_TEXT_MODEL="$fastest_model"
+    CUSTOM_IMAGE_MODEL=""  # Use default paid image model
+    CURRENT_PRESET=""
+
+    # Run streaming with free model and image enabled, skip all prompts
+    generate_stream "$query" "true" "true" ""
+}
+
 # List/Browse timepoints - with number selection
 list_timepoints() {
     echo -e "${BOLD}=== Browse Timepoints ===${NC}"
@@ -480,8 +1173,12 @@ for i, tp in enumerate(data.get('items', []), 1):
     else:
         status_color = '\033[31m'
 
-    query_display = tp['query'][:42] + '...' if len(tp['query']) > 42 else tp['query']
-    print(f"  \033[1m{i:2})\033[0m [{status_color}{status:10}\033[0m] {query_display}")
+    # Check for image
+    has_image = tp.get('has_image') or tp.get('image_base64')
+    image_icon = '📷' if has_image else '  '
+
+    query_display = tp['query'][:40] + '...' if len(tp['query']) > 40 else tp['query']
+    print(f"  \033[1m{i:2})\033[0m [{status_color}{status:10}\033[0m] {image_icon} {query_display}")
 
     if tp.get('year'):
         era = 'BCE' if tp['year'] < 0 else 'CE'
@@ -689,6 +1386,18 @@ if data.get('image_prompt'):
     print(f"{prompt[:400]}{'...' if len(prompt) > 400 else ''}")
     print()
 
+# Image status
+has_image = data.get('image_base64') or data.get('has_image')
+if has_image:
+    print("\033[36m--- IMAGE ---\033[0m")
+    print("\033[32m📷 Image: Available\033[0m")
+    print("\033[2mUse 'View/save image' option to open or save the generated image\033[0m")
+    print()
+else:
+    print("\033[36m--- IMAGE ---\033[0m")
+    print("\033[2m📷 Image: Not generated (use 'Generate image?' option)\033[0m")
+    print()
+
 # Error
 if data.get('error'):
     print(f"\033[31mError: {data['error']}\033[0m")
@@ -715,6 +1424,222 @@ open_docs() {
     fi
 }
 
+# Test endpoints submenu
+test_endpoints() {
+    echo -e "${BOLD}=== Test Endpoints ===${NC}"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} Health check (/health)"
+    echo -e "  ${GREEN}2)${NC} List models (/api/v1/models)"
+    echo -e "  ${GREEN}3)${NC} Provider status (/api/v1/models/providers)"
+    echo -e "  ${GREEN}4)${NC} Quick generation test (balanced, no image)"
+    echo -e "  ${GREEN}5)${NC} Test all endpoints"
+    echo -e "  ${RED}b)${NC} Back"
+    echo ""
+    echo -e "${YELLOW}Select: ${NC}\c"
+    read -r test_choice
+
+    case "$test_choice" in
+        1) test_health ;;
+        2) test_models ;;
+        3) test_providers ;;
+        4) test_quick_generate ;;
+        5) test_all_endpoints ;;
+        b|B) return ;;
+        *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
+    esac
+}
+
+# Test health endpoint
+test_health() {
+    echo ""
+    echo -e "${CYAN}Testing: GET /health${NC}"
+
+    start_time=$(date +%s%3N)
+    response=$(curl -s -w "\n%{http_code}" "$API_BASE/health")
+    end_time=$(date +%s%3N)
+
+    http_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | sed '$d')
+    latency=$((end_time - start_time))
+
+    if [ "$http_code" = "200" ]; then
+        echo -e "${GREEN}Status: $http_code (${latency}ms)${NC}"
+        echo "$body" | python3 -m json.tool 2>/dev/null || echo "$body"
+    else
+        echo -e "${RED}Status: $http_code (${latency}ms)${NC}"
+        echo "$body"
+    fi
+}
+
+# Test models endpoint
+test_models() {
+    echo ""
+    echo -e "${CYAN}Testing: GET /api/v1/models${NC}"
+
+    start_time=$(date +%s%3N)
+    response=$(curl -s -w "\n%{http_code}" "$API_BASE/api/v1/models")
+    end_time=$(date +%s%3N)
+
+    http_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | sed '$d')
+    latency=$((end_time - start_time))
+
+    if [ "$http_code" = "200" ]; then
+        echo -e "${GREEN}Status: $http_code (${latency}ms)${NC}"
+        # Count models
+        model_count=$(echo "$body" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('models',[])))" 2>/dev/null || echo "?")
+        echo -e "Found ${BOLD}$model_count${NC} models"
+        echo ""
+        echo "$body" | python3 -c "
+import sys,json
+data = json.load(sys.stdin)
+for m in data.get('models', [])[:10]:
+    status = '\033[32mONLINE\033[0m' if m.get('status') == 'online' else '\033[31mOFFLINE\033[0m'
+    print(f\"  {m.get('id', 'unknown')[:40]}: {status}\")
+if len(data.get('models', [])) > 10:
+    print(f\"  ... and {len(data['models']) - 10} more\")
+" 2>/dev/null || echo "$body" | head -50
+    else
+        echo -e "${RED}Status: $http_code (${latency}ms)${NC}"
+        echo "$body"
+    fi
+}
+
+# Test providers endpoint
+test_providers() {
+    echo ""
+    echo -e "${CYAN}Testing: GET /api/v1/models/providers${NC}"
+
+    start_time=$(date +%s%3N)
+    response=$(curl -s -w "\n%{http_code}" "$API_BASE/api/v1/models/providers")
+    end_time=$(date +%s%3N)
+
+    http_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | sed '$d')
+    latency=$((end_time - start_time))
+
+    if [ "$http_code" = "200" ]; then
+        echo -e "${GREEN}Status: $http_code (${latency}ms)${NC}"
+        echo "$body" | python3 -c "
+import sys,json
+data = json.load(sys.stdin)
+for p in data.get('providers', []):
+    name = p.get('name', 'unknown')
+    avail = p.get('available', False)
+    healthy = p.get('healthy', False)
+    if avail and healthy:
+        status = '\033[32mHEALTHY\033[0m'
+    elif avail:
+        status = '\033[33mDEGRADED\033[0m'
+    else:
+        status = '\033[31mUNAVAILABLE\033[0m'
+    print(f\"  {name}: {status}\")
+" 2>/dev/null || echo "$body" | python3 -m json.tool 2>/dev/null || echo "$body"
+    else
+        echo -e "${RED}Status: $http_code (${latency}ms)${NC}"
+        echo "$body"
+    fi
+}
+
+# Quick generation test
+test_quick_generate() {
+    echo ""
+    echo -e "${CYAN}Testing: POST /api/v1/timepoints/generate/sync (balanced, no image)${NC}"
+    echo -e "${YELLOW}This will create a test timepoint...${NC}"
+    echo ""
+
+    test_query="boston tea party 1773"
+    json_payload="{\"query\": \"$test_query\", \"generate_image\": false, \"preset\": \"balanced\"}"
+
+    echo -e "Query: ${BOLD}$test_query${NC}"
+    echo -e "${DIM}Starting generation (may take 1-3 minutes)...${NC}"
+
+    start_time=$(date +%s)
+    response=$(curl -s -X POST "$API_BASE/api/v1/timepoints/generate/sync" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload")
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+
+    status=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','error'))" 2>/dev/null || echo "error")
+    tp_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+    if [ "$status" = "completed" ]; then
+        echo -e "${GREEN}Status: completed (${duration}s)${NC}"
+        echo -e "  ID: ${CYAN}$tp_id${NC}"
+        year=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('year',''))" 2>/dev/null || echo "")
+        location=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('location',''))" 2>/dev/null || echo "")
+        echo -e "  Year: ${CYAN}$year${NC}"
+        echo -e "  Location: ${CYAN}$location${NC}"
+    else
+        echo -e "${RED}Status: $status (${duration}s)${NC}"
+        error=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Unknown error'))" 2>/dev/null || echo "Unknown error")
+        echo -e "  Error: $error"
+    fi
+}
+
+# Test all endpoints
+test_all_endpoints() {
+    echo ""
+    echo -e "${BOLD}=== Testing All Endpoints ===${NC}"
+    echo ""
+
+    # Test health
+    echo -e "${CYAN}1/4 Health check...${NC}"
+    health_response=$(curl -s -w "%{http_code}" "$API_BASE/health")
+    health_code="${health_response: -3}"
+    if [ "$health_code" = "200" ]; then
+        echo -e "  ${GREEN}Health check passed${NC}"
+    else
+        echo -e "  ${RED}Health check failed: $health_code${NC}"
+    fi
+
+    # Test models
+    echo -e "${CYAN}2/4 Models endpoint...${NC}"
+    models_response=$(curl -s -w "%{http_code}" "$API_BASE/api/v1/models")
+    models_code="${models_response: -3}"
+    if [ "$models_code" = "200" ]; then
+        echo -e "  ${GREEN}Models endpoint passed${NC}"
+    else
+        echo -e "  ${RED}Models endpoint failed: $models_code${NC}"
+    fi
+
+    # Test providers
+    echo -e "${CYAN}3/4 Providers endpoint...${NC}"
+    providers_response=$(curl -s -w "%{http_code}" "$API_BASE/api/v1/models/providers")
+    providers_code="${providers_response: -3}"
+    if [ "$providers_code" = "200" ]; then
+        echo -e "  ${GREEN}Providers endpoint passed${NC}"
+    else
+        echo -e "  ${RED}Providers endpoint failed: $providers_code${NC}"
+    fi
+
+    # Test list timepoints
+    echo -e "${CYAN}4/4 List timepoints...${NC}"
+    list_response=$(curl -s -w "%{http_code}" "$API_BASE/api/v1/timepoints")
+    list_code="${list_response: -3}"
+    if [ "$list_code" = "200" ]; then
+        echo -e "  ${GREEN}List timepoints passed${NC}"
+    else
+        echo -e "  ${RED}List timepoints failed: $list_code${NC}"
+    fi
+
+    echo ""
+    echo -e "${BOLD}Summary:${NC}"
+    passed=0
+    failed=0
+    [ "$health_code" = "200" ] && ((passed++)) || ((failed++))
+    [ "$models_code" = "200" ] && ((passed++)) || ((failed++))
+    [ "$providers_code" = "200" ] && ((passed++)) || ((failed++))
+    [ "$list_code" = "200" ] && ((passed++)) || ((failed++))
+
+    if [ $failed -eq 0 ]; then
+        echo -e "  ${GREEN}All $passed tests passed!${NC}"
+    else
+        echo -e "  ${GREEN}$passed passed${NC}, ${RED}$failed failed${NC}"
+    fi
+}
+
 # Main loop
 main() {
     check_server
@@ -730,9 +1655,12 @@ main() {
             1) generate_sync; wait_for_key ;;
             2) generate_stream; wait_for_key ;;
             3) generate_from_template; wait_for_key ;;
-            4) list_timepoints; wait_for_key ;;
-            5) health_check; wait_for_key ;;
-            6) open_docs; wait_for_key ;;
+            4) rapid_test; wait_for_key ;;
+            5) rapid_test_free; wait_for_key ;;
+            6) list_timepoints; wait_for_key ;;
+            7) health_check; wait_for_key ;;
+            8) open_docs; wait_for_key ;;
+            9) test_endpoints; wait_for_key ;;
             q|Q) echo -e "${GREEN}Goodbye!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac

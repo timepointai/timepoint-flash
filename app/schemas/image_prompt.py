@@ -110,6 +110,26 @@ class ImagePromptData(BaseModel):
         description="Elements to avoid in generation",
     )
 
+    # Anachronism prevention (auto-injected based on era)
+    era_negative_prompts: list[str] = Field(
+        default_factory=list,
+        description="Era-specific elements to exclude (auto-generated)",
+    )
+    historical_confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for historical accuracy (0-1)",
+    )
+    anachronism_warnings: list[str] = Field(
+        default_factory=list,
+        description="Warnings about potential anachronisms",
+    )
+    distinguishing_guidance: str | None = Field(
+        default=None,
+        description="Guidance to distinguish from commonly confused eras",
+    )
+
     @property
     def prompt_length(self) -> int:
         """Get the length of the full prompt."""
@@ -125,14 +145,32 @@ class ImagePromptData(BaseModel):
         tags = ", ".join(self.quality_tags)
         return f"{self.full_prompt}, {tags}"
 
+    def get_combined_negative_prompt(self) -> str | None:
+        """Get all negative prompts combined into one string."""
+        all_negatives = []
+
+        # Add LLM-generated negative prompt
+        if self.negative_prompt:
+            all_negatives.append(self.negative_prompt)
+
+        # Add era-specific negative prompts
+        if self.era_negative_prompts:
+            all_negatives.extend(self.era_negative_prompts)
+
+        if not all_negatives:
+            return None
+
+        return ", ".join(all_negatives)
+
     def to_generation_params(self) -> dict:
         """Convert to image generation parameters."""
         params = {
             "prompt": self.get_enhanced_prompt(),
             "aspect_ratio": self.aspect_ratio,
         }
-        if self.negative_prompt:
-            params["negative_prompt"] = self.negative_prompt
+        combined_negative = self.get_combined_negative_prompt()
+        if combined_negative:
+            params["negative_prompt"] = combined_negative
         return params
 
 

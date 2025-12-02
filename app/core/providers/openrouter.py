@@ -299,7 +299,29 @@ class OpenRouterProvider(LLMProvider):
 
             # Parse response
             if response_model is not None and raw_content:
-                content = response_model.model_validate_json(raw_content)
+                try:
+                    content = response_model.model_validate_json(raw_content)
+                except Exception as parse_error:
+                    # Try to extract JSON from the response (models sometimes add extra text)
+                    import re
+                    json_match = re.search(r'\{[\s\S]*\}', raw_content)
+                    if json_match:
+                        try:
+                            content = response_model.model_validate_json(json_match.group())
+                        except Exception as e2:
+                            logger.warning(f"JSON extraction failed: {e2}")
+                            raise ProviderError(
+                                message=f"Model returned invalid JSON: {parse_error}. Raw response: {raw_content[:500]}",
+                                provider=ProviderType.OPENROUTER,
+                                retryable=True,
+                            ) from parse_error
+                    else:
+                        logger.warning(f"No JSON found in response: {raw_content[:200]}")
+                        raise ProviderError(
+                            message=f"Model did not return JSON: {raw_content[:500]}",
+                            provider=ProviderType.OPENROUTER,
+                            retryable=True,
+                        ) from parse_error
             else:
                 content = raw_content or ""
 

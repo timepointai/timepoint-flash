@@ -33,35 +33,52 @@ class TestGenerateSlug:
     """Tests for slug generation function."""
 
     def test_basic_slug(self):
-        """Test basic slug generation."""
+        """Test basic slug generation starts with expected prefix."""
         slug = generate_slug("Signing of the Declaration")
-        assert slug == "signing-of-the-declaration"
+        assert slug.startswith("signing-of-the-declaration-")
+        # Has 6-char unique suffix
+        assert len(slug.split("-")[-1]) == 6
 
     def test_slug_with_year(self):
         """Test slug generation with year."""
         slug = generate_slug("Rome", 50)
-        assert slug == "rome-50"
+        assert slug.startswith("rome-50-")
 
     def test_slug_removes_special_characters(self):
         """Test slug removes special characters."""
         slug = generate_slug("What's happening? Test!")
-        assert slug == "whats-happening-test"
+        assert slug.startswith("whats-happening-test-")
 
     def test_slug_handles_multiple_spaces(self):
         """Test slug handles multiple spaces."""
         slug = generate_slug("Test   Multiple   Spaces")
-        assert slug == "test-multiple-spaces"
+        assert slug.startswith("test-multiple-spaces-")
 
     def test_slug_is_lowercase(self):
         """Test slug is lowercase."""
         slug = generate_slug("UPPERCASE TEST")
-        assert slug == "uppercase-test"
+        assert slug.startswith("uppercase-test-")
 
     def test_slug_max_length(self):
         """Test slug is truncated to max length."""
         long_query = "a" * 200
         slug = generate_slug(long_query)
         assert len(slug) <= 100
+
+    def test_slug_uniqueness(self):
+        """Test each slug is unique."""
+        slug1 = generate_slug("Test Query")
+        slug2 = generate_slug("Test Query")
+        assert slug1 != slug2
+        # Both start with same prefix
+        assert slug1.startswith("test-query-")
+        assert slug2.startswith("test-query-")
+
+    def test_slug_no_duplicate_year(self):
+        """Test year is not duplicated if already in query."""
+        slug = generate_slug("moon landing 1969", 1969)
+        assert "1969-1969" not in slug
+        assert slug.startswith("moon-landing-1969-")
 
 
 @pytest.mark.fast
@@ -72,13 +89,13 @@ class TestTimepoint:
         """Test Timepoint.create factory method."""
         tp = Timepoint.create(query="Rome 50 BCE")
         assert tp.query == "Rome 50 BCE"
-        assert tp.slug == "rome-50-bce"
+        assert tp.slug.startswith("rome-50-bce-")
         assert tp.status == TimepointStatus.PENDING
 
     def test_timepoint_create_with_year(self):
         """Test Timepoint.create with year."""
         tp = Timepoint.create(query="Rome", year=50)
-        assert tp.slug == "rome-50"
+        assert tp.slug.startswith("rome-50-")
         assert tp.year == 50
 
     def test_timepoint_create_with_custom_slug(self):
