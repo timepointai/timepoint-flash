@@ -232,7 +232,7 @@ class LLMRouter:
                 "gemini-3-pro-preview": "google/gemini-2.0-flash-001",
                 "gemini-2.5-flash": "google/gemini-2.0-flash-001",
                 "gemini-2.5-pro": "google/gemini-2.0-flash-001",
-                "imagen-3.0-generate-002": "google/gemini-3-pro-image-preview",
+                # Image models use native Google, no OpenRouter mapping needed
             }
             model = google_to_openrouter.get(model, model)
         elif provider == ProviderType.GOOGLE:
