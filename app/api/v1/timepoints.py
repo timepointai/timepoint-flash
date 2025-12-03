@@ -245,15 +245,17 @@ async def stream_generation(
         SSE-formatted event strings
     """
     # Step mapping with progress percentages
+    # Note: Graph is now integrated into Characters step (ID→Graph→Bios)
+    # Moment and Camera run in parallel after Characters
     step_progress = {
         PipelineStep.JUDGE: 10,
         PipelineStep.TIMELINE: 20,
         PipelineStep.SCENE: 30,
-        PipelineStep.CHARACTERS: 40,
-        PipelineStep.MOMENT: 50,
-        PipelineStep.DIALOG: 60,
-        PipelineStep.CAMERA: 70,
-        PipelineStep.GRAPH: 80,
+        PipelineStep.CHARACTERS: 50,  # Includes CharID + Graph + parallel Bios
+        PipelineStep.MOMENT: 65,      # Parallel with Camera
+        PipelineStep.CAMERA: 65,      # Parallel with Moment
+        PipelineStep.GRAPH: 50,       # Legacy (now inside Characters)
+        PipelineStep.DIALOG: 80,
         PipelineStep.IMAGE_PROMPT: 90,
         PipelineStep.IMAGE_GENERATION: 100,
     }

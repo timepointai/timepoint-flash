@@ -32,6 +32,21 @@ class ProviderType(str, Enum):
     OPENROUTER = "openrouter"
 
 
+class ParallelismMode(str, Enum):
+    """Parallelism mode for pipeline execution.
+
+    - SEQUENTIAL: 1 call at a time (safest, for debugging or severe rate limits)
+    - NORMAL: Tier-based default parallelism (1-3 concurrent)
+    - AGGRESSIVE: Higher tier-based parallelism (2-5 concurrent)
+    - MAX: Maximum safe parallelism (provider limit - 1, up to 8)
+    """
+
+    SEQUENTIAL = "sequential"
+    NORMAL = "normal"
+    AGGRESSIVE = "aggressive"
+    MAX = "max"
+
+
 class QualityPreset(str, Enum):
     """Quality preset for generation pipeline.
 
@@ -95,6 +110,77 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "thinking_level": "medium",
     },
 }
+
+
+# Parallelism Configuration
+# Maps presets to their parallelism mode
+PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
+    QualityPreset.HD: ParallelismMode.NORMAL,       # Quality focus, standard parallelism
+    QualityPreset.BALANCED: ParallelismMode.NORMAL, # Default behavior
+    QualityPreset.HYPER: ParallelismMode.MAX,       # Speed focus, maximum parallelism
+}
+
+# Provider rate limits (requests per minute and safe concurrent calls)
+# These are conservative estimates based on known provider limits
+PROVIDER_RATE_LIMITS: dict[ProviderType, dict[str, int]] = {
+    ProviderType.GOOGLE: {
+        "rpm": 60,              # Requests per minute
+        "max_concurrent": 8,    # Safe concurrent calls
+    },
+    ProviderType.OPENROUTER: {
+        "rpm": 30,              # Conservative default (varies by model)
+        "max_concurrent": 5,    # Safe concurrent calls
+    },
+}
+
+# Tier-based concurrent limits for each parallelism mode
+# ModelTier is defined in llm_router.py, but we reference by string here
+TIER_CONCURRENT_LIMITS: dict[str, dict[str, int]] = {
+    "free": {
+        "sequential": 1,
+        "normal": 1,
+        "aggressive": 2,
+        "max": 2,       # Free models have strict rate limits
+    },
+    "paid": {
+        "sequential": 1,
+        "normal": 3,
+        "aggressive": 5,
+        "max": 6,
+    },
+    "native": {
+        "sequential": 1,
+        "normal": 3,
+        "aggressive": 5,
+        "max": 8,       # Google native has generous limits
+    },
+}
+
+
+def get_preset_parallelism(preset: QualityPreset) -> ParallelismMode:
+    """Get the parallelism mode for a preset.
+
+    Args:
+        preset: The quality preset.
+
+    Returns:
+        ParallelismMode for the preset.
+    """
+    return PRESET_PARALLELISM.get(preset, ParallelismMode.NORMAL)
+
+
+def get_tier_max_concurrent(tier: str, mode: ParallelismMode) -> int:
+    """Get maximum concurrent calls for a tier and parallelism mode.
+
+    Args:
+        tier: Model tier ('free', 'paid', 'native')
+        mode: Parallelism mode
+
+    Returns:
+        Maximum concurrent calls allowed
+    """
+    tier_limits = TIER_CONCURRENT_LIMITS.get(tier, TIER_CONCURRENT_LIMITS["paid"])
+    return tier_limits.get(mode.value, tier_limits["normal"])
 
 
 class Settings(BaseSettings):
@@ -179,6 +265,14 @@ class Settings(BaseSettings):
     RATE_LIMIT: int = Field(
         default=60,
         description="API rate limit (requests per minute)",
+    )
+
+    # Pipeline Settings
+    PIPELINE_MAX_PARALLELISM: int = Field(
+        default=3,
+        description="Maximum parallel LLM calls in pipeline (1-5)",
+        ge=1,
+        le=5,
     )
 
     @field_validator("DATABASE_URL")

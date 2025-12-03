@@ -9,6 +9,8 @@ Examples:
 
 from app.prompts import (
     camera,
+    character_bio,
+    character_identification,
     characters,
     dialog,
     graph,
@@ -24,6 +26,8 @@ __all__ = [
     "timeline",
     "scene",
     "characters",
+    "character_identification",
+    "character_bio",
     "moment",
     "dialog",
     "camera",
