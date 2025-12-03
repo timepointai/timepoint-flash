@@ -102,8 +102,14 @@ def get_configured_models() -> list[ModelInfo]:
                 context_length=2000000,
             ),
             ModelInfo(
-                id="imagen-3.0-generate-002",
-                name="Imagen 3",
+                id="gemini-2.5-flash-image",
+                name="Nano Banana (Gemini 2.5 Flash Image)",
+                provider="google",
+                capabilities=["image_generation"],
+            ),
+            ModelInfo(
+                id="gemini-3-pro-image-preview",
+                name="Nano Banana Pro (Gemini 3 Pro Image)",
                 provider="google",
                 capabilities=["image_generation"],
             ),
@@ -410,7 +416,7 @@ async def get_providers() -> ProvidersResponse:
         available=google_available,
         models_count=3 if google_available else 0,
         default_text_model=settings.JUDGE_MODEL if google_available else None,
-        default_image_model="imagen-3.0-generate-002" if google_available else None,
+        default_image_model="gemini-2.5-flash-image" if google_available else None,
     ))
 
     # OpenRouter provider

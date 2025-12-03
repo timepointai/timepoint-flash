@@ -498,9 +498,9 @@ text_models.extend([
     "openrouter/meta-llama/llama-3.2-3b-instruct",
 ])
 image_models.extend([
-    "google/imagen-3.0-generate-002",
-    "google/gemini-2.5-flash-image",
-    "openrouter/black-forest-labs/flux-1.1-pro",
+    "google/gemini-2.5-flash-image",      # Nano Banana (fast) - WORKING
+    "google/gemini-3-pro-image-preview",  # Nano Banana Pro (high quality) - WORKING
+    # Note: imagen-3.0-generate-002 removed - Imagen API returns 404
 ])
 
 # Deduplicate
