@@ -81,8 +81,8 @@ select_preset() {
 
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
-    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 3 Pro + Nano Banana Pro)"
-    echo -e "     ${DIM}2K images, high reasoning | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
+    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 2.5 Pro + Nano Banana)"
+    echo -e "     ${DIM}Pro reasoning, high quality | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
     echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash + Nano Banana)"
     echo -e "     ${DIM}Recommended default | ~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min${NC}"
     echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
@@ -105,6 +105,10 @@ select_preset() {
             CURRENT_PRESET="$PRESET_HD"
             echo -e "${MAGENTA}Using HD preset (~${TIMING_HD[0]}-${TIMING_HD[1]} min)${NC}"
             ;;
+        2)
+            CURRENT_PRESET="$PRESET_BALANCED"
+            echo -e "${GREEN}Using Balanced preset (~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min)${NC}"
+            ;;
         3)
             CURRENT_PRESET="$PRESET_HYPER"
             echo -e "${CYAN}Using Hyper preset (~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min)${NC}"
@@ -123,7 +127,7 @@ select_preset() {
             ;;
         *)
             CURRENT_PRESET="$PRESET_BALANCED"
-            echo -e "${GREEN}Using Balanced preset (~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min)${NC}"
+            echo -e "${GREEN}Using Balanced preset (default)${NC}"
             ;;
     esac
     echo ""

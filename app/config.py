@@ -76,10 +76,10 @@ class Environment(str, Enum):
 PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     QualityPreset.HD: {
         "name": "HD Quality",
-        "description": "Highest quality - Gemini 3 Pro + Nano Banana Pro (native Google)",
-        "text_model": "gemini-3-pro-preview",
-        "judge_model": "gemini-2.5-flash",
-        "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro (high quality)
+        "description": "Highest quality - Gemini 2.5 Pro + Nano Banana (native Google)",
+        "text_model": "gemini-2.5-pro-preview",  # Pro model for highest quality
+        "judge_model": "gemini-2.5-flash",  # Fast flash for validation
+        "image_model": "gemini-2.5-flash-image",  # Nano Banana (reliable)
         "image_provider": ProviderType.GOOGLE,  # Native Google for best quality
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 4096,

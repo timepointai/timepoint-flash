@@ -281,7 +281,11 @@ async def stream_generation(
         yield format_sse(StreamEvent(
             event="start",
             step="initialization",
-            data={"query": query, "generate_image": generate_image},
+            data={
+                "query": query,
+                "generate_image": generate_image,
+                "preset": preset.value if preset else "balanced",
+            },
             progress=0,
         ))
 
