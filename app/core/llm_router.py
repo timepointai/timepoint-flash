@@ -8,10 +8,13 @@ Features:
     - Graceful fallback for free model rate limits
     - Retry with exponential backoff for transient errors
     - Model cascade: free model -> paid model -> different provider
+    - Model tier classification for adaptive parallelism
 
 Examples:
-    >>> from app.core.llm_router import LLMRouter
+    >>> from app.core.llm_router import LLMRouter, ModelTier
     >>> router = LLMRouter()
+    >>> tier = router.get_model_tier()
+    >>> print(tier)  # ModelTier.NATIVE, ModelTier.PAID, or ModelTier.FREE
     >>> response = await router.call(
     ...     prompt="Explain quantum computing",
     ...     capability=ModelCapability.TEXT
@@ -25,11 +28,23 @@ Tests:
 
 import asyncio
 import logging
+from enum import Enum
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from app.config import PRESET_CONFIGS, ProviderType, QualityPreset, get_settings
+from app.config import (
+    PRESET_CONFIGS,
+    PRESET_PARALLELISM,
+    PROVIDER_RATE_LIMITS,
+    ParallelismMode,
+    ProviderType,
+    QualityPreset,
+    get_preset_parallelism,
+    get_settings,
+    get_tier_max_concurrent,
+)
+from app.core.rate_limiter import acquire_rate_limit, get_tier_from_model
 from app.core.providers import (
     LLMProvider,
     LLMResponse,
@@ -54,6 +69,31 @@ MAX_RETRIES = 5
 INITIAL_BACKOFF = 2.0  # seconds
 MAX_BACKOFF = 120.0  # seconds (2 minutes)
 BACKOFF_MULTIPLIER = 2.0
+
+
+class ModelTier(str, Enum):
+    """Model tier classification for adaptive parallelism.
+
+    Determines execution strategy based on model type:
+    - FREE: Rate-limited free models (e.g., :free suffix) - sequential execution
+    - PAID: Paid API models (OpenRouter paid) - moderate parallelism
+    - NATIVE: Native Google API - high parallelism
+
+    Attributes:
+        parallelism: Recommended max parallel calls for this tier
+    """
+
+    FREE = "free"       # :free models - parallelism=1 (sequential)
+    PAID = "paid"       # OpenRouter paid - parallelism=2-3
+    NATIVE = "native"   # Google native - parallelism=3-5
+
+
+# Parallelism settings per tier (used by pipeline)
+TIER_PARALLELISM = {
+    ModelTier.FREE: 1,    # Sequential to avoid rate limits
+    ModelTier.PAID: 2,    # Moderate parallelism
+    ModelTier.NATIVE: 3,  # Higher parallelism for native API
+}
 
 
 def is_free_model(model_id: str) -> bool:
@@ -244,6 +284,170 @@ class LLMRouter:
 
         return model
 
+    def get_model_tier(self) -> ModelTier:
+        """Determine the model tier for adaptive parallelism.
+
+        Classifies the current model configuration into tiers:
+        - FREE: OpenRouter models with :free suffix (rate limited)
+        - PAID: OpenRouter paid models (moderate rate limits)
+        - NATIVE: Google native API (highest throughput)
+
+        Returns:
+            ModelTier indicating the execution tier
+
+        Examples:
+            >>> router = LLMRouter(text_model="google/gemini-2.0-flash-001:free")
+            >>> router.get_model_tier()
+            ModelTier.FREE
+
+            >>> router = LLMRouter()  # Default Google native
+            >>> router.get_model_tier()
+            ModelTier.NATIVE
+        """
+        # Check the text model being used
+        text_model = self.config.get_model(ModelCapability.TEXT)
+
+        # Check for free model indicators
+        if is_free_model(text_model):
+            logger.debug(f"Model tier: FREE (model={text_model})")
+            return ModelTier.FREE
+
+        # Check provider type
+        if self.config.primary == ProviderType.GOOGLE:
+            logger.debug(f"Model tier: NATIVE (provider=Google, model={text_model})")
+            return ModelTier.NATIVE
+
+        # OpenRouter without :free suffix is PAID
+        if self.config.primary == ProviderType.OPENROUTER:
+            logger.debug(f"Model tier: PAID (provider=OpenRouter, model={text_model})")
+            return ModelTier.PAID
+
+        # Default to PAID for unknown configurations
+        logger.debug(f"Model tier: PAID (default, model={text_model})")
+        return ModelTier.PAID
+
+    def get_recommended_parallelism(self) -> int:
+        """Get recommended parallelism for current model tier.
+
+        Returns the optimal number of concurrent LLM calls based on
+        the model's tier classification.
+
+        Returns:
+            int: Recommended max parallel calls (1-5)
+
+        Examples:
+            >>> router = LLMRouter(text_model="google/gemini-2.0-flash-001:free")
+            >>> router.get_recommended_parallelism()
+            1  # Sequential for free models
+
+            >>> router = LLMRouter()  # Google native
+            >>> router.get_recommended_parallelism()
+            3  # Higher parallelism for native
+        """
+        tier = self.get_model_tier()
+        return TIER_PARALLELISM.get(tier, 2)
+
+    def get_provider_limit(self) -> int:
+        """Get the maximum concurrent calls allowed by the current provider.
+
+        Returns the provider's hard limit for concurrent API calls,
+        which should never be exceeded regardless of parallelism mode.
+
+        Returns:
+            int: Maximum concurrent calls for the provider
+
+        Examples:
+            >>> router = LLMRouter()  # Google native
+            >>> router.get_provider_limit()
+            8
+
+            >>> router = LLMRouter(preset=QualityPreset.HYPER)  # OpenRouter
+            >>> router.get_provider_limit()
+            5
+        """
+        provider = self.config.primary
+        limits = PROVIDER_RATE_LIMITS.get(provider, PROVIDER_RATE_LIMITS[ProviderType.GOOGLE])
+        return limits["max_concurrent"]
+
+    def get_effective_max_concurrent(
+        self,
+        mode: ParallelismMode | None = None,
+    ) -> int:
+        """Get effective maximum concurrent calls considering all constraints.
+
+        Combines model tier, parallelism mode, and provider limits to
+        determine the safe maximum concurrent calls. For MAX mode,
+        returns provider limit - 1 to leave headroom.
+
+        Args:
+            mode: Parallelism mode. If None, uses preset's default mode.
+
+        Returns:
+            int: Effective maximum concurrent calls (respects all limits)
+
+        Examples:
+            >>> router = LLMRouter(preset=QualityPreset.HYPER)
+            >>> router.get_effective_max_concurrent()  # MAX mode
+            7  # Google limit (8) - 1
+
+            >>> router = LLMRouter(preset=QualityPreset.BALANCED)
+            >>> router.get_effective_max_concurrent()  # NORMAL mode
+            3  # Tier limit for native + normal
+
+            >>> router = LLMRouter(text_model="google/gemini-2.0-flash-001:free")
+            >>> router.get_effective_max_concurrent(ParallelismMode.MAX)
+            2  # Free tier max limit
+        """
+        # Determine parallelism mode
+        if mode is None:
+            if self.preset:
+                mode = get_preset_parallelism(self.preset)
+            else:
+                mode = ParallelismMode.NORMAL
+
+        # Get tier-based limit
+        tier = self.get_model_tier()
+        tier_limit = get_tier_max_concurrent(tier.value, mode)
+
+        # Get provider hard limit
+        provider_limit = self.get_provider_limit()
+
+        # For MAX mode, use provider limit - 1 for headroom
+        if mode == ParallelismMode.MAX:
+            effective_provider_limit = provider_limit - 1
+        else:
+            effective_provider_limit = provider_limit
+
+        # Return the minimum of tier and provider limits
+        effective = min(tier_limit, effective_provider_limit)
+
+        logger.debug(
+            f"Effective max concurrent: {effective} "
+            f"(tier={tier.value}, mode={mode.value}, "
+            f"tier_limit={tier_limit}, provider_limit={provider_limit})"
+        )
+
+        return effective
+
+    def get_parallelism_mode(self) -> ParallelismMode:
+        """Get the parallelism mode for current configuration.
+
+        Returns:
+            ParallelismMode based on preset or default NORMAL
+
+        Examples:
+            >>> router = LLMRouter(preset=QualityPreset.HYPER)
+            >>> router.get_parallelism_mode()
+            ParallelismMode.MAX
+
+            >>> router = LLMRouter()
+            >>> router.get_parallelism_mode()
+            ParallelismMode.NORMAL
+        """
+        if self.preset:
+            return get_preset_parallelism(self.preset)
+        return ParallelismMode.NORMAL
+
     async def _call_with_retry(
         self,
         provider: LLMProvider,
@@ -252,9 +456,11 @@ class LLMRouter:
         response_model: type[T] | None = None,
         **kwargs: Any,
     ) -> LLMResponse:
-        """Call provider with exponential backoff retry.
+        """Call provider with proactive rate limiting and exponential backoff retry.
 
-        Handles rate limits gracefully with increasing wait times.
+        Handles rate limits gracefully with:
+        1. Proactive rate limiting (token bucket) to prevent 429s
+        2. Reactive retry with exponential backoff if 429s still occur
 
         Args:
             provider: The LLM provider to use
@@ -274,6 +480,15 @@ class LLMRouter:
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
+                # Proactive rate limiting: wait for token before making call
+                tier = get_tier_from_model(model)
+                acquired = await acquire_rate_limit(model, timeout=30.0)
+                if not acquired:
+                    logger.warning(
+                        f"Rate limit token not acquired for {model} (tier={tier}), "
+                        "proceeding anyway with risk of 429"
+                    )
+
                 return await provider.call_text(
                     prompt, model, response_model=response_model, **kwargs
                 )

@@ -30,6 +30,8 @@ from app.agents.judge import JudgeAgent
 from app.agents.timeline import TimelineAgent
 from app.agents.scene import SceneAgent
 from app.agents.characters import CharactersAgent
+from app.agents.character_identification import CharacterIdentificationAgent
+from app.agents.character_bio import CharacterBioAgent
 from app.agents.moment import MomentAgent
 from app.agents.dialog import DialogAgent
 from app.agents.camera import CameraAgent
@@ -43,6 +45,8 @@ __all__ = [
     "TimelineAgent",
     "SceneAgent",
     "CharactersAgent",
+    "CharacterIdentificationAgent",
+    "CharacterBioAgent",
     "MomentAgent",
     "DialogAgent",
     "CameraAgent",

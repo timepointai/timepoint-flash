@@ -9,6 +9,7 @@ Examples:
 
 from app.schemas.camera import CameraData
 from app.schemas.characters import Character, CharacterData, CharacterRole
+from app.schemas.character_identification import CharacterIdentification, CharacterStub
 from app.schemas.dialog import DialogData, DialogLine
 from app.schemas.graph import Faction, GraphData, Relationship
 from app.schemas.image_prompt import ImagePromptData
@@ -30,6 +31,9 @@ __all__ = [
     "Character",
     "CharacterData",
     "CharacterRole",
+    # Character Identification (for parallel generation)
+    "CharacterIdentification",
+    "CharacterStub",
     # Moment
     "MomentData",
     # Dialog

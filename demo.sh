@@ -32,9 +32,15 @@ USE_CUSTOM_MODELS="false"
 
 # Timing estimates (in minutes) based on empirical testing
 # Format: [text_only, with_image]
-TIMING_HD=(5 8)       # HD: slow but highest quality
-TIMING_BALANCED=(3 5) # Balanced: good middle ground
-TIMING_HYPER=(1 3)    # Hyper: fastest
+# Note: Parallel execution (graph+moment+camera) reduces time by ~30%
+TIMING_HD=(4 6)       # HD: highest quality with parallel steps
+TIMING_BALANCED=(2 4) # Balanced: good middle ground
+TIMING_HYPER=(1 2)    # Hyper: fastest (parallel steps)
+
+# Cross-platform millisecond timestamp (macOS doesn't support date +%N)
+get_ms() {
+    python3 -c "import time; print(int(time.time() * 1000))"
+}
 
 # Get timing estimate string
 get_timing_estimate() {
@@ -660,8 +666,8 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\  | | |   |  _| | |___ / ___ \ ___) |  _  |"
     echo "   |_| |___|_|  |_|_____|_|    \___/___|_| \_| |_|   |_|   |_____/_/   \_\____/|_| |_|"
     echo -e "${NC}"
-    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.0.3${NC}"
-    echo -e "${DIM}Google Nano Banana Pro | OpenRouter | Quality Presets${NC}"
+    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.0.4${NC}"
+    echo -e "${DIM}Parallel Pipeline | Google Nano Banana Pro | OpenRouter${NC}"
     echo ""
 }
 
@@ -922,7 +928,7 @@ generate_stream() {
                     gen_img_val=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('generate_image','?'))" 2>/dev/null || echo "?")
                     preset_val=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('preset','balanced'))" 2>/dev/null || echo "balanced")
                     echo -e "${GREEN}[START]${NC} Initializing pipeline... (preset=$preset_val, image=$gen_img_val)"
-                    echo -e "${DIM}Pipeline: judge > timeline > scene > characters > graph > moment > dialog > camera > image_prompt${NC}"
+                    echo -e "${DIM}Pipeline: judge > timeline > scene > characters > [graph|moment|camera] > dialog > image_prompt${NC}"
                     ;;
                 "step_complete")
                     bar=$(printf '%*s' $((progress/5)) '' | tr ' ' '#')
@@ -1292,6 +1298,11 @@ health_check() {
     echo -e "  API:       $API_BASE/api/v1/timepoints"
     echo -e "  Docs:      $API_BASE/docs"
     echo ""
+    echo -e "${CYAN}--- PIPELINE CONFIG ---${NC}"
+    echo -e "  Parallelism: ${GREEN}3${NC} concurrent LLM calls (default)"
+    echo -e "  ${DIM}Parallel steps: graph, moment, camera${NC}"
+    echo -e "  ${DIM}Set PIPELINE_MAX_PARALLELISM env var to adjust (1-5)${NC}"
+    echo ""
 }
 
 # Print formatted report
@@ -1454,9 +1465,9 @@ test_health() {
     echo ""
     echo -e "${CYAN}Testing: GET /health${NC}"
 
-    start_time=$(date +%s%3N)
+    start_time=$(get_ms)
     response=$(curl -s -w "\n%{http_code}" "$API_BASE/health")
-    end_time=$(date +%s%3N)
+    end_time=$(get_ms)
 
     http_code=$(echo "$response" | tail -n 1)
     body=$(echo "$response" | sed '$d')
@@ -1476,9 +1487,9 @@ test_models() {
     echo ""
     echo -e "${CYAN}Testing: GET /api/v1/models${NC}"
 
-    start_time=$(date +%s%3N)
+    start_time=$(get_ms)
     response=$(curl -s -w "\n%{http_code}" "$API_BASE/api/v1/models")
-    end_time=$(date +%s%3N)
+    end_time=$(get_ms)
 
     http_code=$(echo "$response" | tail -n 1)
     body=$(echo "$response" | sed '$d')
@@ -1510,9 +1521,9 @@ test_providers() {
     echo ""
     echo -e "${CYAN}Testing: GET /api/v1/models/providers${NC}"
 
-    start_time=$(date +%s%3N)
+    start_time=$(get_ms)
     response=$(curl -s -w "\n%{http_code}" "$API_BASE/api/v1/models/providers")
-    end_time=$(date +%s%3N)
+    end_time=$(get_ms)
 
     http_code=$(echo "$response" | tail -n 1)
     body=$(echo "$response" | sed '$d')
