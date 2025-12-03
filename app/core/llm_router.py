@@ -511,8 +511,19 @@ class LLMRouter:
                         f"Rate limit persists after {MAX_RETRIES} attempts on {model}"
                     )
             except ProviderError as e:
-                # Non-rate-limit errors should not be retried
-                raise
+                # Retry on transient server errors (500, 502, 503, 504)
+                if e.retryable and attempt < MAX_RETRIES:
+                    last_error = e
+                    wait_time = min(backoff, MAX_BACKOFF)
+                    logger.warning(
+                        f"Server error on {model} (attempt {attempt}/{MAX_RETRIES}): {e.message}. "
+                        f"Waiting {wait_time:.1f}s before retry..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
+                else:
+                    # Non-retryable errors or max retries exhausted
+                    raise
 
         # All retries exhausted
         raise last_error or ProviderError(
