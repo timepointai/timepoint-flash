@@ -36,6 +36,12 @@ from app.core.providers.base import (
     ProviderError,
     RateLimitError,
 )
+from app.core.model_capabilities import (
+    build_image_config_params,
+    get_fallback_models,
+    get_image_model_config,
+    is_imagen_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,28 +266,28 @@ class GoogleProvider(LLMProvider):
         model: str,
         **kwargs: Any,
     ) -> LLMResponse[str]:
-        """Generate an image from a prompt.
+        """Generate an image from a prompt with model-adaptive handling.
 
-        Automatically selects the appropriate API based on model:
-        - Imagen models (imagen-*): Uses generate_images() API
-        - Gemini models (gemini-*-image*): Uses generate_content() with image modality
+        Automatically selects the appropriate API based on model type from
+        the model capabilities registry. Supports fallback to alternative
+        models on failure.
 
         Args:
             prompt: The image generation prompt.
             model: Model ID. Supported models:
                 - "imagen-3.0-generate-002": Imagen 3 (legacy)
-                - "gemini-2.5-flash-image": Nano Banana (fast)
-                - "gemini-3-pro-image-preview": Nano Banana Pro (best quality)
+                - "gemini-2.5-flash-image": Nano Banana (fast, 1K)
+                - "gemini-3-pro-image-preview": Nano Banana Pro (best, 2K/4K)
             **kwargs: Additional parameters:
                 - aspect_ratio: Image aspect ratio ("1:1", "16:9", "3:2", etc.)
-                - image_size: For Gemini models ("1K", "2K", "4K")
+                - image_size: For supported models ("1K", "2K", "4K")
                 - number_of_images: Number of images to generate (1-4)
 
         Returns:
             LLMResponse containing base64-encoded image.
 
         Raises:
-            ProviderError: If the API call fails.
+            ProviderError: If the API call fails after all attempts.
 
         Examples:
             >>> response = await provider.generate_image(
@@ -289,11 +295,51 @@ class GoogleProvider(LLMProvider):
             ...     model="gemini-3-pro-image-preview"
             ... )
         """
-        # Route to appropriate method based on model type
-        if model.startswith("gemini-") and "image" in model.lower():
-            return await self._generate_image_gemini(prompt, model, **kwargs)
-        else:
-            return await self._generate_image_imagen(prompt, model, **kwargs)
+        # Get model config for adaptive handling
+        model_config = get_image_model_config(model)
+        logger.info(
+            f"Image generation: model={model}, type={model_config.model_type.value}, "
+            f"max_res={model_config.max_resolution}px"
+        )
+
+        # Try primary model
+        try:
+            if is_imagen_model(model):
+                return await self._generate_image_imagen(prompt, model, **kwargs)
+            else:
+                return await self._generate_image_gemini(prompt, model, **kwargs)
+        except ProviderError as e:
+            # Log the error and try fallback models
+            logger.warning(f"Primary model {model} failed: {e}")
+
+            fallback_models = get_fallback_models(model)
+            if not fallback_models:
+                raise
+
+            # Try fallback models
+            for fallback_model in fallback_models:
+                try:
+                    logger.info(f"Trying fallback model: {fallback_model}")
+                    # Remove image_size for fallback if not supported
+                    fallback_config = get_image_model_config(fallback_model)
+                    fallback_kwargs = kwargs.copy()
+                    if not fallback_config.supports_image_size:
+                        fallback_kwargs.pop("image_size", None)
+
+                    if is_imagen_model(fallback_model):
+                        return await self._generate_image_imagen(
+                            prompt, fallback_model, **fallback_kwargs
+                        )
+                    else:
+                        return await self._generate_image_gemini(
+                            prompt, fallback_model, **fallback_kwargs
+                        )
+                except ProviderError as fallback_error:
+                    logger.warning(f"Fallback model {fallback_model} failed: {fallback_error}")
+                    continue
+
+            # All fallbacks failed, re-raise original error
+            raise
 
     async def _generate_image_gemini(
         self,
@@ -301,44 +347,53 @@ class GoogleProvider(LLMProvider):
         model: str,
         **kwargs: Any,
     ) -> LLMResponse[str]:
-        """Generate image using Gemini native image models (Nano Banana / Nano Banana Pro).
+        """Generate image using Gemini native image models with model-adaptive config.
 
-        Uses generate_content() with response_modalities=['IMAGE'].
+        Uses generate_content() with model-specific response_modalities and parameters.
+        Different models have different requirements - this method adapts based on
+        the model capabilities registry.
 
         Args:
             prompt: The image generation prompt.
             model: Gemini image model (e.g., "gemini-2.5-flash-image", "gemini-3-pro-image-preview").
             **kwargs: Additional parameters:
                 - aspect_ratio: Image aspect ratio ("1:1", "16:9", "3:2", etc.)
-                - image_size: Resolution ("1K", "2K", "4K")
+                - image_size: Resolution ("1K", "2K", "4K") - only for models that support it
 
         Returns:
             LLMResponse containing base64-encoded image.
         """
         start_time = time.perf_counter()
 
+        # Get model-specific configuration
+        model_config = get_image_model_config(model)
+
         try:
             from google.genai import types
 
-            # Build image config
-            image_config_params: dict[str, Any] = {}
-            if "aspect_ratio" in kwargs:
-                image_config_params["aspect_ratio"] = kwargs["aspect_ratio"]
-            if "image_size" in kwargs:
-                image_config_params["image_size"] = kwargs["image_size"]
+            # Build image config using model capabilities (handles parameter naming)
+            image_config_params = build_image_config_params(
+                model,
+                aspect_ratio=kwargs.get("aspect_ratio"),
+                image_size=kwargs.get("image_size"),
+            )
 
-            # Build generation config with image output modality
+            # Build generation config with model-specific response modalities
             config_params: dict[str, Any] = {
-                "response_modalities": ["IMAGE"],
+                "response_modalities": model_config.response_modalities,
             }
             if image_config_params:
                 config_params["image_config"] = types.ImageConfig(**image_config_params)
 
             config = types.GenerateContentConfig(**config_params)
 
-            # Make API call with timeout (image gen can take longer)
-            image_timeout = self.timeout * 2  # Double timeout for image generation
-            logger.debug(f"Calling Google image API: model={model}, timeout={image_timeout}s")
+            # Make API call with model-specific timeout
+            image_timeout = self.timeout * model_config.timeout_multiplier
+            logger.debug(
+                f"Calling Google image API: model={model}, "
+                f"modalities={model_config.response_modalities}, "
+                f"image_config={image_config_params}, timeout={image_timeout}s"
+            )
             response = await asyncio.wait_for(
                 self.client.aio.models.generate_content(
                     model=model,
@@ -360,11 +415,17 @@ class GoogleProvider(LLMProvider):
                         break
 
             if not image_b64:
+                # Log response details for debugging
+                logger.error(
+                    f"No image in response from {model}. "
+                    f"Candidates: {len(response.candidates) if response.candidates else 0}"
+                )
                 raise ProviderError(
-                    message="No image generated from Gemini model",
+                    message=f"No image generated from {model}. Response may contain text only.",
                     provider=ProviderType.GOOGLE,
                 )
 
+            logger.info(f"Image generated successfully with {model} in {latency_ms}ms")
             return LLMResponse(
                 content=image_b64,
                 model=model,
@@ -373,7 +434,7 @@ class GoogleProvider(LLMProvider):
             )
 
         except Exception as e:
-            logger.error(f"Gemini image generation error: {e}")
+            logger.error(f"Gemini image generation error ({model}): {e}")
             self._handle_error(e)
             raise
 

@@ -353,3 +353,109 @@ class GenerationLog(Base):
     def __repr__(self) -> str:
         """String representation."""
         return f"<GenerationLog(step='{self.step}', status='{self.status}')>"
+
+
+class ChatSessionModel(Base):
+    """Chat session model for character conversations.
+
+    Stores chat sessions between users and characters from timepoints.
+    Sessions can be ephemeral (not saved) or persisted to database.
+
+    Attributes:
+        id: Unique session identifier (UUID)
+        timepoint_id: Associated timepoint
+        character_name: Name of the character being chatted with
+        messages_json: JSON array of chat messages
+        created_at: Session creation timestamp
+        updated_at: Last message timestamp
+    """
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    timepoint_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("timepoints.id"),
+        index=True,
+    )
+    character_name: Mapped[str] = mapped_column(String(100), index=True)
+    messages_json: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON,
+        default=list,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # Relationship to timepoint
+    timepoint: Mapped["Timepoint"] = relationship(
+        "Timepoint",
+        foreign_keys=[timepoint_id],
+    )
+
+    def __repr__(self) -> str:
+        """String representation."""
+        msg_count = len(self.messages_json) if self.messages_json else 0
+        return f"<ChatSession(character='{self.character_name}', messages={msg_count})>"
+
+    @property
+    def message_count(self) -> int:
+        """Get the number of messages in the session."""
+        return len(self.messages_json) if self.messages_json else 0
+
+    @property
+    def last_message_preview(self) -> str | None:
+        """Get a preview of the last message."""
+        if not self.messages_json:
+            return None
+        last = self.messages_json[-1]
+        content = last.get("content", "")
+        return content[:50] + "..." if len(content) > 50 else content
+
+    def add_message(
+        self,
+        role: str,
+        content: str,
+        character_name: str | None = None,
+    ) -> None:
+        """Add a message to the session.
+
+        Args:
+            role: Message role (user/character/system)
+            content: Message content
+            character_name: Character name (for character messages)
+        """
+        if self.messages_json is None:
+            self.messages_json = []
+
+        message = {
+            "role": role,
+            "content": content,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        if character_name:
+            message["character_name"] = character_name
+
+        self.messages_json.append(message)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "id": self.id,
+            "timepoint_id": self.timepoint_id,
+            "character_name": self.character_name,
+            "messages": self.messages_json or [],
+            "message_count": self.message_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

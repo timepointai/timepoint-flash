@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(pytest:*)",
+      "Bash(kill:*)",
+      "Bash(alembic stamp:*)",
+      "Bash(python3:*)",
+      "Bash(sqlite3:*)",
+      "Bash(.venv/bin/pytest -m fast -v)",
+      "Bash(.venv/bin/pytest -m fast -v --tb=short)",
+      "Bash(.venv/bin/pytest --collect-only -q)",
+      "Bash(xargs kill:*)",
+      "Bash(git checkout:*)",
+      "Bash(git tag:*)",
+      "Bash(git rm -rf .)",
+      "Bash(git clean:*)",
+      "Bash(git branch:*)",
+      "Bash(git mv:*)",
+      "Bash(pip install:*)",
+      "Bash(python3.10 -m pytest:*)",
+      "Bash(timeout 5 .venv/bin/uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(GOOGLE_API_KEY=test-key python3.10 -m pytest:*)",
+      "Bash(GOOGLE_API_KEY=test .venv/bin/pytest:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: complete Phase 2-4 of v2.0 rebuild\n\nPhase 2 - Core Infrastructure:\n- pyproject.toml with FastAPI, Pydantic, pytest dependencies\n- Provider abstraction with Google Gen AI and OpenRouter support\n- LLM Router with capability-based model selection\n- SQLite/PostgreSQL database with SQLAlchemy models\n- FastAPI app with health endpoints\n\nPhase 3 - Generation Pipeline:\n- Temporal system (TemporalPoint, TemporalNavigator)\n- Generation schemas (Judge, Timeline, Scene, Characters, Dialog, ImagePrompt)\n- Prompt templates for all pipeline steps\n- GenerationPipeline orchestrator\n- API endpoints for timepoint generation\n\nPhase 4 - Agent Rebuild:\n- BaseAgent with AgentResult and AgentChain\n- 10 agents: Judge, Timeline, Scene, Characters, Moment, Dialog, Camera, Graph, ImagePrompt, ImageGen\n- New agents: Moment (plot/tension), Camera (composition), Graph (relationships), ImageGen\n- Pipeline refactored to use agent classes\n- Comprehensive unit tests (202 passing)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: complete Phase 5 API completion\n\nPhase 5 delivers full API functionality:\n\nStreaming SSE Endpoint:\n- POST /api/v1/timepoints/generate/stream\n- Real-time progress events for each pipeline step\n- Step progress percentages (0-100%)\n- Error event handling\n\nDelete Endpoint:\n- DELETE /api/v1/timepoints/{id}\n- Cascade delete of generation logs\n- Proper 404 handling\n\nTemporal Navigation API (new module):\n- POST /api/v1/temporal/{id}/next - Generate next moment\n- POST /api/v1/temporal/{id}/prior - Generate prior moment\n- GET /api/v1/temporal/{id}/sequence - Get temporal sequence\n- Context preservation from source timepoint\n\nModel Discovery API (new module):\n- GET /api/v1/models - List available models with filtering\n- GET /api/v1/models/providers - Provider status\n- GET /api/v1/models/{model_id} - Model details\n- OpenRouter model fetching with 15-minute cache\n\nImage Generation Integration:\n- generate_image parameter on streaming endpoint\n- image_base64 field on Timepoint model\n\nTest coverage: 226 tests passing (24 new Phase 5 tests)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: complete Phase 6 testing and documentation\n\nPhase 6 delivers comprehensive testing and documentation:\n\nIntegration Tests (39 new tests):\n- test_api_temporal.py - Temporal navigation endpoints\n- test_api_models.py - Model discovery API\n- test_api_delete.py - Delete endpoint with cascade\n- test_api_streaming.py - SSE streaming validation\n\nDocumentation:\n- README.md - Complete v2.0 documentation\n- QUICKSTART.md - Step-by-step getting started guide\n- docs/API.md - Complete API reference\n- docs/TEMPORAL.md - Temporal navigation guide\n- HANDOFF.md - Updated for Phase 6 completion\n\nTest coverage: 265 tests passing (up from 226)\n- 226 unit tests (fast)\n- 39 integration tests\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(chmod:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: complete Phase 7 deployment and production\n\nPhase 7 delivers production-ready deployment infrastructure:\n\nDocker Setup:\n- Multi-stage Dockerfile (builder, production, development)\n- docker-compose.yml with PostgreSQL service\n- docker-compose.dev.yml for development with hot reload\n- Health check configuration\n- Non-root user security\n\nDatabase Migrations:\n- Alembic configuration for async SQLAlchemy\n- Initial migration (timepoints, generation_logs tables)\n- PostgreSQL and SQLite support\n- Startup script runs migrations automatically\n\nCloud Deployment:\n- railway.json for Railway deployment\n- render.yaml Blueprint for Render deployment\n- .env.example with all environment variables\n\nDocumentation:\n- docs/DEPLOYMENT.md - Complete deployment guide\n- README.md updated with deployment section\n- HANDOFF.md updated for Phase 7 completion\n\nTest coverage: 265 tests passing\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(python3.10:*)",
+      "Bash(timeout 60 python3.10:*)",
+      "Bash(bash -n:*)",
+      "Bash(timeout 5 python3.10:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

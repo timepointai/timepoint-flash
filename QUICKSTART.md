@@ -258,11 +258,70 @@ rm -f timepoint.db test_timepoint.db
 
 ---
 
+## 10. Character Interactions
+
+After generating a timepoint, you can interact with its characters:
+
+### Chat with a Character
+
+```bash
+curl -X POST http://localhost:8000/api/v1/interactions/{timepoint-id}/chat \
+  -H "Content-Type: application/json" \
+  -d '{"character": "Benjamin Franklin", "message": "What do you think of this document?"}'
+```
+
+Response:
+```json
+{
+  "character_name": "Benjamin Franklin",
+  "response": "My dear friend, I believe this document shall echo through the ages...",
+  "emotional_tone": "thoughtful",
+  "latency_ms": 1250
+}
+```
+
+### Extend the Dialog
+
+Generate more dialog between characters:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/interactions/{timepoint-id}/dialog \
+  -H "Content-Type: application/json" \
+  -d '{"characters": "all", "num_lines": 5, "prompt": "They discuss the risks of signing"}'
+```
+
+### Survey Characters
+
+Ask the same question to all characters and get structured responses:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/interactions/{timepoint-id}/survey \
+  -H "Content-Type: application/json" \
+  -d '{"characters": "all", "questions": ["What do you fear most about this moment?"]}'
+```
+
+Response includes sentiment analysis:
+```json
+{
+  "responses": [
+    {
+      "character_name": "John Adams",
+      "question": "What do you fear most?",
+      "response": "That we shall all hang for this...",
+      "sentiment": "negative",
+      "emotional_tone": "anxious"
+    }
+  ]
+}
+```
+
+---
+
 ## Next Steps
 
 - Read the [API Reference](docs/API.md) for complete endpoint documentation
 - Learn about [Temporal Navigation](docs/TEMPORAL.md) for time-travel features
-- Check [REFACTOR.md](REFACTOR.md) for architecture details
+- Explore [Character Interactions](docs/API.md#character-interactions-api) for chat, dialog, and survey
 - Run the full test suite with `pytest -v`
 
 ---

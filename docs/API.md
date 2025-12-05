@@ -445,6 +445,302 @@ Currently, the API does not require authentication. API key authentication may b
 
 ---
 
+## Character Interactions API
+
+Interact with characters from generated timepoints through chat, dialog extension, and surveys.
+
+---
+
+### POST /api/v1/interactions/{id}/chat
+
+Chat with a specific character from a timepoint.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| id | string | Timepoint UUID |
+
+**Request Body:**
+```json
+{
+  "character": "Benjamin Franklin",
+  "message": "What do you think of this document?",
+  "session_id": null,
+  "save_session": false
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| character | string | Yes | - | Character name (case-insensitive) |
+| message | string | Yes | - | User's message to character |
+| session_id | string | No | null | Session ID to continue conversation |
+| save_session | boolean | No | false | Whether to save session to memory |
+
+**Response (200 OK):**
+```json
+{
+  "character_name": "Benjamin Franklin",
+  "response": "My dear friend, this document represents the culmination of our highest aspirations...",
+  "session_id": "abc123",
+  "emotional_tone": "thoughtful",
+  "latency_ms": 1250
+}
+```
+
+**Errors:**
+- 404: Timepoint or character not found
+- 500: Chat generation failed
+
+---
+
+### POST /api/v1/interactions/{id}/chat/stream
+
+Stream chat response with Server-Sent Events.
+
+**Request Body:** Same as /chat
+
+**Response:** Server-Sent Events (text/event-stream)
+
+**Event Types:**
+```
+data: {"event": "token", "data": "My ", "character_name": "Benjamin Franklin"}
+data: {"event": "token", "data": "dear ", "character_name": "Benjamin Franklin"}
+...
+data: {"event": "done", "data": "Full response text", "character_name": "Benjamin Franklin"}
+data: {"event": "error", "data": "Error message"}
+```
+
+---
+
+### POST /api/v1/interactions/{id}/dialog
+
+Generate additional dialog between characters.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| id | string | Timepoint UUID |
+
+**Request Body:**
+```json
+{
+  "characters": "all",
+  "num_lines": 5,
+  "prompt": "They begin discussing the risks of signing",
+  "sequential": true
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| characters | string or array | No | "all" | "all" or list of character names |
+| num_lines | int | No | 5 | Number of lines (1-10) |
+| prompt | string | No | null | Direction for the dialog |
+| sequential | boolean | No | true | Use sequential roleplay generation |
+
+**Response (200 OK):**
+```json
+{
+  "dialog": [
+    {"speaker": "John Adams", "line": "We must consider the consequences..."},
+    {"speaker": "Benjamin Franklin", "line": "Indeed, we are all putting our necks on the line."}
+  ],
+  "context": "The founders discuss the gravity of their decision",
+  "characters_involved": ["John Adams", "Benjamin Franklin"],
+  "latency_ms": 2500
+}
+```
+
+---
+
+### POST /api/v1/interactions/{id}/dialog/stream
+
+Stream dialog generation line by line.
+
+**Request Body:** Same as /dialog
+
+**Response:** Server-Sent Events (text/event-stream)
+
+**Event Types:**
+```
+data: {"event": "line", "data": {"speaker": "John Adams", "line": "..."}}
+data: {"event": "line", "data": {"speaker": "Benjamin Franklin", "line": "..."}}
+data: {"event": "done", "data": {"dialog": [...], "characters_involved": [...]}}
+data: {"event": "error", "data": "Error message"}
+```
+
+---
+
+### POST /api/v1/interactions/{id}/survey
+
+Survey multiple characters with the same questions.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| id | string | Timepoint UUID |
+
+**Request Body:**
+```json
+{
+  "characters": "all",
+  "questions": ["What do you fear most about this moment?"],
+  "mode": "parallel",
+  "chain_prompts": false,
+  "include_summary": true
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| characters | string or array | No | "all" | "all" or list of character names |
+| questions | array | Yes | - | Questions to ask each character |
+| mode | string | No | "parallel" | "parallel" (faster) or "sequential" (context-aware) |
+| chain_prompts | boolean | No | false | In sequential mode, share prior answers |
+| include_summary | boolean | No | true | Generate summary of responses |
+
+**Response (200 OK):**
+```json
+{
+  "timepoint_id": "abc123",
+  "questions": ["What do you fear most about this moment?"],
+  "responses": [
+    {
+      "character_name": "John Adams",
+      "question": "What do you fear most?",
+      "response": "That we shall all hang for this act of treason...",
+      "sentiment": "negative",
+      "key_points": ["fear of execution", "uncertainty"],
+      "emotional_tone": "anxious"
+    },
+    {
+      "character_name": "Benjamin Franklin",
+      "question": "What do you fear most?",
+      "response": "I fear not death, but rather that we might fail...",
+      "sentiment": "mixed",
+      "key_points": ["acceptance of risk", "concern for success"],
+      "emotional_tone": "resolute"
+    }
+  ],
+  "summary": "The founders express a mixture of fear and determination...",
+  "mode": "parallel",
+  "total_characters": 2,
+  "latency_ms": 3500
+}
+```
+
+**Survey Modes:**
+- **parallel**: Query all characters simultaneously (faster)
+- **sequential**: Query characters one by one with context sharing
+
+**Sentiment Values:**
+- `positive` - Optimistic, hopeful response
+- `negative` - Fearful, worried response
+- `mixed` - Complex emotional response
+- `neutral` - Factual, unemotional response
+
+---
+
+### POST /api/v1/interactions/{id}/survey/stream
+
+Stream survey results as each character responds.
+
+**Request Body:** Same as /survey
+
+**Response:** Server-Sent Events (text/event-stream)
+
+**Event Types:**
+```
+data: {"event": "start", "total_characters": 8}
+data: {"event": "response", "data": {"character_name": "John Adams", "response": "...", "sentiment": "negative"}}
+data: {"event": "response", "data": {"character_name": "Benjamin Franklin", ...}}
+data: {"event": "summary", "data": "The founders express..."}
+data: {"event": "done", "total_responses": 8, "latency_ms": 5000}
+data: {"event": "error", "data": "Error message"}
+```
+
+---
+
+### GET /api/v1/interactions/sessions/{timepoint_id}
+
+List chat sessions for a timepoint.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| timepoint_id | string | Timepoint UUID |
+
+**Response (200 OK):**
+```json
+{
+  "sessions": [
+    {
+      "id": "session-123",
+      "character_name": "Benjamin Franklin",
+      "message_count": 5,
+      "last_message_preview": "Indeed, liberty requires...",
+      "created_at": "2025-01-01T12:00:00Z",
+      "updated_at": "2025-01-01T12:05:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+### GET /api/v1/interactions/session/{session_id}
+
+Get a chat session with full message history.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| session_id | string | Session UUID |
+
+**Response (200 OK):**
+```json
+{
+  "id": "session-123",
+  "timepoint_id": "tp-456",
+  "character_name": "Benjamin Franklin",
+  "messages": [
+    {"role": "user", "content": "What do you think?", "timestamp": "..."},
+    {"role": "character", "content": "My dear friend...", "character_name": "Benjamin Franklin", "timestamp": "..."}
+  ],
+  "created_at": "2025-01-01T12:00:00Z",
+  "updated_at": "2025-01-01T12:05:00Z"
+}
+```
+
+**Errors:**
+- 404: Session not found
+
+---
+
+### DELETE /api/v1/interactions/session/{session_id}
+
+Delete a chat session.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| session_id | string | Session UUID |
+
+**Response (200 OK):**
+```json
+{
+  "deleted": true,
+  "session_id": "session-123"
+}
+```
+
+**Errors:**
+- 404: Session not found
+
+---
+
 ## OpenAPI Documentation
 
 Interactive API docs available at:

@@ -1,12 +1,12 @@
 # TIMEPOINT Flash v2.0
 
-AI-powered photorealistic time travel system with multi-agent workflows, temporal navigation, and batteries-included developer experience.
+AI-powered photorealistic time travel system with multi-agent workflows, temporal navigation, character interactions, and batteries-included developer experience.
 
 ---
 
 ## Overview
 
-TIMEPOINT Flash generates immersive historical moments using a pipeline of 10 specialized AI agents. Given a natural language query like "signing of the declaration of independence", it produces:
+TIMEPOINT Flash generates immersive historical moments using a pipeline of 12 specialized AI agents. Given a natural language query like "signing of the declaration of independence", it produces:
 
 - Validated temporal coordinates (year, season, time of day)
 - Detailed scene environment and atmosphere
@@ -16,6 +16,8 @@ TIMEPOINT Flash generates immersive historical moments using a pipeline of 10 sp
 - Character relationship graph
 - Photorealistic image prompt
 - Optional generated image
+
+**NEW in v2.1**: Chat with characters, extend dialog, and survey characters for their perspectives.
 
 ## Quick Start
 
@@ -95,6 +97,18 @@ curl -N http://localhost:8000/api/v1/timepoints/generate/stream \
 | GET | `/api/v1/models/providers` | Provider status |
 | GET | `/api/v1/models/{model_id}` | Model details |
 
+### Character Interactions API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/interactions/{id}/chat` | Chat with a character |
+| POST | `/api/v1/interactions/{id}/chat/stream` | Stream chat response |
+| POST | `/api/v1/interactions/{id}/dialog` | Generate more dialog |
+| POST | `/api/v1/interactions/{id}/dialog/stream` | Stream dialog lines |
+| POST | `/api/v1/interactions/{id}/survey` | Survey all characters |
+| POST | `/api/v1/interactions/{id}/survey/stream` | Stream survey results |
+| GET | `/api/v1/interactions/sessions/{id}` | List chat sessions |
+
 ---
 
 ## Architecture
@@ -107,8 +121,9 @@ Query -> JudgeAgent -> TimelineAgent -> SceneAgent -> CharactersAgent
 ImageGenAgent <- ImagePromptAgent <- GraphAgent <- CameraAgent <- DialogAgent <- MomentAgent
 ```
 
-### 10 Specialized Agents
+### 12 Specialized Agents
 
+**Generation Pipeline:**
 1. **JudgeAgent** - Query validation and classification
 2. **TimelineAgent** - Temporal coordinate extraction
 3. **SceneAgent** - Environment and atmosphere
@@ -119,6 +134,11 @@ ImageGenAgent <- ImagePromptAgent <- GraphAgent <- CameraAgent <- DialogAgent <-
 8. **GraphAgent** - Character relationships
 9. **ImagePromptAgent** - Assemble 11K character prompt
 10. **ImageGenAgent** - Generate photorealistic image
+
+**Character Interactions:**
+11. **CharacterChatAgent** - Have conversations with characters
+12. **DialogExtensionAgent** - Generate additional dialog lines
+13. **SurveyAgent** - Survey multiple characters with questions
 
 ### Provider Support
 
@@ -232,6 +252,8 @@ timepoint-flash/
 - [x] Phase 5: API completion (streaming, temporal, models)
 - [x] Phase 6: Testing & documentation
 - [x] Phase 7: Deployment & production
+- [x] Phase 8-17: Rate limiting, parallelism, model validation
+- [x] Phase 18: Character interactions (chat, dialog, survey)
 
 ---
 
