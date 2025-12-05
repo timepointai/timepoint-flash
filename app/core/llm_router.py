@@ -29,6 +29,7 @@ Tests:
 import asyncio
 import logging
 from enum import Enum
+from collections.abc import AsyncIterator
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -40,6 +41,7 @@ from app.config import (
     ParallelismMode,
     ProviderType,
     QualityPreset,
+    VerifiedModels,
     get_preset_parallelism,
     get_settings,
     get_tier_max_concurrent,
@@ -62,7 +64,8 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # Default fallback model for when free models hit rate limits
-PAID_FALLBACK_MODEL = "google/gemini-2.0-flash-001"
+# Uses VerifiedModels to ensure we always fall back to a working model
+PAID_FALLBACK_MODEL = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
 
 # Rate limit retry settings
 MAX_RETRIES = 5
@@ -516,7 +519,7 @@ class LLMRouter:
                     last_error = e
                     wait_time = min(backoff, MAX_BACKOFF)
                     logger.warning(
-                        f"Server error on {model} (attempt {attempt}/{MAX_RETRIES}): {e.message}. "
+                        f"Server error on {model} (attempt {attempt}/{MAX_RETRIES}): {e}. "
                         f"Waiting {wait_time:.1f}s before retry..."
                     )
                     await asyncio.sleep(wait_time)
@@ -583,13 +586,13 @@ class LLMRouter:
                 except (ProviderError, RateLimitError) as e2:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
-            # Try Google provider as ultimate fallback
+            # Try Google provider as ultimate fallback using verified model
             if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
-                logger.info("Falling back to Google provider")
+                logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
-                    settings = get_settings()
-                    google_model = settings.CREATIVE_MODEL
+                    # Use verified model to guarantee it works
+                    google_model = VerifiedModels.get_safe_text_model(ProviderType.GOOGLE)
                     return await self._call_with_retry(
                         provider, google_model, prompt, **kwargs
                     )
@@ -618,6 +621,34 @@ class LLMRouter:
 
             # No fallback available or fallback failed
             raise
+
+    async def stream(
+        self,
+        prompt: str,
+        capability: ModelCapability = ModelCapability.TEXT,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        """Stream LLM response token by token.
+
+        Currently implemented as a wrapper around call() that yields
+        the complete response. Can be enhanced with true streaming later.
+
+        Args:
+            prompt: The input prompt.
+            capability: Required model capability.
+            **kwargs: Additional parameters passed to provider.
+
+        Yields:
+            Token strings (currently yields complete response at once).
+
+        Examples:
+            >>> async for token in router.stream("Tell me a story"):
+            ...     print(token, end="", flush=True)
+        """
+        # For now, fall back to regular call and yield the complete response
+        # This can be enhanced with true streaming when providers support it
+        response = await self.call(prompt, capability, **kwargs)
+        yield response.content
 
     async def call_structured(
         self,
@@ -679,13 +710,13 @@ class LLMRouter:
                 except (ProviderError, RateLimitError) as e2:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
-            # Try Google provider as ultimate fallback
+            # Try Google provider as ultimate fallback using verified model
             if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
-                logger.info("Falling back to Google provider")
+                logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
-                    settings = get_settings()
-                    google_model = settings.CREATIVE_MODEL
+                    # Use verified model to guarantee it works
+                    google_model = VerifiedModels.get_safe_text_model(ProviderType.GOOGLE)
                     return await self._call_with_retry(
                         provider, google_model, prompt,
                         response_model=response_model, **kwargs

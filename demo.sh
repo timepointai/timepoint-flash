@@ -81,20 +81,17 @@ select_preset() {
 
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
-    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 2.5 Pro + Nano Banana)"
-    echo -e "     ${DIM}Pro reasoning, high quality | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
-    echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash + Nano Banana)"
+    echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 2.5 Flash + extended thinking)"
+    echo -e "     ${DIM}Deeper analysis, high detail | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
+    echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash)"
     echo -e "     ${DIM}Recommended default | ~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min${NC}"
     echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
-    echo -e "     ${DIM}Fast generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
+    echo -e "     ${DIM}Fastest generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
     echo -e "  ${YELLOW}4)${NC} ${BOLD}Browse models...${NC} - Choose your own"
     echo -e "     ${DIM}Interactive model selection from available providers${NC}"
-    echo -e "  ${BLUE}5)${NC} ${BOLD}Natural language...${NC} - Describe what you want"
-    echo -e "     ${DIM}AI interprets your request (experimental)${NC}"
-    echo ""
-    echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
+    echo -e "  ${GREEN}5)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
     echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
-    echo -e "  ${GREEN}7)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
+    echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
     echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
@@ -117,12 +114,9 @@ select_preset() {
             browse_models
             ;;
         5)
-            natural_language_models
-            ;;
-        6)
             select_free_model "best"
             ;;
-        7)
+        6)
             select_free_model "fastest"
             ;;
         *)
@@ -427,200 +421,6 @@ PYEOF
     fi
 }
 
-# Natural language model selection (experimental)
-natural_language_models() {
-    echo ""
-    echo -e "${BOLD}=== Natural Language Model Selection ===${NC}"
-    echo -e "${YELLOW}(experimental)${NC}"
-    echo ""
-    echo -e "Describe what models you want. Examples:"
-    echo -e "  ${DIM}- 'fastest possible'${NC}"
-    echo -e "  ${DIM}- 'claude for text, flux for images'${NC}"
-    echo -e "  ${DIM}- 'smallest llama model, no image'${NC}"
-    echo -e "  ${DIM}- 'best quality gemini'${NC}"
-    echo ""
-    echo -e "${YELLOW}Your request: ${NC}\c"
-    read -r nl_request
-
-    if [ -z "$nl_request" ]; then
-        echo -e "${RED}Empty request. Using balanced preset.${NC}"
-        CURRENT_PRESET="$PRESET_BALANCED"
-        return
-    fi
-
-    echo ""
-    echo -e "${DIM}Interpreting your request...${NC}"
-
-    # Fetch available models for context
-    models_response=$(curl -s "$API_BASE/api/v1/models?fetch_remote=true")
-
-    # Use Python to call Gemini for interpretation
-    NL_REQUEST="$nl_request" MODELS_DATA="$models_response" python3 << 'PYEOF'
-import os, json, sys
-
-try:
-    import google.generativeai as genai
-except ImportError:
-    print("ERROR:Google AI SDK not installed")
-    sys.exit(1)
-
-# Get API key from environment
-api_key = os.environ.get('GOOGLE_API_KEY')
-if not api_key:
-    # Try to read from .env
-    try:
-        with open('.env') as f:
-            for line in f:
-                if line.startswith('GOOGLE_API_KEY='):
-                    api_key = line.split('=', 1)[1].strip().strip('"').strip("'")
-                    break
-    except:
-        pass
-
-if not api_key:
-    print("ERROR:No GOOGLE_API_KEY found")
-    sys.exit(1)
-
-genai.configure(api_key=api_key)
-
-user_request = os.environ['NL_REQUEST']
-models_data = json.loads(os.environ.get('MODELS_DATA', '{"models":[]}'))
-
-# Build available models list
-text_models = []
-image_models = []
-for m in models_data.get('models', []):
-    caps = m.get('capabilities', [])
-    model_entry = f"{m.get('provider', 'unknown')}/{m.get('id', 'unknown')}"
-    if 'text' in caps:
-        text_models.append(model_entry)
-    if 'image_generation' in caps:
-        image_models.append(model_entry)
-
-# Add known models
-text_models.extend([
-    "google/gemini-2.5-flash",
-    "google/gemini-3-pro-preview",
-    "google/gemini-2.0-flash",
-    "openrouter/anthropic/claude-3.5-sonnet",
-    "openrouter/openai/gpt-4o",
-    "openrouter/meta-llama/llama-3.3-70b-instruct",
-    "openrouter/meta-llama/llama-3.2-3b-instruct",
-])
-image_models.extend([
-    "google/gemini-2.5-flash-image",      # Nano Banana (fast) - WORKING
-    "google/gemini-3-pro-image-preview",  # Nano Banana Pro (high quality) - WORKING
-    # Note: imagen-3.0-generate-002 removed - Imagen API returns 404
-])
-
-# Deduplicate
-text_models = list(set(text_models))[:30]
-image_models = list(set(image_models))[:10]
-
-system_prompt = f"""You are a model selector for TIMEPOINT Flash, a historical image generation pipeline.
-
-AVAILABLE TEXT MODELS:
-{chr(10).join(f'- {m}' for m in text_models)}
-
-AVAILABLE IMAGE MODELS:
-{chr(10).join(f'- {m}' for m in image_models)}
-- none (skip image generation)
-
-The user will describe what models they want. Return ONLY valid JSON (no markdown):
-{{"text_model": "provider/model-id", "image_model": "provider/model-id or none", "reasoning": "brief explanation"}}
-
-RULES:
-- ONLY select from available models above
-- If user mentions unavailable model, pick closest match
-- "fastest" = gemini-2.0-flash or small llama
-- "best quality" = gemini-3-pro-preview or claude
-- "no image" = set image_model to "none"
-- Default to gemini-2.5-flash if unclear
-
-User request: {user_request}"""
-
-try:
-    model = genai.GenerativeModel('gemini-2.0-flash')
-    response = model.generate_content(system_prompt)
-    result_text = response.text.strip()
-
-    # Clean up response (remove markdown if present)
-    if result_text.startswith('```'):
-        lines = result_text.split('\n')
-        result_text = '\n'.join(lines[1:-1])
-
-    result = json.loads(result_text)
-
-    # Validate and extract
-    text_model = result.get('text_model', 'gemini-2.5-flash')
-    image_model = result.get('image_model', 'none')
-    reasoning = result.get('reasoning', '')
-
-    # Remove provider prefix if it's just "google/" for google models
-    if text_model.startswith('google/'):
-        text_model = text_model.replace('google/', '', 1)
-
-    # Write results
-    with open('/tmp/nl_text_model', 'w') as f:
-        f.write(text_model)
-    with open('/tmp/nl_image_model', 'w') as f:
-        f.write(image_model if image_model != 'none' else '')
-    with open('/tmp/nl_reasoning', 'w') as f:
-        f.write(reasoning)
-
-    print(f"OK:{text_model}|{image_model}|{reasoning}")
-
-except Exception as e:
-    print(f"ERROR:{e}")
-    sys.exit(1)
-PYEOF
-
-    result=$?
-
-    if [ $result -ne 0 ]; then
-        echo -e "${RED}Failed to interpret request. Using balanced preset.${NC}"
-        CURRENT_PRESET="$PRESET_BALANCED"
-        return
-    fi
-
-    # Read results
-    if [ -f /tmp/nl_text_model ]; then
-        CUSTOM_TEXT_MODEL=$(cat /tmp/nl_text_model)
-        rm -f /tmp/nl_text_model
-    fi
-    if [ -f /tmp/nl_image_model ]; then
-        CUSTOM_IMAGE_MODEL=$(cat /tmp/nl_image_model)
-        rm -f /tmp/nl_image_model
-    fi
-    if [ -f /tmp/nl_reasoning ]; then
-        reasoning=$(cat /tmp/nl_reasoning)
-        rm -f /tmp/nl_reasoning
-    fi
-
-    echo ""
-    echo -e "${GREEN}Interpreted Configuration:${NC}"
-    echo -e "  Text:  ${CYAN}$CUSTOM_TEXT_MODEL${NC}"
-    if [ -n "$CUSTOM_IMAGE_MODEL" ]; then
-        echo -e "  Image: ${CYAN}$CUSTOM_IMAGE_MODEL${NC}"
-    else
-        echo -e "  Image: ${DIM}(none)${NC}"
-    fi
-    if [ -n "$reasoning" ]; then
-        echo -e "  ${DIM}Reasoning: $reasoning${NC}"
-    fi
-    echo ""
-    echo -e "${YELLOW}Proceed with this configuration? (y/n)${NC} \c"
-    read -r confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        USE_CUSTOM_MODELS="true"
-        CURRENT_PRESET=""
-    else
-        echo -e "${DIM}Cancelled. Using balanced preset.${NC}"
-        USE_CUSTOM_MODELS="false"
-        CURRENT_PRESET="$PRESET_BALANCED"
-    fi
-}
-
 # Build JSON payload with preset or custom models
 build_json_payload() {
     local query="$1"
@@ -670,8 +470,8 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\  | | |   |  _| | |___ / ___ \ ___) |  _  |"
     echo "   |_| |___|_|  |_|_____|_|    \___/___|_| \_| |_|   |_|   |_____/_/   \_\____/|_| |_|"
     echo -e "${NC}"
-    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.0.4${NC}"
-    echo -e "${DIM}Parallel Pipeline | Google Nano Banana Pro | OpenRouter${NC}"
+    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.0.11${NC}"
+    echo -e "${DIM}Parallel Pipeline | Google Nano Banana | OpenRouter${NC}"
     echo ""
 }
 
@@ -687,6 +487,11 @@ print_menu() {
     echo -e "  ${GREEN}7)${NC} Health check"
     echo -e "  ${GREEN}8)${NC} API documentation"
     echo -e "  ${CYAN}9)${NC} Test endpoints"
+    echo -e "  ${MAGENTA}10)${NC} ${BOLD}Model Eval${NC} - Compare model performance"
+    echo -e "  ${CYAN}--- Character Interactions ---${NC}"
+    echo -e "  ${GREEN}11)${NC} Chat with character"
+    echo -e "  ${GREEN}12)${NC} Extend dialog"
+    echo -e "  ${GREEN}13)${NC} Survey characters"
     echo -e "  ${RED}q)${NC} Quit"
     echo ""
 }
@@ -1439,6 +1244,115 @@ open_docs() {
     fi
 }
 
+# Model evaluation - compare model performance
+model_eval() {
+    echo -e "${BOLD}=== Multi-Model Evaluation ===${NC}"
+    echo ""
+    echo -e "${DIM}Compare performance across different LLM models${NC}"
+    echo ""
+
+    # Show available presets
+    echo -e "${CYAN}Available Presets:${NC}"
+    presets_response=$(curl -s "$API_BASE/api/v1/eval/models")
+    echo "$presets_response" | python3 -c '
+import sys, json
+
+try:
+    data = json.load(sys.stdin)
+    if "detail" in data:
+        print("  API Error:", data["detail"])
+    else:
+        presets = data.get("presets", {})
+        if not presets:
+            print("  (No presets available)")
+        else:
+            for name, count in presets.items():
+                print("  - " + str(name) + ": " + str(count) + " models")
+except json.JSONDecodeError:
+    print("  (Invalid response from server)")
+except Exception as e:
+    print("  (Error:", e, ")")
+'
+    echo ""
+
+    # Get query
+    echo -e "${YELLOW}Enter query to test (e.g., 'battle of thermopylae'):${NC}"
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r query
+
+    if [ -z "$query" ]; then
+        echo -e "${RED}Query cannot be empty${NC}"
+        return
+    fi
+
+    # Select preset
+    echo ""
+    echo -e "${YELLOW}Select preset:${NC}"
+    echo -e "  ${GREEN}1)${NC} verified (default) - Known working models"
+    echo -e "  ${GREEN}2)${NC} google_native - Google API models only"
+    echo -e "  ${GREEN}3)${NC} openrouter - OpenRouter models only"
+    echo -e "  ${GREEN}4)${NC} all - All available models"
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r preset_choice
+
+    case "$preset_choice" in
+        2) preset="google_native" ;;
+        3) preset="openrouter" ;;
+        4) preset="all" ;;
+        *) preset="verified" ;;
+    esac
+
+    echo ""
+    echo -e "${CYAN}Running evaluation...${NC}"
+    echo -e "  Query:  ${BOLD}$query${NC}"
+    echo -e "  Preset: ${BOLD}$preset${NC}"
+    echo ""
+
+    # Build JSON payload
+    json_payload="{\"query\": \"$query\", \"preset\": \"$preset\", \"timeout_seconds\": 120}"
+
+    # Make API call and get report
+    response=$(curl -s -X POST "$API_BASE/api/v1/eval/compare/report" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload")
+
+    # Extract and print the report (handles both success and error cases)
+    echo "$response" | python3 -c '
+import sys, json
+
+try:
+    data = json.load(sys.stdin)
+
+    # Check for top-level API error
+    if "detail" in data:
+        print("API Error:", data["detail"])
+        sys.exit(1)
+
+    # Print the formatted report
+    report = data.get("report", "")
+    if report:
+        print(report)
+    else:
+        # Fallback: print comparison summary
+        comparison = data.get("comparison", data)
+        if comparison:
+            print("Query:", comparison.get("query", "N/A"))
+            print("Models tested:", comparison.get("models_tested", 0))
+            print("Success rate: " + str(comparison.get("success_rate", 0)) + "%")
+            fastest = comparison.get("fastest_model")
+            if fastest:
+                print("Fastest:", fastest)
+        else:
+            print(json.dumps(data, indent=2))
+except json.JSONDecodeError:
+    print("Error: Invalid JSON response from server")
+    sys.exit(1)
+except Exception as e:
+    print("Error parsing response:", e)
+    sys.exit(1)
+'
+}
+
 # Test endpoints submenu
 test_endpoints() {
     echo -e "${BOLD}=== Test Endpoints ===${NC}"
@@ -1655,6 +1569,453 @@ test_all_endpoints() {
     fi
 }
 
+# =============================================================================
+# CHARACTER INTERACTION FUNCTIONS
+# =============================================================================
+
+# Helper: Select a timepoint for interaction
+select_timepoint_for_interaction() {
+    echo -e "${CYAN}Fetching completed timepoints...${NC}"
+    response=$(curl -s "$API_BASE/api/v1/timepoints?page_size=20&status=completed")
+
+    total=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total',0))" 2>/dev/null || echo "0")
+
+    if [ "$total" = "0" ]; then
+        echo -e "${YELLOW}No completed timepoints found. Generate one first!${NC}"
+        return 1
+    fi
+
+    echo ""
+    echo -e "${BOLD}Select a timepoint:${NC}"
+    echo ""
+
+    # Parse and display timepoints
+    INTERACTION_TIMEPOINTS="$response" python3 << 'PYEOF'
+import os, json
+
+data = json.loads(os.environ['INTERACTION_TIMEPOINTS'])
+ids = []
+for i, tp in enumerate(data.get('items', []), 1):
+    ids.append(tp['id'])
+    query_display = tp['query'][:45] + '...' if len(tp['query']) > 45 else tp['query']
+    year = tp.get('year', '?')
+    location = tp.get('location', 'Unknown')[:25]
+    char_count = len(tp.get('characters', {}).get('characters', [])) if tp.get('characters') else 0
+    print(f"  \033[1m{i:2})\033[0m {query_display}")
+    print(f"      \033[2m{abs(year) if year else '?'} {'BCE' if year and year < 0 else 'CE'} | {location} | {char_count} characters\033[0m")
+
+with open('/tmp/interaction_tp_ids', 'w') as f:
+    f.write(','.join(ids))
+PYEOF
+
+    echo ""
+    echo -e "${YELLOW}Enter number: ${NC}\c"
+    read -r tp_choice
+
+    if [ -f /tmp/interaction_tp_ids ]; then
+        IFS=',' read -ra TP_IDS < /tmp/interaction_tp_ids || true
+        rm -f /tmp/interaction_tp_ids
+
+        idx=$((tp_choice - 1))
+        if [ $idx -ge 0 ] && [ $idx -lt ${#TP_IDS[@]} ]; then
+            SELECTED_TIMEPOINT_ID="${TP_IDS[$idx]}"
+            echo -e "${GREEN}Selected timepoint: ${CYAN}${SELECTED_TIMEPOINT_ID:0:8}...${NC}"
+            return 0
+        fi
+    fi
+
+    echo -e "${RED}Invalid selection${NC}"
+    return 1
+}
+
+# Helper: Select a character from a timepoint
+select_character_from_timepoint() {
+    local tp_id="$1"
+    local allow_multiple="${2:-false}"
+
+    # Fetch timepoint details
+    response=$(curl -s "$API_BASE/api/v1/timepoints/$tp_id?full=true")
+
+    # Extract characters
+    CHAR_RESPONSE="$response" python3 << 'PYEOF'
+import os, json
+
+data = json.loads(os.environ['CHAR_RESPONSE'])
+characters = data.get('characters', {}).get('characters', [])
+
+if not characters:
+    print("NO_CHARACTERS")
+else:
+    names = []
+    for i, char in enumerate(characters, 1):
+        name = char.get('name', 'Unknown')
+        role = char.get('role', 'Unknown')[:30]
+        names.append(name)
+        print(f"  \033[1m{i:2})\033[0m {name} - \033[2m{role}\033[0m")
+
+    with open('/tmp/character_names', 'w') as f:
+        f.write('|'.join(names))
+PYEOF
+
+    result=$?
+
+    if [ ! -f /tmp/character_names ]; then
+        echo -e "${RED}No characters found in this timepoint${NC}"
+        return 1
+    fi
+
+    IFS='|' read -ra CHAR_NAMES < /tmp/character_names || true
+    rm -f /tmp/character_names
+
+    if [ ${#CHAR_NAMES[@]} -eq 0 ]; then
+        echo -e "${RED}No characters found${NC}"
+        return 1
+    fi
+
+    echo ""
+    if [ "$allow_multiple" = "true" ]; then
+        echo -e "${YELLOW}Enter numbers separated by commas (or 'all'): ${NC}\c"
+    else
+        echo -e "${YELLOW}Enter number: ${NC}\c"
+    fi
+    read -r char_choice
+
+    if [ "$allow_multiple" = "true" ]; then
+        if [ "$char_choice" = "all" ] || [ "$char_choice" = "ALL" ]; then
+            SELECTED_CHARACTERS=("${CHAR_NAMES[@]}")
+        else
+            SELECTED_CHARACTERS=()
+            IFS=',' read -ra CHOICES <<< "$char_choice"
+            for choice in "${CHOICES[@]}"; do
+                choice=$(echo "$choice" | tr -d ' ')
+                idx=$((choice - 1))
+                if [ $idx -ge 0 ] && [ $idx -lt ${#CHAR_NAMES[@]} ]; then
+                    SELECTED_CHARACTERS+=("${CHAR_NAMES[$idx]}")
+                fi
+            done
+        fi
+
+        if [ ${#SELECTED_CHARACTERS[@]} -eq 0 ]; then
+            echo -e "${RED}No valid characters selected${NC}"
+            return 1
+        fi
+
+        echo -e "${GREEN}Selected: ${SELECTED_CHARACTERS[*]}${NC}"
+    else
+        idx=$((char_choice - 1))
+        if [ $idx -ge 0 ] && [ $idx -lt ${#CHAR_NAMES[@]} ]; then
+            SELECTED_CHARACTER="${CHAR_NAMES[$idx]}"
+            echo -e "${GREEN}Selected: ${CYAN}$SELECTED_CHARACTER${NC}"
+            return 0
+        else
+            echo -e "${RED}Invalid selection${NC}"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+# Chat with a single character
+chat_with_character() {
+    echo -e "${BOLD}=== Chat with Character ===${NC}"
+    echo ""
+    echo -e "${DIM}Have a conversation with a historical figure from a timepoint${NC}"
+    echo ""
+
+    # Select timepoint
+    if ! select_timepoint_for_interaction; then
+        return
+    fi
+
+    local tp_id="$SELECTED_TIMEPOINT_ID"
+
+    # Select character
+    echo ""
+    echo -e "${BOLD}Select a character to chat with:${NC}"
+    if ! select_character_from_timepoint "$tp_id" "false"; then
+        return
+    fi
+
+    local character_name="$SELECTED_CHARACTER"
+
+    echo ""
+    echo -e "${CYAN}=== Chat with $character_name ===${NC}"
+    echo -e "${DIM}Type 'exit' or 'quit' to end the conversation${NC}"
+    echo ""
+
+    # Chat loop
+    while true; do
+        echo -e "${YELLOW}You: ${NC}\c"
+        read -r user_message
+
+        if [ "$user_message" = "exit" ] || [ "$user_message" = "quit" ] || [ -z "$user_message" ]; then
+            echo -e "${DIM}Ending conversation...${NC}"
+            break
+        fi
+
+        # Escape quotes in message for JSON
+        escaped_message=$(echo "$user_message" | sed 's/"/\\"/g')
+
+        # Make streaming chat request
+        json_payload="{\"character\": \"$character_name\", \"message\": \"$escaped_message\"}"
+
+        echo -e "${MAGENTA}$character_name: ${NC}\c"
+
+        # Use streaming endpoint
+        curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/chat/stream" \
+            -H "Content-Type: application/json" \
+            -d "$json_payload" | while IFS= read -r line; do
+            if [[ "$line" == data:* ]]; then
+                data="${line#data: }"
+                event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
+
+                case "$event" in
+                    "token")
+                        # Token event - data field contains the text chunk directly
+                        chunk=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',''))" 2>/dev/null || echo "")
+                        if [ -n "$chunk" ]; then
+                            echo -n "$chunk"
+                        fi
+                        ;;
+                    "done")
+                        # Done event - data field contains the full response
+                        # (already printed incrementally via tokens)
+                        echo ""  # Add newline after streaming
+                        ;;
+                    "error")
+                        error=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data','Unknown error'))" 2>/dev/null || echo "Error")
+                        echo -e "${RED}Error: $error${NC}"
+                        ;;
+                esac
+            fi
+        done
+
+        echo ""
+    done
+}
+
+# Extend dialog (generate more dialog)
+extend_dialog() {
+    echo -e "${BOLD}=== Extend Dialog ===${NC}"
+    echo ""
+    echo -e "${DIM}Generate additional dialog between characters${NC}"
+    echo ""
+
+    # Select timepoint
+    if ! select_timepoint_for_interaction; then
+        return
+    fi
+
+    local tp_id="$SELECTED_TIMEPOINT_ID"
+
+    # Ask about character selection
+    echo ""
+    echo -e "${YELLOW}Generate dialog for:${NC}"
+    echo -e "  ${GREEN}1)${NC} All characters"
+    echo -e "  ${GREEN}2)${NC} Select specific characters"
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r dialog_choice
+
+    local selected_chars=""
+
+    if [ "$dialog_choice" = "2" ]; then
+        echo ""
+        echo -e "${BOLD}Select characters:${NC}"
+        if ! select_character_from_timepoint "$tp_id" "true"; then
+            return
+        fi
+
+        # Build JSON array of selected characters
+        selected_chars=$(printf '"%s",' "${SELECTED_CHARACTERS[@]}" | sed 's/,$//')
+    fi
+
+    # Ask for number of lines
+    echo ""
+    echo -e "${YELLOW}Number of new dialog lines to generate (1-10) [5]: ${NC}\c"
+    read -r num_lines
+    num_lines="${num_lines:-5}"
+
+    # Ask for optional prompt/topic
+    echo -e "${YELLOW}Topic or prompt (optional): ${NC}\c"
+    read -r topic
+
+    echo ""
+    echo -e "${CYAN}Generating dialog...${NC}"
+    echo ""
+
+    # Build request
+    if [ -n "$selected_chars" ]; then
+        json_payload="{\"characters\": [$selected_chars], \"num_lines\": $num_lines"
+    else
+        json_payload="{\"num_lines\": $num_lines"
+    fi
+
+    if [ -n "$topic" ]; then
+        escaped_topic=$(echo "$topic" | sed 's/"/\\"/g')
+        json_payload="$json_payload, \"topic\": \"$escaped_topic\""
+    fi
+    json_payload="$json_payload}"
+
+    # Stream dialog generation
+    curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/dialog/stream" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" | while IFS= read -r line; do
+        if [[ "$line" == data:* ]]; then
+            data="${line#data: }"
+            event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
+
+            case "$event" in
+                "line")
+                    speaker=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('speaker',''))" 2>/dev/null || echo "")
+                    text=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('text',''))" 2>/dev/null || echo "")
+                    echo -e "${CYAN}$speaker:${NC} \"$text\""
+                    ;;
+                "done")
+                    total=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('total_lines',0))" 2>/dev/null || echo "0")
+                    echo ""
+                    echo -e "${GREEN}Generated $total new dialog lines${NC}"
+                    ;;
+                "error")
+                    error=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data','Unknown error'))" 2>/dev/null || echo "Error")
+                    echo -e "${RED}Error: $error${NC}"
+                    ;;
+            esac
+        fi
+    done
+}
+
+# Survey characters
+survey_characters() {
+    echo -e "${BOLD}=== Survey Characters ===${NC}"
+    echo ""
+    echo -e "${DIM}Ask the same question(s) to multiple characters${NC}"
+    echo ""
+
+    # Select timepoint
+    if ! select_timepoint_for_interaction; then
+        return
+    fi
+
+    local tp_id="$SELECTED_TIMEPOINT_ID"
+
+    # Ask about character selection
+    echo ""
+    echo -e "${YELLOW}Survey:${NC}"
+    echo -e "  ${GREEN}1)${NC} All characters"
+    echo -e "  ${GREEN}2)${NC} Select specific characters"
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r survey_choice
+
+    local selected_chars=""
+
+    if [ "$survey_choice" = "2" ]; then
+        echo ""
+        echo -e "${BOLD}Select characters:${NC}"
+        if ! select_character_from_timepoint "$tp_id" "true"; then
+            return
+        fi
+
+        selected_chars=$(printf '"%s",' "${SELECTED_CHARACTERS[@]}" | sed 's/,$//')
+    fi
+
+    # Get questions
+    echo ""
+    echo -e "${YELLOW}Enter your question(s) (one per line, empty line to finish):${NC}"
+
+    questions=()
+    while true; do
+        echo -e "${YELLOW}Q: ${NC}\c"
+        read -r question
+
+        if [ -z "$question" ]; then
+            break
+        fi
+
+        questions+=("$question")
+    done
+
+    if [ ${#questions[@]} -eq 0 ]; then
+        echo -e "${RED}No questions provided${NC}"
+        return
+    fi
+
+    # Build questions JSON array
+    questions_json=$(printf '"%s",' "${questions[@]}" | sed 's/,$//' | sed 's/"/\\"/g; s/\\\\"/\\"/g')
+    # Properly escape and rebuild
+    questions_json=""
+    for q in "${questions[@]}"; do
+        escaped_q=$(echo "$q" | sed 's/"/\\"/g')
+        if [ -n "$questions_json" ]; then
+            questions_json="$questions_json, \"$escaped_q\""
+        else
+            questions_json="\"$escaped_q\""
+        fi
+    done
+
+    # Ask about execution mode
+    echo ""
+    echo -e "${YELLOW}Execution mode:${NC}"
+    echo -e "  ${GREEN}1)${NC} Parallel (faster)"
+    echo -e "  ${GREEN}2)${NC} Sequential (more context-aware)"
+    echo -e "${YELLOW}> ${NC}\c"
+    read -r mode_choice
+
+    local mode="parallel"
+    [ "$mode_choice" = "2" ] && mode="sequential"
+
+    echo ""
+    echo -e "${CYAN}Running survey ($mode mode)...${NC}"
+    echo ""
+
+    # Build request
+    json_payload="{\"questions\": [$questions_json], \"mode\": \"$mode\", \"include_summary\": true"
+
+    if [ -n "$selected_chars" ]; then
+        json_payload="$json_payload, \"characters\": [$selected_chars]"
+    fi
+    json_payload="$json_payload}"
+
+    # Stream survey responses
+    curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/survey/stream" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" | while IFS= read -r line; do
+        if [[ "$line" == data:* ]]; then
+            data="${line#data: }"
+            event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
+
+            case "$event" in
+                "response")
+                    char_name=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('character_name',''))" 2>/dev/null || echo "")
+                    question=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('question','')[:50])" 2>/dev/null || echo "")
+                    response=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('response',''))" 2>/dev/null || echo "")
+                    sentiment=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('sentiment',''))" 2>/dev/null || echo "")
+                    progress=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',0))" 2>/dev/null || echo "0")
+
+                    echo -e "${CYAN}[$progress%] $char_name${NC} (${DIM}$sentiment${NC}):"
+                    echo -e "  \"$response\""
+                    echo ""
+                    ;;
+                "summary")
+                    summary=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',''))" 2>/dev/null || echo "")
+                    echo -e "${BOLD}=== Summary ===${NC}"
+                    echo "$summary"
+                    echo ""
+                    ;;
+                "done")
+                    total=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('total_responses',0))" 2>/dev/null || echo "0")
+                    chars=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('characters_surveyed',0))" 2>/dev/null || echo "0")
+                    echo -e "${GREEN}Survey complete: $total responses from $chars characters${NC}"
+                    ;;
+                "error")
+                    error=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data','Unknown error'))" 2>/dev/null || echo "Error")
+                    echo -e "${RED}Error: $error${NC}"
+                    ;;
+            esac
+        fi
+    done
+}
+
 # Main loop
 main() {
     check_server
@@ -1676,6 +2037,10 @@ main() {
             7) health_check; wait_for_key ;;
             8) open_docs; wait_for_key ;;
             9) test_endpoints; wait_for_key ;;
+            10) model_eval; wait_for_key ;;
+            11) chat_with_character; wait_for_key ;;
+            12) extend_dialog; wait_for_key ;;
+            13) survey_characters; wait_for_key ;;
             q|Q) echo -e "${GREEN}Goodbye!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac

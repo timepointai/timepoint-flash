@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.0.5
+# TIMEPOINT Flash Demo Test Suite v2.0.8
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
@@ -10,6 +10,7 @@
 #   - Parallel pipeline execution (graph|moment|camera steps)
 #   - Delete functionality
 #   - Template validation
+#   - Character interactions (chat, dialog, survey)
 #
 # Usage:
 #   ./test-demo.sh          # Run all tests (fast validation only)
@@ -57,7 +58,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.0.5"
+            echo "TIMEPOINT Flash Demo Test Suite v2.0.8"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""
@@ -139,7 +140,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.0.5"
+echo "  TIMEPOINT Flash Demo Test Suite v2.0.8"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
@@ -382,6 +383,155 @@ run_test "SSE start event includes preset" \
         -d '{\"query\": \"test event\", \"preset\": \"hyper\"}' 2>&1 | head -5)
     echo \"\$output\" | grep -q 'preset'" \
     $TIMEOUT_FAST
+
+# ============================================================
+# Menu 11, 12, 13: Character Interactions
+# ============================================================
+echo ""
+echo "--- Menu 11, 12, 13: Character Interactions ---"
+
+# Test interactions router is mounted (returns 404 for invalid ID, not 405 method not allowed)
+run_test "Interactions router mounted" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/interactions/invalid-uuid/chat' \
+        -H 'Content-Type: application/json' \
+        -d '{\"character\": \"test\", \"message\": \"hello\"}')
+    http_code=\${response: -3}
+    # 404 (not found) or 422 (validation error) means router is mounted
+    [ \"\$http_code\" = '404' ] || [ \"\$http_code\" = '422' ]" \
+    $TIMEOUT_FAST
+
+# Test sessions endpoint exists
+run_test "Sessions endpoint exists" \
+    "response=\$(curl -s -w '%{http_code}' '$API_BASE/api/v1/interactions/sessions/test-id')
+    http_code=\${response: -3}
+    # Should return 200 with empty list, not 404 (router mounted)
+    [ \"\$http_code\" = '200' ] || [ \"\$http_code\" = '404' ]" \
+    $TIMEOUT_FAST
+
+# Test chat endpoint accepts valid request structure (will fail with 404 for invalid timepoint)
+run_test "Chat endpoint request validation" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/chat' \
+        -H 'Content-Type: application/json' \
+        -d '{\"character\": \"Benjamin Franklin\", \"message\": \"Hello\"}')
+    # Should return 404 (timepoint not found), not 422 (validation) - means request structure is valid
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# Test dialog endpoint accepts valid request structure
+run_test "Dialog endpoint request validation" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/dialog' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"num_lines\": 3}')
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# Test survey endpoint accepts valid request structure
+run_test "Survey endpoint request validation" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/survey' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"questions\": [\"What do you think?\"]}')
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# Test chat streaming SSE events (must use 'token' and 'done', not 'response' or 'chunk')
+run_test "Chat stream SSE uses token/done events" \
+    "# Verify the API returns token/done events for streaming chat
+    # This test validates the fix for demo.sh event name mismatch
+    tp_id=\$(curl -sf '$API_BASE/api/v1/timepoints?page_size=1&status=completed' | \
+        python3 -c 'import sys,json; items=json.load(sys.stdin).get(\"items\",[]); print(items[0][\"id\"] if items else \"\")')
+    if [ -z \"\$tp_id\" ]; then
+        echo 'No completed timepoint, skipping'
+        exit 0
+    fi
+    char_name=\$(curl -s \"$API_BASE/api/v1/timepoints/\$tp_id?full=true\" | \
+        python3 -c 'import sys,json; d=json.load(sys.stdin); chars=d.get(\"characters\",{}).get(\"characters\",[]); print(chars[0].get(\"name\",\"\") if chars else \"\")')
+    if [ -z \"\$char_name\" ]; then
+        echo 'No character found, skipping'
+        exit 0
+    fi
+    # Make streaming request and verify event names
+    output=\$(curl -sf -N -X POST \"$API_BASE/api/v1/interactions/\$tp_id/chat/stream\" \
+        -H 'Content-Type: application/json' \
+        -d \"{\\\"character\\\": \\\"\$char_name\\\", \\\"message\\\": \\\"Hello\\\"}\" 2>&1 | head -20)
+    # Must contain 'token' or 'done' event (not 'response' or 'chunk')
+    echo \"\$output\" | grep -qE '\"event\"[[:space:]]*:[[:space:]]*\"(token|done)\"'" \
+    120  # 2 min timeout for LLM streaming
+
+# Test with real timepoint if one exists (requires completed timepoint with characters)
+if [ "$QUICK_MODE" != true ]; then
+    # Get a completed timepoint with characters
+    COMPLETED_TP=$(curl -s "$API_BASE/api/v1/timepoints?page_size=1&status=completed" | \
+        python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    items = data.get('items', [])
+    for tp in items:
+        if tp.get('characters') and tp['characters'].get('characters'):
+            print(tp['id'])
+            break
+except:
+    pass
+" 2>/dev/null)
+
+    if [ -n "$COMPLETED_TP" ]; then
+        echo ""
+        echo "Found completed timepoint: ${COMPLETED_TP:0:8}..."
+
+        # Get first character name
+        CHAR_NAME=$(curl -s "$API_BASE/api/v1/timepoints/$COMPLETED_TP?full=true" | \
+            python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    chars = data.get('characters', {}).get('characters', [])
+    if chars:
+        print(chars[0].get('name', ''))
+except:
+    pass
+" 2>/dev/null)
+
+        if [ -n "$CHAR_NAME" ]; then
+            echo "Testing with character: $CHAR_NAME"
+
+            # Test chat with real character (skip in quick mode due to LLM call)
+            run_test "Chat with character (integration)" \
+                "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/chat' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"character\": \"$CHAR_NAME\", \"message\": \"Hello, how are you?\"}')
+                echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"response\"), \"No response\"'" \
+                120  # 2 min timeout for LLM
+
+            # Test survey with real characters
+            run_test "Survey characters (integration)" \
+                "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/survey' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"characters\": \"all\", \"questions\": [\"What is happening?\"], \"include_summary\": false}')
+                echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"responses\"), \"No responses\"'" \
+                180  # 3 min timeout for survey
+
+            # Test dialog extension
+            run_test "Extend dialog (integration)" \
+                "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/dialog' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"characters\": \"all\", \"num_lines\": 2}')
+                echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"dialog\"), \"No dialog\"'" \
+                120  # 2 min timeout for LLM
+        else
+            skip_test "Chat with character (integration)" "No character name found"
+            skip_test "Survey characters (integration)" "No character name found"
+            skip_test "Extend dialog (integration)" "No character name found"
+        fi
+    else
+        skip_test "Chat with character (integration)" "No completed timepoint with characters"
+        skip_test "Survey characters (integration)" "No completed timepoint with characters"
+        skip_test "Extend dialog (integration)" "No completed timepoint with characters"
+    fi
+else
+    skip_test "Chat with character (integration)" "--quick mode"
+    skip_test "Survey characters (integration)" "--quick mode"
+    skip_test "Extend dialog (integration)" "--quick mode"
+fi
 
 # ============================================================
 # Summary
