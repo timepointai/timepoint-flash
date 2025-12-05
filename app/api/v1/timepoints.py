@@ -7,6 +7,7 @@ Endpoints:
     POST /api/v1/timepoints/generate/sync - Synchronous generation
     POST /api/v1/timepoints/generate/stream - SSE streaming generation
     GET /api/v1/timepoints/{id} - Get timepoint by ID
+    GET /api/v1/timepoints/{id}/characters - Get character bios with system prompts
     GET /api/v1/timepoints/slug/{slug} - Get timepoint by slug
     GET /api/v1/timepoints - List timepoints
     DELETE /api/v1/timepoints/{id} - Delete timepoint
@@ -43,6 +44,7 @@ from app.config import QualityPreset
 from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
 from app.models import GenerationLog, Timepoint, TimepointStatus
+from app.schemas.characters import Character, CharacterData
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,54 @@ class DeleteResponse(BaseModel):
     id: str
     deleted: bool
     message: str
+
+
+class CharacterBioResponse(BaseModel):
+    """Individual character bio with system prompt for roleplay.
+
+    Attributes:
+        name: Character name
+        role: Character role (primary, secondary, background)
+        system_prompt: Full roleplay system prompt for this character
+        dialog_context: Short context string for dialog generation
+        speaks_in_scene: Whether character has dialog in the scene
+    """
+
+    name: str
+    role: str
+    system_prompt: str
+    dialog_context: str
+    speaks_in_scene: bool = False
+
+    # Character attributes for reference
+    personality: str | None = None
+    speaking_style: str | None = None
+    emotional_state: str | None = None
+    historical_note: str | None = None
+
+
+class CharacterBiosResponse(BaseModel):
+    """Response containing all character bios for a timepoint.
+
+    Attributes:
+        timepoint_id: The timepoint these characters belong to
+        query: Original query that generated this timepoint
+        year: Year of the scene (for context)
+        location: Location of the scene (for context)
+        era: Historical era (for context)
+        total_characters: Number of characters
+        speaking_characters: Number of characters with dialog
+        characters: List of character bios with system prompts
+    """
+
+    timepoint_id: str
+    query: str
+    year: int | None = None
+    location: str | None = None
+    era: str | None = None
+    total_characters: int
+    speaking_characters: int
+    characters: list[CharacterBioResponse]
 
 
 class TimepointResponse(BaseModel):
@@ -587,6 +637,116 @@ async def get_timepoint(
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
     return timepoint_to_response(timepoint, include_full=full, include_image=include_image)
+
+
+@router.get("/{timepoint_id}/characters", response_model=CharacterBiosResponse)
+async def get_character_bios(
+    timepoint_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> CharacterBiosResponse:
+    """Get all character bios with system prompts for a timepoint.
+
+    Returns all characters from a timepoint with their full roleplay system
+    prompts pre-generated. Use these system prompts to make an LLM "become"
+    each character for authentic dialog generation.
+
+    Args:
+        timepoint_id: Timepoint UUID
+        session: Database session
+
+    Returns:
+        CharacterBiosResponse with all character bios
+
+    Raises:
+        HTTPException: If timepoint not found or has no characters
+
+    Example response:
+        ```json
+        {
+            "timepoint_id": "abc123",
+            "query": "signing of the declaration",
+            "year": 1776,
+            "location": "Independence Hall, Philadelphia",
+            "total_characters": 5,
+            "speaking_characters": 3,
+            "characters": [
+                {
+                    "name": "John Hancock",
+                    "role": "primary",
+                    "system_prompt": "You are John Hancock...",
+                    "dialog_context": "**John Hancock** (primary)...",
+                    "speaks_in_scene": true,
+                    "personality": "bold, dramatic, confident",
+                    "speaking_style": "formal, eloquent"
+                }
+            ]
+        }
+        ```
+    """
+    # Fetch timepoint
+    result = await session.execute(
+        select(Timepoint).where(Timepoint.id == timepoint_id)
+    )
+    timepoint = result.scalar_one_or_none()
+
+    if not timepoint:
+        raise HTTPException(status_code=404, detail="Timepoint not found")
+
+    # Check if character data exists
+    if not timepoint.character_data_json:
+        raise HTTPException(
+            status_code=404,
+            detail="Timepoint has no character data. Generation may still be in progress.",
+        )
+
+    # Parse character data
+    try:
+        char_data = CharacterData.model_validate(timepoint.character_data_json)
+    except Exception as e:
+        logger.error(f"Failed to parse character data for {timepoint_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to parse character data",
+        )
+
+    # Build character bios with system prompts
+    character_bios: list[CharacterBioResponse] = []
+    for char in char_data.characters:
+        # Generate system prompt using scene context
+        system_prompt = char.to_system_prompt(
+            year=timepoint.year or 0,
+            location=timepoint.location or "Unknown",
+            era=timepoint.era,
+        )
+        dialog_context = char.to_dialog_context()
+
+        character_bios.append(
+            CharacterBioResponse(
+                name=char.name,
+                role=char.role.value,
+                system_prompt=system_prompt,
+                dialog_context=dialog_context,
+                speaks_in_scene=char.speaks_in_scene,
+                personality=char.personality,
+                speaking_style=char.speaking_style,
+                emotional_state=char.emotional_state,
+                historical_note=char.historical_note,
+            )
+        )
+
+    # Count speaking characters
+    speaking_count = sum(1 for c in char_data.characters if c.speaks_in_scene)
+
+    return CharacterBiosResponse(
+        timepoint_id=timepoint.id,
+        query=timepoint.query,
+        year=timepoint.year,
+        location=timepoint.location,
+        era=timepoint.era,
+        total_characters=len(char_data.characters),
+        speaking_characters=speaking_count,
+        characters=character_bios,
+    )
 
 
 @router.get("/slug/{slug}", response_model=TimepointResponse)

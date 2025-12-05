@@ -68,43 +68,115 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
+# =============================================================================
+# VERIFIED MODELS - Only use models from this list
+# =============================================================================
+# These models have been tested and confirmed working.
+# DO NOT use any model not in this list - it will fail silently or loudly.
+#
+# Last verified: 2024-12-03
+# =============================================================================
+
+class VerifiedModels:
+    """Verified working models for each provider.
+
+    IMPORTANT: Only models in these lists are guaranteed to work.
+    Using unverified models will result in failures.
+    """
+
+    # Google Native API (via google-genai SDK)
+    # These work with GOOGLE_API_KEY
+    GOOGLE_TEXT = [
+        "gemini-2.5-flash",           # Fast, reliable, supports thinking
+        "gemini-2.0-flash",           # Older but stable
+    ]
+
+    GOOGLE_IMAGE = [
+        "gemini-2.5-flash-image",       # Nano Banana - fast 1K image generation
+        "gemini-3-pro-image-preview",   # Nano Banana Pro - 2K/4K, best quality
+    ]
+
+    # OpenRouter API (via openrouter.ai)
+    # These work with OPENROUTER_API_KEY
+    OPENROUTER_TEXT = [
+        "google/gemini-2.0-flash-001",        # Fast, handles JSON well
+        "google/gemini-2.0-flash-001:free",   # Free tier (rate limited)
+    ]
+
+    # Fallback chains - ordered by preference
+    # When a model fails, try the next one
+    TEXT_FALLBACK_CHAIN = [
+        "gemini-2.5-flash",                   # Primary: Google native
+        "google/gemini-2.0-flash-001",        # Fallback: OpenRouter
+    ]
+
+    IMAGE_FALLBACK_CHAIN = [
+        "gemini-2.5-flash-image",             # Primary: Nano Banana
+    ]
+
+    @classmethod
+    def is_verified_text_model(cls, model: str) -> bool:
+        """Check if a text model is verified."""
+        return model in cls.GOOGLE_TEXT or model in cls.OPENROUTER_TEXT
+
+    @classmethod
+    def is_verified_image_model(cls, model: str) -> bool:
+        """Check if an image model is verified."""
+        return model in cls.GOOGLE_IMAGE
+
+    @classmethod
+    def get_safe_text_model(cls, provider: "ProviderType") -> str:
+        """Get a guaranteed working text model for a provider."""
+        if provider == ProviderType.GOOGLE:
+            return cls.GOOGLE_TEXT[0]  # gemini-2.5-flash
+        else:
+            return cls.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+
+    @classmethod
+    def get_safe_image_model(cls) -> str:
+        """Get a guaranteed working image model."""
+        return cls.GOOGLE_IMAGE[0]  # gemini-2.5-flash-image
+
+
 # Quality Preset Configurations
-# Google native image generation models (verified from API):
-#   - gemini-2.5-flash-image: Nano Banana (fast)
-#   - gemini-3-pro-image-preview: Nano Banana Pro (high quality)
-#   - gemini-2.0-flash-exp-image-generation: Experimental
+# =============================================================================
+# IMPORTANT: All presets MUST use models from VerifiedModels class above
+# =============================================================================
 PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     QualityPreset.HD: {
         "name": "HD Quality",
-        "description": "Highest quality - Gemini 2.5 Pro + Nano Banana (native Google)",
-        "text_model": "gemini-2.5-pro-preview",  # Pro model for highest quality
-        "judge_model": "gemini-2.5-flash",  # Fast flash for validation
-        "image_model": "gemini-2.5-flash-image",  # Nano Banana (reliable)
-        "image_provider": ProviderType.GOOGLE,  # Native Google for best quality
+        "description": "Highest quality - Gemini 2.5 Flash + Nano Banana Pro (2K images)",
+        # All models from VerifiedModels.GOOGLE_TEXT and GOOGLE_IMAGE
+        "text_model": "gemini-2.5-flash",         # VerifiedModels.GOOGLE_TEXT[0]
+        "judge_model": "gemini-2.5-flash",        # VerifiedModels.GOOGLE_TEXT[0]
+        "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - 2K/4K support
+        "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.GOOGLE,
-        "max_tokens": 4096,
-        "thinking_level": "high",
-        "image_size": "2K",  # High resolution
+        "max_tokens": 8192,
+        "thinking_level": "high",  # Extended thinking for better quality
+        "image_size": "2K",        # Nano Banana Pro supports 1K, 2K, 4K
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
-        "description": "Fastest generation - Gemini 2.0 Flash (OpenRouter) + Nano Banana (Google)",
-        "text_model": "google/gemini-2.0-flash-001",  # Fast AND handles JSON well
-        "judge_model": "google/gemini-2.0-flash-001",
-        "image_model": "gemini-2.5-flash-image",  # Nano Banana (fast)
-        "image_provider": ProviderType.GOOGLE,  # Native Google for working image gen
+        "description": "Fastest generation - Gemini 2.0 Flash via OpenRouter",
+        # All models from VerifiedModels.OPENROUTER_TEXT and GOOGLE_IMAGE
+        "text_model": "google/gemini-2.0-flash-001",  # VerifiedModels.OPENROUTER_TEXT[0]
+        "judge_model": "google/gemini-2.0-flash-001", # VerifiedModels.OPENROUTER_TEXT[0]
+        "image_model": "gemini-2.5-flash-image",      # VerifiedModels.GOOGLE_IMAGE[0]
+        "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.OPENROUTER,
-        "max_tokens": 1024,  # Reduced for speed
-        "thinking_level": None,  # No extended thinking
-        "image_supported": True,  # Hyper mode supports fast image generation
+        "max_tokens": 1024,
+        "thinking_level": None,
+        "image_supported": True,
     },
     QualityPreset.BALANCED: {
         "name": "Balanced",
-        "description": "Balance of quality and speed - Gemini 2.5 Flash + Nano Banana",
-        "text_model": "gemini-2.5-flash",
-        "judge_model": "gemini-2.5-flash",
-        "image_model": "gemini-2.5-flash-image",  # Nano Banana (fast)
-        "image_provider": ProviderType.GOOGLE,  # Native Google
+        "description": "Balance of quality and speed - Gemini 2.5 Flash",
+        # All models from VerifiedModels.GOOGLE_TEXT and GOOGLE_IMAGE
+        "text_model": "gemini-2.5-flash",       # VerifiedModels.GOOGLE_TEXT[0]
+        "judge_model": "gemini-2.5-flash",      # VerifiedModels.GOOGLE_TEXT[0]
+        "image_model": "gemini-2.5-flash-image", # VerifiedModels.GOOGLE_IMAGE[0]
+        "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 2048,
         "thinking_level": "medium",
@@ -239,7 +311,7 @@ class Settings(BaseSettings):
         description="Model for validation/judging (fast)",
     )
     CREATIVE_MODEL: str = Field(
-        default="gemini-3-pro-preview",
+        default="gemini-2.5-flash",  # VerifiedModels.GOOGLE_TEXT[0]
         description="Model for creative generation (quality)",
     )
     IMAGE_MODEL: str = Field(
@@ -400,3 +472,75 @@ def get_settings() -> Settings:
 
 # Global settings instance for convenience
 settings = get_settings()
+
+
+def validate_presets() -> list[str]:
+    """Validate that all presets use only verified models.
+
+    This function should be called at startup to catch configuration errors
+    early. It checks that all models in PRESET_CONFIGS are in VerifiedModels.
+
+    Returns:
+        list[str]: List of validation errors (empty if all valid).
+
+    Raises:
+        ValueError: If raise_on_error=True and validation fails.
+
+    Examples:
+        >>> errors = validate_presets()
+        >>> if errors:
+        ...     print("Configuration errors:", errors)
+    """
+    errors = []
+
+    for preset, config in PRESET_CONFIGS.items():
+        text_model = config.get("text_model", "")
+        judge_model = config.get("judge_model", "")
+        image_model = config.get("image_model", "")
+        text_provider = config.get("text_provider", ProviderType.GOOGLE)
+
+        # Validate text model
+        if text_provider == ProviderType.GOOGLE:
+            if text_model not in VerifiedModels.GOOGLE_TEXT:
+                errors.append(
+                    f"{preset.value}: text_model '{text_model}' not in VerifiedModels.GOOGLE_TEXT"
+                )
+        else:
+            if text_model not in VerifiedModels.OPENROUTER_TEXT:
+                errors.append(
+                    f"{preset.value}: text_model '{text_model}' not in VerifiedModels.OPENROUTER_TEXT"
+                )
+
+        # Validate judge model (follows text provider)
+        if text_provider == ProviderType.GOOGLE:
+            if judge_model not in VerifiedModels.GOOGLE_TEXT:
+                errors.append(
+                    f"{preset.value}: judge_model '{judge_model}' not in VerifiedModels.GOOGLE_TEXT"
+                )
+        else:
+            if judge_model not in VerifiedModels.OPENROUTER_TEXT:
+                errors.append(
+                    f"{preset.value}: judge_model '{judge_model}' not in VerifiedModels.OPENROUTER_TEXT"
+                )
+
+        # Validate image model
+        if image_model and image_model not in VerifiedModels.GOOGLE_IMAGE:
+            errors.append(
+                f"{preset.value}: image_model '{image_model}' not in VerifiedModels.GOOGLE_IMAGE"
+            )
+
+    return errors
+
+
+def validate_presets_or_raise() -> None:
+    """Validate presets and raise if any errors found.
+
+    Raises:
+        ValueError: If any preset uses unverified models.
+    """
+    errors = validate_presets()
+    if errors:
+        raise ValueError(
+            f"Preset configuration errors (models not in VerifiedModels):\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )

@@ -12,6 +12,24 @@ from app.schemas.characters import Character, CharacterData, CharacterRole
 from app.schemas.character_identification import CharacterIdentification, CharacterStub
 from app.schemas.dialog import DialogData, DialogLine
 from app.schemas.graph import Faction, GraphData, Relationship
+from app.schemas.chat import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    ChatRole,
+    ChatSession,
+    ChatSessionSummary,
+    ChatStreamEvent,
+    CharacterSurveyResponse,
+    DialogExtensionRequest,
+    DialogExtensionResponse,
+    DialogStreamEvent,
+    ResponseFormat,
+    SurveyMode,
+    SurveyRequest,
+    SurveyResult,
+    SurveyStreamEvent,
+)
 from app.schemas.image_prompt import ImagePromptData
 from app.schemas.judge import JudgeResult, QueryType
 from app.schemas.moment import MomentData
@@ -47,4 +65,21 @@ __all__ = [
     "Faction",
     # Image Prompt
     "ImagePromptData",
+    # Chat & Interactions
+    "ChatMessage",
+    "ChatRequest",
+    "ChatResponse",
+    "ChatRole",
+    "ChatSession",
+    "ChatSessionSummary",
+    "ChatStreamEvent",
+    "CharacterSurveyResponse",
+    "DialogExtensionRequest",
+    "DialogExtensionResponse",
+    "DialogStreamEvent",
+    "ResponseFormat",
+    "SurveyMode",
+    "SurveyRequest",
+    "SurveyResult",
+    "SurveyStreamEvent",
 ]

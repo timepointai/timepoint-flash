@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.1.0
+# TIMEPOINT Flash Demo Test Suite v2.0.8
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
@@ -11,7 +11,6 @@
 #   - Delete functionality
 #   - Template validation
 #   - Character interactions (chat, dialog, survey)
-#   - Model selection for interactions (Phase 20)
 #
 # Usage:
 #   ./test-demo.sh          # Run all tests (fast validation only)
@@ -59,7 +58,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.1.0"
+            echo "TIMEPOINT Flash Demo Test Suite v2.0.8"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""
@@ -141,7 +140,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.1.0"
+echo "  TIMEPOINT Flash Demo Test Suite v2.0.8"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
@@ -551,19 +550,16 @@ except:
                 120  # 2 min timeout for LLM
         else
             skip_test "Chat with character (integration)" "No character name found"
-            skip_test "Chat with model override (integration)" "No character name found"
             skip_test "Survey characters (integration)" "No character name found"
             skip_test "Extend dialog (integration)" "No character name found"
         fi
     else
         skip_test "Chat with character (integration)" "No completed timepoint with characters"
-        skip_test "Chat with model override (integration)" "No completed timepoint with characters"
         skip_test "Survey characters (integration)" "No completed timepoint with characters"
         skip_test "Extend dialog (integration)" "No completed timepoint with characters"
     fi
 else
     skip_test "Chat with character (integration)" "--quick mode"
-    skip_test "Chat with model override (integration)" "--quick mode"
     skip_test "Survey characters (integration)" "--quick mode"
     skip_test "Extend dialog (integration)" "--quick mode"
 fi

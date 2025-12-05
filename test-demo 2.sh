@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.1.0
+# TIMEPOINT Flash Demo Test Suite v2.0.7
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
@@ -11,7 +11,6 @@
 #   - Delete functionality
 #   - Template validation
 #   - Character interactions (chat, dialog, survey)
-#   - Model selection for interactions (Phase 20)
 #
 # Usage:
 #   ./test-demo.sh          # Run all tests (fast validation only)
@@ -59,7 +58,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.1.0"
+            echo "TIMEPOINT Flash Demo Test Suite v2.0.7"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""
@@ -141,7 +140,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.1.0"
+echo "  TIMEPOINT Flash Demo Test Suite v2.0.7"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
@@ -434,29 +433,6 @@ run_test "Survey endpoint request validation" \
     echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
     $TIMEOUT_FAST
 
-# Test model selection parameter is accepted by all interaction endpoints
-run_test "Chat endpoint accepts model parameter" \
-    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/chat' \
-        -H 'Content-Type: application/json' \
-        -d '{\"character\": \"Test\", \"message\": \"Hello\", \"model\": \"gemini-2.5-flash\", \"response_format\": \"auto\"}')
-    # Should return 404 (timepoint not found), not 422 (validation) - means model param is valid
-    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
-    $TIMEOUT_FAST
-
-run_test "Dialog endpoint accepts model parameter" \
-    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/dialog' \
-        -H 'Content-Type: application/json' \
-        -d '{\"characters\": \"all\", \"num_lines\": 3, \"model\": \"google/gemini-2.0-flash-001\", \"response_format\": \"text\"}')
-    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
-    $TIMEOUT_FAST
-
-run_test "Survey endpoint accepts model parameter" \
-    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/survey' \
-        -H 'Content-Type: application/json' \
-        -d '{\"characters\": \"all\", \"questions\": [\"Test?\"], \"model\": \"anthropic/claude-3.5-sonnet\", \"response_format\": \"structured\"}')
-    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
-    $TIMEOUT_FAST
-
 # Test chat streaming SSE events (must use 'token' and 'done', not 'response' or 'chunk')
 run_test "Chat stream SSE uses token/done events" \
     "# Verify the API returns token/done events for streaming chat
@@ -522,15 +498,7 @@ except:
             run_test "Chat with character (integration)" \
                 "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/chat' \
                     -H 'Content-Type: application/json' \
-                    -d '{\"character\": \"$CHAR_NAME\", \"message\": \"Hello, how are you?\", \"model\": null, \"response_format\": \"auto\"}')
-                echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"response\"), \"No response\"'" \
-                120  # 2 min timeout for LLM
-
-            # Test chat with model override (use fast model for testing)
-            run_test "Chat with model override (integration)" \
-                "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/chat' \
-                    -H 'Content-Type: application/json' \
-                    -d '{\"character\": \"$CHAR_NAME\", \"message\": \"Brief greeting please.\", \"model\": \"gemini-2.5-flash\", \"response_format\": \"text\"}')
+                    -d '{\"character\": \"$CHAR_NAME\", \"message\": \"Hello, how are you?\"}')
                 echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"response\"), \"No response\"'" \
                 120  # 2 min timeout for LLM
 
@@ -538,7 +506,7 @@ except:
             run_test "Survey characters (integration)" \
                 "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/survey' \
                     -H 'Content-Type: application/json' \
-                    -d '{\"characters\": \"all\", \"questions\": [\"What is happening?\"], \"include_summary\": false, \"response_format\": \"auto\"}')
+                    -d '{\"characters\": \"all\", \"questions\": [\"What is happening?\"], \"include_summary\": false}')
                 echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"responses\"), \"No responses\"'" \
                 180  # 3 min timeout for survey
 
@@ -546,24 +514,21 @@ except:
             run_test "Extend dialog (integration)" \
                 "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$COMPLETED_TP/dialog' \
                     -H 'Content-Type: application/json' \
-                    -d '{\"characters\": \"all\", \"num_lines\": 2, \"response_format\": \"auto\"}')
+                    -d '{\"characters\": \"all\", \"num_lines\": 2}')
                 echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"dialog\"), \"No dialog\"'" \
                 120  # 2 min timeout for LLM
         else
             skip_test "Chat with character (integration)" "No character name found"
-            skip_test "Chat with model override (integration)" "No character name found"
             skip_test "Survey characters (integration)" "No character name found"
             skip_test "Extend dialog (integration)" "No character name found"
         fi
     else
         skip_test "Chat with character (integration)" "No completed timepoint with characters"
-        skip_test "Chat with model override (integration)" "No completed timepoint with characters"
         skip_test "Survey characters (integration)" "No completed timepoint with characters"
         skip_test "Extend dialog (integration)" "No completed timepoint with characters"
     fi
 else
     skip_test "Chat with character (integration)" "--quick mode"
-    skip_test "Chat with model override (integration)" "--quick mode"
     skip_test "Survey characters (integration)" "--quick mode"
     skip_test "Extend dialog (integration)" "--quick mode"
 fi

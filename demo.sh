@@ -1716,6 +1716,109 @@ PYEOF
     return 0
 }
 
+# Global variable for interaction model
+INTERACTION_MODEL=""
+INTERACTION_RESPONSE_FORMAT="auto"
+
+# Helper: Select model for character interactions
+select_interaction_model() {
+    echo ""
+    echo -e "${BOLD}Select Model for Interaction:${NC}"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} ${BOLD}Default${NC} - Use server default model"
+    echo -e "     ${DIM}gemini-2.5-flash (Google native)${NC}"
+    echo -e "  ${CYAN}2)${NC} ${BOLD}Gemini 2.5 Flash${NC} - Fast, reliable"
+    echo -e "     ${DIM}Google native API${NC}"
+    echo -e "  ${CYAN}3)${NC} ${BOLD}Gemini 2.0 Flash${NC} - Via OpenRouter"
+    echo -e "     ${DIM}google/gemini-2.0-flash-001${NC}"
+    echo -e "  ${MAGENTA}4)${NC} ${BOLD}Claude 3.5 Sonnet${NC} - Anthropic via OpenRouter"
+    echo -e "     ${DIM}anthropic/claude-3.5-sonnet${NC}"
+    echo -e "  ${YELLOW}5)${NC} ${BOLD}GPT-4o${NC} - OpenAI via OpenRouter"
+    echo -e "     ${DIM}openai/gpt-4o${NC}"
+    echo -e "  ${GREEN}6)${NC} ${BOLD}GPT-4o Mini${NC} - Fast & cheap via OpenRouter"
+    echo -e "     ${DIM}openai/gpt-4o-mini${NC}"
+    echo -e "  ${DIM}7)${NC} ${BOLD}Custom...${NC} - Enter model ID"
+    echo ""
+    echo -e "${YELLOW}Select (default=1): ${NC}\c"
+    read -r model_choice
+
+    case "$model_choice" in
+        2)
+            INTERACTION_MODEL="gemini-2.5-flash"
+            echo -e "${GREEN}Using: gemini-2.5-flash${NC}"
+            ;;
+        3)
+            INTERACTION_MODEL="google/gemini-2.0-flash-001"
+            echo -e "${GREEN}Using: google/gemini-2.0-flash-001${NC}"
+            ;;
+        4)
+            INTERACTION_MODEL="anthropic/claude-3.5-sonnet"
+            echo -e "${GREEN}Using: anthropic/claude-3.5-sonnet${NC}"
+            ;;
+        5)
+            INTERACTION_MODEL="openai/gpt-4o"
+            echo -e "${GREEN}Using: openai/gpt-4o${NC}"
+            ;;
+        6)
+            INTERACTION_MODEL="openai/gpt-4o-mini"
+            echo -e "${GREEN}Using: openai/gpt-4o-mini${NC}"
+            ;;
+        7)
+            echo -e "${YELLOW}Enter model ID (e.g., 'google/gemini-2.5-flash-preview'): ${NC}\c"
+            read -r custom_model
+            if [ -n "$custom_model" ]; then
+                INTERACTION_MODEL="$custom_model"
+                echo -e "${GREEN}Using: $INTERACTION_MODEL${NC}"
+            else
+                INTERACTION_MODEL=""
+                echo -e "${DIM}Using default model${NC}"
+            fi
+            ;;
+        *)
+            INTERACTION_MODEL=""
+            echo -e "${DIM}Using default model${NC}"
+            ;;
+    esac
+
+    # Ask about response format
+    echo ""
+    echo -e "${YELLOW}Response format (s=structured, t=text, Enter=auto): ${NC}\c"
+    read -r format_choice
+
+    case "$format_choice" in
+        s|S)
+            INTERACTION_RESPONSE_FORMAT="structured"
+            echo -e "${DIM}Using structured (JSON) responses${NC}"
+            ;;
+        t|T)
+            INTERACTION_RESPONSE_FORMAT="text"
+            echo -e "${DIM}Using plain text responses${NC}"
+            ;;
+        *)
+            INTERACTION_RESPONSE_FORMAT="auto"
+            echo -e "${DIM}Auto-detecting response format${NC}"
+            ;;
+    esac
+}
+
+# Build interaction JSON with model if specified
+build_interaction_payload() {
+    local base_payload="$1"
+
+    # Remove trailing }
+    local payload="${base_payload%\}}"
+
+    if [ -n "$INTERACTION_MODEL" ]; then
+        payload="$payload, \"model\": \"$INTERACTION_MODEL\""
+    fi
+    if [ "$INTERACTION_RESPONSE_FORMAT" != "auto" ]; then
+        payload="$payload, \"response_format\": \"$INTERACTION_RESPONSE_FORMAT\""
+    fi
+
+    payload="$payload}"
+    echo "$payload"
+}
+
 # Chat with a single character
 chat_with_character() {
     echo -e "${BOLD}=== Chat with Character ===${NC}"
@@ -1739,8 +1842,14 @@ chat_with_character() {
 
     local character_name="$SELECTED_CHARACTER"
 
+    # Select model
+    select_interaction_model
+
     echo ""
     echo -e "${CYAN}=== Chat with $character_name ===${NC}"
+    if [ -n "$INTERACTION_MODEL" ]; then
+        echo -e "${DIM}Model: $INTERACTION_MODEL${NC}"
+    fi
     echo -e "${DIM}Type 'exit' or 'quit' to end the conversation${NC}"
     echo ""
 
@@ -1757,8 +1866,9 @@ chat_with_character() {
         # Escape quotes in message for JSON
         escaped_message=$(echo "$user_message" | sed 's/"/\\"/g')
 
-        # Make streaming chat request
-        json_payload="{\"character\": \"$character_name\", \"message\": \"$escaped_message\"}"
+        # Build streaming chat request with model
+        base_payload="{\"character\": \"$character_name\", \"message\": \"$escaped_message\"}"
+        json_payload=$(build_interaction_payload "$base_payload")
 
         echo -e "${MAGENTA}$character_name: ${NC}\c"
 
@@ -1809,6 +1919,9 @@ extend_dialog() {
 
     local tp_id="$SELECTED_TIMEPOINT_ID"
 
+    # Select model
+    select_interaction_model
+
     # Ask about character selection
     echo ""
     echo -e "${YELLOW}Generate dialog for:${NC}"
@@ -1842,20 +1955,24 @@ extend_dialog() {
 
     echo ""
     echo -e "${CYAN}Generating dialog...${NC}"
+    if [ -n "$INTERACTION_MODEL" ]; then
+        echo -e "${DIM}Model: $INTERACTION_MODEL${NC}"
+    fi
     echo ""
 
     # Build request
     if [ -n "$selected_chars" ]; then
-        json_payload="{\"characters\": [$selected_chars], \"num_lines\": $num_lines"
+        base_payload="{\"characters\": [$selected_chars], \"num_lines\": $num_lines"
     else
-        json_payload="{\"num_lines\": $num_lines"
+        base_payload="{\"num_lines\": $num_lines"
     fi
 
     if [ -n "$topic" ]; then
         escaped_topic=$(echo "$topic" | sed 's/"/\\"/g')
-        json_payload="$json_payload, \"topic\": \"$escaped_topic\""
+        base_payload="$base_payload, \"topic\": \"$escaped_topic\""
     fi
-    json_payload="$json_payload}"
+    base_payload="$base_payload}"
+    json_payload=$(build_interaction_payload "$base_payload")
 
     # Stream dialog generation
     curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/dialog/stream" \
@@ -1898,6 +2015,9 @@ survey_characters() {
     fi
 
     local tp_id="$SELECTED_TIMEPOINT_ID"
+
+    # Select model
+    select_interaction_model
 
     # Ask about character selection
     echo ""
@@ -1966,15 +2086,19 @@ survey_characters() {
 
     echo ""
     echo -e "${CYAN}Running survey ($mode mode)...${NC}"
+    if [ -n "$INTERACTION_MODEL" ]; then
+        echo -e "${DIM}Model: $INTERACTION_MODEL${NC}"
+    fi
     echo ""
 
     # Build request
-    json_payload="{\"questions\": [$questions_json], \"mode\": \"$mode\", \"include_summary\": true"
+    base_payload="{\"questions\": [$questions_json], \"mode\": \"$mode\", \"include_summary\": true"
 
     if [ -n "$selected_chars" ]; then
-        json_payload="$json_payload, \"characters\": [$selected_chars]"
+        base_payload="$base_payload, \"characters\": [$selected_chars]"
     fi
-    json_payload="$json_payload}"
+    base_payload="$base_payload}"
+    json_payload=$(build_interaction_payload "$base_payload")
 
     # Stream survey responses
     curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/survey/stream" \

@@ -38,6 +38,21 @@ from app.agents.camera import CameraAgent
 from app.agents.graph import GraphAgent
 from app.agents.image_prompt import ImagePromptAgent
 from app.agents.image_gen import ImageGenAgent
+from app.agents.character_chat import (
+    CharacterChatAgent,
+    ChatInput,
+    ChatOutput,
+    ChatSessionManager,
+    get_session_manager,
+)
+from app.agents.dialog_extension import (
+    DialogExtensionAgent,
+    DialogExtensionInput,
+)
+from app.agents.survey import (
+    SurveyAgent,
+    SurveyInput,
+)
 
 __all__ = [
     "BaseAgent",
@@ -53,4 +68,16 @@ __all__ = [
     "GraphAgent",
     "ImagePromptAgent",
     "ImageGenAgent",
+    # Character Interaction
+    "CharacterChatAgent",
+    "ChatInput",
+    "ChatOutput",
+    "ChatSessionManager",
+    "get_session_manager",
+    # Dialog Extension
+    "DialogExtensionAgent",
+    "DialogExtensionInput",
+    # Survey
+    "SurveyAgent",
+    "SurveyInput",
 ]

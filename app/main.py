@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 from app import __version__
 from app.api.v1 import router as v1_router
-from app.config import get_settings
+from app.config import get_settings, validate_presets_or_raise
 from app.database import check_db_connection, close_db, init_db
 
 # Configure logging
@@ -62,11 +62,21 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager.
 
     Handles startup and shutdown tasks:
+    - Validate model configurations on startup
     - Initialize database on startup
     - Close connections on shutdown
     """
     # Startup
     logger.info(f"Starting TIMEPOINT Flash v{__version__}")
+
+    # Validate presets use only verified models
+    # This will raise ValueError and prevent startup if any preset uses an invalid model
+    try:
+        validate_presets_or_raise()
+        logger.info("Model configuration validated - all presets use verified models")
+    except ValueError as e:
+        logger.error(f"CRITICAL: {e}")
+        raise  # Fail fast - don't start with invalid configuration
 
     # Initialize database
     try:
