@@ -692,6 +692,7 @@ class SurveyAgent:
                             "question": response.question,
                             "response": response.response,
                             "sentiment": response.sentiment,
+                            "key_points": response.key_points,
                             "emotional_tone": response.emotional_tone,
                         },
                         "character_name": response.character_name,
