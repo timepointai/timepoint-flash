@@ -466,7 +466,9 @@ Chat with a specific character from a timepoint.
   "character": "Benjamin Franklin",
   "message": "What do you think of this document?",
   "session_id": null,
-  "save_session": false
+  "save_session": false,
+  "model": "gemini-2.5-flash",
+  "response_format": "auto"
 }
 ```
 
@@ -476,6 +478,8 @@ Chat with a specific character from a timepoint.
 | message | string | Yes | - | User's message to character |
 | session_id | string | No | null | Session ID to continue conversation |
 | save_session | boolean | No | false | Whether to save session to memory |
+| model | string | No | null | LLM model override (e.g., "gemini-2.5-flash", "anthropic/claude-3.5-sonnet") |
+| response_format | string | No | "auto" | Response format: "auto", "structured" (JSON with emotional_tone), or "text" (plain) |
 
 **Response (200 OK):**
 ```json
@@ -528,7 +532,9 @@ Generate additional dialog between characters.
   "characters": "all",
   "num_lines": 5,
   "prompt": "They begin discussing the risks of signing",
-  "sequential": true
+  "sequential": true,
+  "model": "gemini-2.5-flash",
+  "response_format": "auto"
 }
 ```
 
@@ -538,6 +544,8 @@ Generate additional dialog between characters.
 | num_lines | int | No | 5 | Number of lines (1-10) |
 | prompt | string | No | null | Direction for the dialog |
 | sequential | boolean | No | true | Use sequential roleplay generation |
+| model | string | No | null | LLM model override (e.g., "gemini-2.5-flash") |
+| response_format | string | No | "auto" | Response format (dialog always uses structured JSON) |
 
 **Response (200 OK):**
 ```json
@@ -588,7 +596,9 @@ Survey multiple characters with the same questions.
   "questions": ["What do you fear most about this moment?"],
   "mode": "parallel",
   "chain_prompts": false,
-  "include_summary": true
+  "include_summary": true,
+  "model": "gemini-2.5-flash",
+  "response_format": "structured"
 }
 ```
 
@@ -599,6 +609,8 @@ Survey multiple characters with the same questions.
 | mode | string | No | "parallel" | "parallel" (faster) or "sequential" (context-aware) |
 | chain_prompts | boolean | No | false | In sequential mode, share prior answers |
 | include_summary | boolean | No | true | Generate summary of responses |
+| model | string | No | null | LLM model override (e.g., "gemini-2.5-flash") |
+| response_format | string | No | "auto" | "auto", "structured" (JSON with sentiment/key_points/emotional_tone), or "text" |
 
 **Response (200 OK):**
 ```json

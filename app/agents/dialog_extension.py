@@ -356,7 +356,8 @@ class DialogExtensionAgent:
                     "had_existing_dialog": bool(input_data.existing_dialog),
                     "model_override": self.model,
                     "response_format": self.response_format.value,
-                    "used_structured": self._should_use_structured(),
+                    # Dialog extension always uses structured output for JSON schema
+                    "used_structured": True,
                 },
             )
 

@@ -132,6 +132,114 @@ def format_chat_history(history: list[tuple[str, str]]) -> str:
 
 
 # =============================================================================
+# STRUCTURED CHAT (JSON OUTPUT)
+# =============================================================================
+
+CHAT_STRUCTURED_SYSTEM = """You are {character_name}.
+
+{character_bio}
+
+SCENE CONTEXT:
+You are in {location}, {year_display}{era_str}.
+{scene_context}
+
+You are having a conversation with someone who has appeared in your time period.
+Answer in character and provide a structured response.
+
+You MUST respond with valid JSON matching this exact schema:
+{{
+  "response": "Your 2-4 sentence in-character response to the user",
+  "emotional_tone": "neutral" | "joyful" | "melancholic" | "angry" | "anxious" | "curious" | "emphatic" | "thoughtful" | "passionate" | "fearful",
+  "in_character": true,
+  "confidence": 0.95
+}}
+
+GUIDELINES:
+1. "response" - Stay completely in character, use period-appropriate language, be conversational
+2. "emotional_tone" - The dominant emotion in your response
+3. "in_character" - Always true (you must stay in character)
+4. "confidence" - 0.0-1.0 how certain you are about historical accuracy (lower if discussing unfamiliar topics)
+
+If asked about future events or modern concepts, respond with appropriate confusion while staying in character.
+
+Respond ONLY with the JSON object, no additional text."""
+
+CHAT_STRUCTURED_USER = """The user says: "{message}"
+
+Respond as {character_name} with the required JSON format."""
+
+CHAT_STRUCTURED_WITH_HISTORY = """Previous conversation:
+{history}
+
+The user now says: "{message}"
+
+Respond as {character_name} with the required JSON format."""
+
+
+def get_chat_structured_system_prompt(
+    character_name: str,
+    character_bio: str,
+    year: int,
+    location: str,
+    era: str | None = None,
+    scene_context: str = "",
+) -> str:
+    """Get system prompt for structured chat mode (JSON output).
+
+    Args:
+        character_name: Name of the character
+        character_bio: Full character biography/personality
+        year: Year of the scene
+        location: Scene location
+        era: Historical era
+        scene_context: Additional scene context
+
+    Returns:
+        Formatted system prompt requesting JSON response
+    """
+    year_display = f"{abs(year)} BCE" if year < 0 else str(year)
+    era_str = f" ({era})" if era else ""
+
+    return CHAT_STRUCTURED_SYSTEM.format(
+        character_name=character_name,
+        character_bio=character_bio,
+        year_display=year_display,
+        location=location,
+        era_str=era_str,
+        scene_context=scene_context or "A significant historical moment.",
+    )
+
+
+def get_chat_structured_user_prompt(
+    character_name: str,
+    message: str,
+    history: list[tuple[str, str]] | None = None,
+) -> str:
+    """Get user prompt for structured chat (JSON output).
+
+    Args:
+        character_name: Name of the character
+        message: User's message
+        history: Optional conversation history [(role, content), ...]
+
+    Returns:
+        Formatted user prompt requesting JSON response
+    """
+    if history:
+        history_str = format_chat_history(history)
+        return CHAT_STRUCTURED_WITH_HISTORY.format(
+            history=history_str,
+            message=message,
+            character_name=character_name,
+        )
+
+    return CHAT_STRUCTURED_USER.format(
+        message=message,
+        character_name=character_name,
+    )
+
+
+# =============================================================================
 # DIALOG EXTENSION
 # =============================================================================
 
