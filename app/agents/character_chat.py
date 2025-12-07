@@ -15,6 +15,7 @@ Tests:
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -272,31 +273,51 @@ class CharacterChatAgent:
             AgentResult containing ChatOutput
         """
         start_time = time.perf_counter()
+        use_structured = self._should_use_structured()
 
         try:
             # Build system prompt from character bio
             character_bio = self._build_character_bio(input_data.character)
-            system_prompt = chat_prompts.get_chat_system_prompt(
-                character_name=input_data.character.name,
-                character_bio=character_bio,
-                year=input_data.year,
-                location=input_data.location,
-                era=input_data.era,
-                scene_context=input_data.scene_context,
-            )
+
+            # Choose prompt based on response format
+            if use_structured:
+                system_prompt = chat_prompts.get_chat_structured_system_prompt(
+                    character_name=input_data.character.name,
+                    character_bio=character_bio,
+                    year=input_data.year,
+                    location=input_data.location,
+                    era=input_data.era,
+                    scene_context=input_data.scene_context,
+                )
+            else:
+                system_prompt = chat_prompts.get_chat_system_prompt(
+                    character_name=input_data.character.name,
+                    character_bio=character_bio,
+                    year=input_data.year,
+                    location=input_data.location,
+                    era=input_data.era,
+                    scene_context=input_data.scene_context,
+                )
 
             # Build user prompt with history if available
             history_tuples = self._format_history(input_data.history)
-            user_prompt = chat_prompts.get_chat_user_prompt(
-                character_name=input_data.character.name,
-                message=input_data.message,
-                history=history_tuples if history_tuples else None,
-            )
+            if use_structured:
+                user_prompt = chat_prompts.get_chat_structured_user_prompt(
+                    character_name=input_data.character.name,
+                    message=input_data.message,
+                    history=history_tuples if history_tuples else None,
+                )
+            else:
+                user_prompt = chat_prompts.get_chat_user_prompt(
+                    character_name=input_data.character.name,
+                    message=input_data.message,
+                    history=history_tuples if history_tuples else None,
+                )
 
             # Combine prompts for the call
             full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
 
-            logger.debug(f"{self.name}: chatting with {input_data.character.name}")
+            logger.debug(f"{self.name}: chatting with {input_data.character.name} (structured={use_structured})")
 
             # Make LLM call
             response = await self.router.call(
@@ -306,22 +327,29 @@ class CharacterChatAgent:
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
-            # Parse response
+            # Parse response based on format
             response_text = response.content.strip()
 
-            # Clean up response - remove any accidental prefixes
-            if response_text.lower().startswith(input_data.character.name.lower()):
-                response_text = response_text[len(input_data.character.name):].lstrip(":").strip()
+            if use_structured:
+                # Parse JSON response from LLM
+                output = self._parse_structured_response(
+                    response_text,
+                    input_data.character.name,
+                )
+            else:
+                # Clean up response - remove any accidental prefixes
+                if response_text.lower().startswith(input_data.character.name.lower()):
+                    response_text = response_text[len(input_data.character.name):].lstrip(":").strip()
 
-            # Detect emotional tone (simple heuristic)
-            emotional_tone = self._detect_emotional_tone(response_text)
+                # Detect emotional tone (simple heuristic)
+                emotional_tone = self._detect_emotional_tone(response_text)
 
-            output = ChatOutput(
-                character_name=input_data.character.name,
-                response=response_text,
-                in_character=True,
-                emotional_tone=emotional_tone,
-            )
+                output = ChatOutput(
+                    character_name=input_data.character.name,
+                    response=response_text,
+                    in_character=True,
+                    emotional_tone=emotional_tone,
+                )
 
             logger.debug(f"{self.name}: completed in {latency}ms")
 
@@ -335,7 +363,7 @@ class CharacterChatAgent:
                     "history_length": len(input_data.history),
                     "model_override": self.model,
                     "response_format": self.response_format.value,
-                    "used_structured": self._should_use_structured(),
+                    "used_structured": use_structured,
                 },
             )
 
@@ -424,6 +452,50 @@ class CharacterChatAgent:
             return "emphatic"
 
         return "neutral"
+
+    def _parse_structured_response(
+        self,
+        response_text: str,
+        character_name: str,
+    ) -> ChatOutput:
+        """Parse structured JSON response from LLM.
+
+        Args:
+            response_text: Raw LLM response (expected JSON)
+            character_name: Character name for output
+
+        Returns:
+            ChatOutput with parsed fields or fallback values
+        """
+        try:
+            # Clean up response - remove markdown code blocks if present
+            clean_text = response_text.strip()
+            if clean_text.startswith("```json"):
+                clean_text = clean_text[7:]
+            if clean_text.startswith("```"):
+                clean_text = clean_text[3:]
+            if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]
+            clean_text = clean_text.strip()
+
+            data = json.loads(clean_text)
+
+            return ChatOutput(
+                character_name=character_name,
+                response=data.get("response", response_text),
+                in_character=data.get("in_character", True),
+                emotional_tone=data.get("emotional_tone"),
+            )
+
+        except (json.JSONDecodeError, KeyError) as e:
+            # Fallback: use raw response with heuristic analysis
+            logger.warning(f"Failed to parse structured response: {e}")
+            return ChatOutput(
+                character_name=character_name,
+                response=response_text,
+                in_character=True,
+                emotional_tone=self._detect_emotional_tone(response_text),
+            )
 
 
 # =============================================================================
