@@ -315,6 +315,111 @@ def get_survey_user_prompt(
 
 
 # =============================================================================
+# STRUCTURED SURVEY (JSON OUTPUT)
+# =============================================================================
+
+SURVEY_STRUCTURED_SYSTEM = """You are {character_name}.
+
+{character_bio}
+
+SCENE CONTEXT:
+You are in {location}, {year_display}{era_str}.
+
+You are being asked a question as part of a survey/interview about your thoughts and feelings.
+Answer honestly and in character.
+
+You MUST respond with valid JSON matching this exact schema:
+{{
+  "response": "Your 2-4 sentence in-character response to the question",
+  "sentiment": "positive" | "negative" | "neutral" | "mixed",
+  "key_points": ["point1", "point2", "point3"],
+  "emotional_tone": "hopeful" | "concerned" | "passionate" | "resigned" | "angry" | "thoughtful" | "fearful" | "determined" | "melancholic" | "optimistic"
+}}
+
+GUIDELINES:
+1. "response" - Stay completely in character, use period-appropriate language, be substantive
+2. "sentiment" - Your overall feeling: positive (hopeful/supportive), negative (fearful/opposed), neutral (factual/detached), mixed (conflicted)
+3. "key_points" - 1-3 main ideas in your response (short phrases)
+4. "emotional_tone" - The dominant emotion behind your words
+
+Respond ONLY with the JSON object, no additional text."""
+
+SURVEY_STRUCTURED_USER = """Question: {question}
+
+Respond as {character_name} with the required JSON format."""
+
+SURVEY_STRUCTURED_WITH_CONTEXT_USER = """Previous responses from others:
+{prior_responses}
+
+Question for you: {question}
+
+Consider what others have said and respond as {character_name} with the required JSON format.
+You may agree, disagree, or offer a unique perspective."""
+
+
+def get_survey_structured_system_prompt(
+    character_name: str,
+    character_bio: str,
+    year: int,
+    location: str,
+    era: str | None = None,
+) -> str:
+    """Get system prompt for structured survey mode (JSON output).
+
+    Args:
+        character_name: Character name
+        character_bio: Character biography
+        year: Scene year
+        location: Scene location
+        era: Historical era
+
+    Returns:
+        Formatted system prompt requesting JSON response
+    """
+    year_display = f"{abs(year)} BCE" if year < 0 else str(year)
+    era_str = f" ({era})" if era else ""
+
+    return SURVEY_STRUCTURED_SYSTEM.format(
+        character_name=character_name,
+        character_bio=character_bio,
+        year_display=year_display,
+        location=location,
+        era_str=era_str,
+    )
+
+
+def get_survey_structured_user_prompt(
+    character_name: str,
+    question: str,
+    prior_responses: list[tuple[str, str]] | None = None,
+) -> str:
+    """Get user prompt for structured survey question (JSON output).
+
+    Args:
+        character_name: Character name
+        question: Question to ask
+        prior_responses: Optional prior responses for chained surveys
+
+    Returns:
+        Formatted user prompt requesting JSON response
+    """
+    if prior_responses:
+        formatted_prior = "\n".join(
+            f"- {name}: \"{response}\"" for name, response in prior_responses
+        )
+        return SURVEY_STRUCTURED_WITH_CONTEXT_USER.format(
+            prior_responses=formatted_prior,
+            question=question,
+            character_name=character_name,
+        )
+
+    return SURVEY_STRUCTURED_USER.format(
+        question=question,
+        character_name=character_name,
+    )
+
+
+# =============================================================================
 # SURVEY SUMMARY
 # =============================================================================
 

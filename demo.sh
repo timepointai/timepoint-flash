@@ -2114,10 +2114,13 @@ survey_characters() {
                     question=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('question','')[:50])" 2>/dev/null || echo "")
                     response=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('response',''))" 2>/dev/null || echo "")
                     sentiment=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('sentiment',''))" 2>/dev/null || echo "")
+                    emotional_tone=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('emotional_tone',''))" 2>/dev/null || echo "")
+                    key_points=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); kp=d.get('data',{}).get('key_points',[]); print(', '.join(kp) if kp else '')" 2>/dev/null || echo "")
                     progress=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',0))" 2>/dev/null || echo "0")
 
-                    echo -e "${CYAN}[$progress%] $char_name${NC} (${DIM}$sentiment${NC}):"
+                    echo -e "${CYAN}[$progress%] $char_name${NC} (${DIM}$sentiment${NC}${emotional_tone:+, $emotional_tone}):"
                     echo -e "  \"$response\""
+                    [ -n "$key_points" ] && echo -e "  ${DIM}Key points: $key_points${NC}"
                     echo ""
                     ;;
                 "summary")
