@@ -30,6 +30,8 @@ from app.core.model_capabilities import (
     infer_provider_from_model_id,
     supports_structured_output,
 )
+import json as json_module
+
 from app.prompts import character_chat as chat_prompts
 from app.schemas import Character, CharacterData
 from app.schemas.chat import (
@@ -242,19 +244,36 @@ class SurveyAgent:
         """
         # Build prompts
         character_bio = self._build_character_bio(character)
-        system_prompt = chat_prompts.get_survey_system_prompt(
-            character_name=character.name,
-            character_bio=character_bio,
-            year=year,
-            location=location,
-            era=era,
-        )
+        use_structured = self._should_use_structured()
 
-        user_prompt = chat_prompts.get_survey_user_prompt(
-            character_name=character.name,
-            question=question,
-            prior_responses=prior_responses,
-        )
+        if use_structured:
+            # Use structured JSON prompt
+            system_prompt = chat_prompts.get_survey_structured_system_prompt(
+                character_name=character.name,
+                character_bio=character_bio,
+                year=year,
+                location=location,
+                era=era,
+            )
+            user_prompt = chat_prompts.get_survey_structured_user_prompt(
+                character_name=character.name,
+                question=question,
+                prior_responses=prior_responses,
+            )
+        else:
+            # Use text prompt with heuristic analysis
+            system_prompt = chat_prompts.get_survey_system_prompt(
+                character_name=character.name,
+                character_bio=character_bio,
+                year=year,
+                location=location,
+                era=era,
+            )
+            user_prompt = chat_prompts.get_survey_user_prompt(
+                character_name=character.name,
+                question=question,
+                prior_responses=prior_responses,
+            )
 
         full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
 
@@ -266,23 +285,85 @@ class SurveyAgent:
 
         response_text = response.content.strip()
 
-        # Clean up response
-        if response_text.lower().startswith(character.name.lower()):
-            response_text = response_text[len(character.name):].lstrip(":").strip()
+        if use_structured:
+            # Parse JSON response from LLM
+            return self._parse_structured_response(character.name, question, response_text)
+        else:
+            # Clean up response and use heuristics
+            if response_text.lower().startswith(character.name.lower()):
+                response_text = response_text[len(character.name):].lstrip(":").strip()
 
-        # Analyze response
-        sentiment = self._analyze_sentiment(response_text)
-        key_points = self._extract_key_points(response_text)
-        emotional_tone = self._detect_emotional_tone(response_text)
+            # Analyze response with heuristics
+            sentiment = self._analyze_sentiment(response_text)
+            key_points = self._extract_key_points(response_text)
+            emotional_tone = self._detect_emotional_tone(response_text)
 
-        return CharacterSurveyResponse(
-            character_name=character.name,
-            question=question,
-            response=response_text,
-            sentiment=sentiment,
-            key_points=key_points,
-            emotional_tone=emotional_tone,
-        )
+            return CharacterSurveyResponse(
+                character_name=character.name,
+                question=question,
+                response=response_text,
+                sentiment=sentiment,
+                key_points=key_points,
+                emotional_tone=emotional_tone,
+            )
+
+    def _parse_structured_response(
+        self,
+        character_name: str,
+        question: str,
+        response_text: str,
+    ) -> CharacterSurveyResponse:
+        """Parse structured JSON response from LLM.
+
+        Args:
+            character_name: Character name
+            question: The question asked
+            response_text: Raw LLM response (should be JSON)
+
+        Returns:
+            CharacterSurveyResponse parsed from JSON
+        """
+        try:
+            # Try to extract JSON from response
+            # Handle potential markdown code blocks
+            text = response_text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            data = json_module.loads(text)
+
+            return CharacterSurveyResponse(
+                character_name=character_name,
+                question=question,
+                response=data.get("response", response_text),
+                sentiment=data.get("sentiment", "neutral"),
+                key_points=data.get("key_points", []),
+                emotional_tone=data.get("emotional_tone", "thoughtful"),
+            )
+
+        except (json_module.JSONDecodeError, KeyError, TypeError) as e:
+            # Fallback to heuristic analysis if JSON parsing fails
+            logger.warning(f"Failed to parse structured response for {character_name}: {e}")
+            logger.debug(f"Raw response was: {response_text[:200]}")
+
+            # Clean and use heuristics
+            clean_text = response_text
+            if clean_text.lower().startswith(character_name.lower()):
+                clean_text = clean_text[len(character_name):].lstrip(":").strip()
+
+            return CharacterSurveyResponse(
+                character_name=character_name,
+                question=question,
+                response=clean_text,
+                sentiment=self._analyze_sentiment(clean_text),
+                key_points=self._extract_key_points(clean_text),
+                emotional_tone=self._detect_emotional_tone(clean_text),
+            )
 
     def _analyze_sentiment(self, text: str) -> str:
         """Analyze sentiment of response text.
