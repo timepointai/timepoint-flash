@@ -1882,38 +1882,50 @@ chat_with_character() {
         base_payload="{\"character\": \"$character_name\", \"message\": \"$escaped_message\"}"
         json_payload=$(build_interaction_payload "$base_payload")
 
-        echo -e "${MAGENTA}$character_name: ${NC}\c"
+        if [ "$INTERACTION_RESPONSE_FORMAT" = "structured" ]; then
+            # Use non-streaming endpoint for structured JSON output
+            echo -e "${MAGENTA}$character_name:${NC}"
+            response=$(curl -s -X POST "$API_BASE/api/v1/interactions/$tp_id/chat" \
+                -H "Content-Type: application/json" \
+                -d "$json_payload")
 
-        # Use streaming endpoint
-        curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/chat/stream" \
-            -H "Content-Type: application/json" \
-            -d "$json_payload" | while IFS= read -r line; do
-            if [[ "$line" == data:* ]]; then
-                data="${line#data: }"
-                event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
+            # Pretty print the JSON response
+            echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2))" 2>/dev/null || echo "$response"
+            echo ""
+        else
+            # Use streaming endpoint for token-by-token display
+            echo -e "${MAGENTA}$character_name: ${NC}\c"
 
-                case "$event" in
-                    "token")
-                        # Token event - data field contains the text chunk directly
-                        chunk=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',''))" 2>/dev/null || echo "")
-                        if [ -n "$chunk" ]; then
-                            echo -n "$chunk"
-                        fi
-                        ;;
-                    "done")
-                        # Done event - data field contains the full response
-                        # (already printed incrementally via tokens)
-                        echo ""  # Add newline after streaming
-                        ;;
-                    "error")
-                        error=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data','Unknown error'))" 2>/dev/null || echo "Error")
-                        echo -e "${RED}Error: $error${NC}"
-                        ;;
-                esac
-            fi
-        done
+            curl -N -s -X POST "$API_BASE/api/v1/interactions/$tp_id/chat/stream" \
+                -H "Content-Type: application/json" \
+                -d "$json_payload" | while IFS= read -r line; do
+                if [[ "$line" == data:* ]]; then
+                    data="${line#data: }"
+                    event=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('event',''))" 2>/dev/null || echo "")
 
-        echo ""
+                    case "$event" in
+                        "token")
+                            # Token event - data field contains the text chunk directly
+                            chunk=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',''))" 2>/dev/null || echo "")
+                            if [ -n "$chunk" ]; then
+                                echo -n "$chunk"
+                            fi
+                            ;;
+                        "done")
+                            # Done event - data field contains the full response
+                            # (already printed incrementally via tokens)
+                            echo ""  # Add newline after streaming
+                            ;;
+                        "error")
+                            error=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data','Unknown error'))" 2>/dev/null || echo "Error")
+                            echo -e "${RED}Error: $error${NC}"
+                            ;;
+                    esac
+                fi
+            done
+
+            echo ""
+        fi
     done
 }
 
@@ -1996,9 +2008,15 @@ extend_dialog() {
 
             case "$event" in
                 "line")
-                    speaker=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('speaker',''))" 2>/dev/null || echo "")
-                    text=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('text',''))" 2>/dev/null || echo "")
-                    echo -e "${CYAN}$speaker:${NC} \"$text\""
+                    if [ "$INTERACTION_RESPONSE_FORMAT" = "structured" ]; then
+                        # Show raw JSON for structured format
+                        echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',{}), indent=2))" 2>/dev/null || echo "$data"
+                    else
+                        # Parse and display nicely
+                        speaker=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('speaker',''))" 2>/dev/null || echo "")
+                        text=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('text',''))" 2>/dev/null || echo "")
+                        echo -e "${CYAN}$speaker:${NC} \"$text\""
+                    fi
                     ;;
                 "done")
                     total=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('total_lines',0))" 2>/dev/null || echo "0")
@@ -2123,17 +2141,25 @@ survey_characters() {
             case "$event" in
                 "response")
                     char_name=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('character_name',''))" 2>/dev/null || echo "")
-                    question=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('question','')[:50])" 2>/dev/null || echo "")
-                    response=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('response',''))" 2>/dev/null || echo "")
-                    sentiment=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('sentiment',''))" 2>/dev/null || echo "")
-                    emotional_tone=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('emotional_tone',''))" 2>/dev/null || echo "")
-                    key_points=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); kp=d.get('data',{}).get('key_points',[]); print(', '.join(kp) if kp else '')" 2>/dev/null || echo "")
                     progress=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',0))" 2>/dev/null || echo "0")
 
-                    echo -e "${CYAN}[$progress%] $char_name${NC} (${DIM}$sentiment${NC}${emotional_tone:+, $emotional_tone}):"
-                    echo -e "  \"$response\""
-                    [ -n "$key_points" ] && echo -e "  ${DIM}Key points: $key_points${NC}"
-                    echo ""
+                    if [ "$INTERACTION_RESPONSE_FORMAT" = "structured" ]; then
+                        # Show raw JSON for structured format
+                        echo -e "${CYAN}[$progress%] $char_name${NC}:"
+                        echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',{}), indent=2))" 2>/dev/null || echo "$data"
+                        echo ""
+                    else
+                        # Parse and display nicely for text/auto format
+                        response=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('response',''))" 2>/dev/null || echo "")
+                        sentiment=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('sentiment',''))" 2>/dev/null || echo "")
+                        emotional_tone=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('emotional_tone',''))" 2>/dev/null || echo "")
+                        key_points=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); kp=d.get('data',{}).get('key_points',[]); print(', '.join(kp) if kp else '')" 2>/dev/null || echo "")
+
+                        echo -e "${CYAN}[$progress%] $char_name${NC} (${DIM}$sentiment${NC}${emotional_tone:+, $emotional_tone}):"
+                        echo -e "  \"$response\""
+                        [ -n "$key_points" ] && echo -e "  ${DIM}Key points: $key_points${NC}"
+                        echo ""
+                    fi
                     ;;
                 "summary")
                     summary=$(echo "$data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',''))" 2>/dev/null || echo "")
