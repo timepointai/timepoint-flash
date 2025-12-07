@@ -1727,43 +1727,55 @@ select_interaction_model() {
     echo ""
     echo -e "  ${GREEN}1)${NC} ${BOLD}Default${NC} - Use server default model"
     echo -e "     ${DIM}gemini-2.5-flash (Google native)${NC}"
-    echo -e "  ${CYAN}2)${NC} ${BOLD}Gemini 2.5 Flash${NC} - Fast, reliable"
-    echo -e "     ${DIM}Google native API${NC}"
-    echo -e "  ${CYAN}3)${NC} ${BOLD}Gemini 2.0 Flash${NC} - Via OpenRouter"
-    echo -e "     ${DIM}google/gemini-2.0-flash-001${NC}"
+    echo -e "  ${MAGENTA}2)${NC} ${BOLD}Claude Opus 4${NC} - Anthropic flagship via OpenRouter"
+    echo -e "     ${DIM}anthropic/claude-opus-4${NC}"
+    echo -e "  ${MAGENTA}3)${NC} ${BOLD}Claude Sonnet 4${NC} - Anthropic balanced via OpenRouter"
+    echo -e "     ${DIM}anthropic/claude-sonnet-4${NC}"
     echo -e "  ${MAGENTA}4)${NC} ${BOLD}Claude 3.5 Sonnet${NC} - Anthropic via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-3.5-sonnet${NC}"
-    echo -e "  ${YELLOW}5)${NC} ${BOLD}GPT-4o${NC} - OpenAI via OpenRouter"
-    echo -e "     ${DIM}openai/gpt-4o${NC}"
-    echo -e "  ${GREEN}6)${NC} ${BOLD}GPT-4o Mini${NC} - Fast & cheap via OpenRouter"
-    echo -e "     ${DIM}openai/gpt-4o-mini${NC}"
-    echo -e "  ${DIM}7)${NC} ${BOLD}Custom...${NC} - Enter model ID"
+    echo -e "  ${YELLOW}5)${NC} ${BOLD}GPT-4${NC} - OpenAI via OpenRouter"
+    echo -e "     ${DIM}openai/gpt-4${NC}"
+    echo -e "  ${CYAN}6)${NC} ${BOLD}Llama 3.1 405B${NC} - Meta flagship via OpenRouter"
+    echo -e "     ${DIM}meta-llama/llama-3.1-405b-instruct${NC}"
+    echo -e "  ${CYAN}7)${NC} ${BOLD}Llama 3.1 70B${NC} - Meta large via OpenRouter"
+    echo -e "     ${DIM}meta-llama/llama-3.1-70b-instruct${NC}"
+    echo -e "  ${GREEN}8)${NC} ${BOLD}Qwen 2.5 3B${NC} - Alibaba small/fast via OpenRouter"
+    echo -e "     ${DIM}qwen/qwen-2.5-3b-instruct${NC}"
+    echo -e "  ${DIM}9)${NC} ${BOLD}Custom...${NC} - Enter model ID"
     echo ""
     echo -e "${YELLOW}Select (default=1): ${NC}\c"
     read -r model_choice
 
     case "$model_choice" in
         2)
-            INTERACTION_MODEL="gemini-2.5-flash"
-            echo -e "${GREEN}Using: gemini-2.5-flash${NC}"
+            INTERACTION_MODEL="anthropic/claude-opus-4"
+            echo -e "${GREEN}Using: anthropic/claude-opus-4${NC}"
             ;;
         3)
-            INTERACTION_MODEL="google/gemini-2.0-flash-001"
-            echo -e "${GREEN}Using: google/gemini-2.0-flash-001${NC}"
+            INTERACTION_MODEL="anthropic/claude-sonnet-4"
+            echo -e "${GREEN}Using: anthropic/claude-sonnet-4${NC}"
             ;;
         4)
             INTERACTION_MODEL="anthropic/claude-3.5-sonnet"
             echo -e "${GREEN}Using: anthropic/claude-3.5-sonnet${NC}"
             ;;
         5)
-            INTERACTION_MODEL="openai/gpt-4o"
-            echo -e "${GREEN}Using: openai/gpt-4o${NC}"
+            INTERACTION_MODEL="openai/gpt-4"
+            echo -e "${GREEN}Using: openai/gpt-4${NC}"
             ;;
         6)
-            INTERACTION_MODEL="openai/gpt-4o-mini"
-            echo -e "${GREEN}Using: openai/gpt-4o-mini${NC}"
+            INTERACTION_MODEL="meta-llama/llama-3.1-405b-instruct"
+            echo -e "${GREEN}Using: meta-llama/llama-3.1-405b-instruct${NC}"
             ;;
         7)
+            INTERACTION_MODEL="meta-llama/llama-3.1-70b-instruct"
+            echo -e "${GREEN}Using: meta-llama/llama-3.1-70b-instruct${NC}"
+            ;;
+        8)
+            INTERACTION_MODEL="qwen/qwen-2.5-3b-instruct"
+            echo -e "${GREEN}Using: qwen/qwen-2.5-3b-instruct${NC}"
+            ;;
+        9)
             echo -e "${YELLOW}Enter model ID (e.g., 'google/gemini-2.5-flash-preview'): ${NC}\c"
             read -r custom_model
             if [ -n "$custom_model" ]; then
