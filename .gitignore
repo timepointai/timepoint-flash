@@ -29,8 +29,7 @@ ENV/
 env/
 .env.local
 
-# Environment variables (keep .env for local dev)
-# .env is NOT ignored - it exists and has real keys
+# Environment variables
 .env
 .env.production
 .env.staging
@@ -90,6 +89,7 @@ Thumbs.db
 output/
 renders/
 exports/
+images/
 
 # Temporary files
 tmp/
