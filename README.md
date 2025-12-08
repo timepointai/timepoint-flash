@@ -258,7 +258,7 @@ timepoint-flash/
 
 ## License
 
-MIT License - see LICENSE file for details.
+Apache License 2.0 - see LICENSE and NOTICE files for details.
 
 ---
 
