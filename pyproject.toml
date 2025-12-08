@@ -115,6 +115,7 @@ markers = [
     "integration: Integration tests (may use mocked APIs)",
     "e2e: End-to-end tests (requires real API keys)",
     "requires_api: Tests that require API keys",
+    "slow: Slow tests (long-running operations)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
