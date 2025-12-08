@@ -1,0 +1,22 @@
+TIMEPOINT Flash
+Copyright 2024 TIMEPOINT
+
+This product includes software developed at TIMEPOINT.
+
+Licensed under the Apache License, Version 2.0.
+See LICENSE file for details.
+
+---
+
+Third-Party Dependencies:
+
+This software uses the following open source packages:
+
+- FastAPI (MIT License) - https://github.com/tiangolo/fastapi
+- Pydantic (MIT License) - https://github.com/pydantic/pydantic
+- SQLAlchemy (MIT License) - https://github.com/sqlalchemy/sqlalchemy
+- LangGraph (MIT License) - https://github.com/langchain-ai/langgraph
+- httpx (BSD License) - https://github.com/encode/httpx
+- aiosqlite (MIT License) - https://github.com/omnilib/aiosqlite
+
+For a complete list of dependencies, see pyproject.toml.
