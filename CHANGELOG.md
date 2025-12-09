@@ -5,7 +5,16 @@ All notable changes to TIMEPOINT Flash will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2024-12-04
+## [Unreleased]
+
+### Added
+- Claude Opus 4.5 and Sonnet 4.5 to demo.sh model selection menu (11 models total)
+
+### Fixed
+- Image generation `response_modalities` configuration (`["TEXT", "IMAGE"]` per Google docs)
+- test-demo.sh query validation (use valid historical query for JudgeAgent)
+
+## [2.2.0] - 2025-12-04
 
 ### Added
 - Model selection for character interactions (chat, dialog, survey)
@@ -18,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interaction agents now accept `model` and `response_format` parameters
 - `_should_use_structured()` method determines response format based on model capabilities
 
-## [2.1.0] - 2024-12-04
+## [2.1.0] - 2025-12-04
 
 ### Added
 - Character chat system with `CharacterChatAgent`
@@ -33,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - LLMRouter now has `stream()` async generator method
 
-## [2.0.11] - 2024-12-03
+## [2.0.11] - 2025-12-03
 
 ### Added
 - `VerifiedModels` class for bulletproof model validation
@@ -43,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `CREATIVE_MODEL` default changed from unavailable model to `gemini-2.5-flash`
 
-## [2.0.10] - 2024-12-03
+## [2.0.10] - 2025-12-03
 
 ### Added
 - Comprehensive test suite `test-demo.sh` v2.0.5 with bulk testing
@@ -52,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HD preset `text_model` to use working `gemini-2.5-pro-preview`
 - SSE start event now includes `preset` in data payload
 
-## [2.0.9] - 2024-12-03
+## [2.0.9] - 2025-12-03
 
 ### Added
 - Token bucket rate limiter for proactive rate limiting
@@ -62,14 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Transient error retry now includes 500/502/503/504 errors
 
-## [2.0.8] - 2024-12-03
+## [2.0.8] - 2025-12-03
 
 ### Added
 - Hyper parallelism mode with `ParallelismMode` enum
 - Optimized execution flow for AGGRESSIVE/MAX modes
 - Provider-aware concurrent call limits
 
-## [2.0.7] - 2024-12-03
+## [2.0.7] - 2025-12-03
 
 ### Added
 - Graph-informed character bios with relationship context
@@ -78,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Character bio prompt includes "RELATIONSHIP GRAPH" section
 
-## [2.0.6] - 2024-12-03
+## [2.0.6] - 2025-12-03
 
 ### Added
 - Adaptive parallelism with `ModelTier` classification
@@ -88,14 +97,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - FREE models run sequentially to prevent rate limits
 
-## [2.0.5] - 2024-12-02
+## [2.0.5] - 2025-12-02
 
 ### Added
 - Parallel character bio generation
 - `CharacterIdentificationAgent` and `CharacterBioAgent`
 - New prompts for character identification and bio generation
 
-## [2.0.4] - 2024-12-02
+## [2.0.4] - 2025-12-02
 
 ### Added
 - Parallel pipeline execution with `asyncio.gather()`
@@ -105,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - macOS millisecond timing in demo CLI
 
-## [2.0.3] - 2024-12-02
+## [2.0.3] - 2025-12-02
 
 ### Added
 - Free model discovery API (`/api/v1/models/free`)
@@ -116,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Image generation model format mismatch
 - Schema type annotations for MomentData, CameraData, CharacterData
 
-## [2.0.1] - 2024-12-01
+## [2.0.1] - 2025-12-01
 
 ### Added
 - Real-time streaming pipeline with async generator
@@ -124,7 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server runner script (`run.sh`)
 - `include_image` query parameter on GET endpoint
 
-## [2.0.0] - 2024-12-01
+## [2.0.0] - 2025-12-01
 
 ### Added
 - Complete rewrite with 10 specialized AI agents
