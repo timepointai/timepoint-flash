@@ -744,6 +744,35 @@ run_test "Generation accepts image_model override" \
     $TIMEOUT_FAST
 
 # ============================================================
+# Image Generation Test (Critical - catches config issues)
+# ============================================================
+echo ""
+echo "--- Image Generation ---"
+
+if [ "$QUICK_MODE" = true ]; then
+    skip_test "Image generation (with has_image)" "--quick mode"
+else
+    # Test that image generation actually works (catches response_modalities issues)
+    run_test "Image generation (with has_image)" \
+        "response=\$(curl -sf -X POST '$API_BASE/api/v1/timepoints/generate/sync' \
+            -H 'Content-Type: application/json' \
+            -d '{\"query\": \"simple test scene\", \"generate_image\": true, \"preset\": \"hyper\"}')
+        tp_id=\$(echo \"\$response\" | python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"id\",\"\"))')
+        if [ -z \"\$tp_id\" ]; then
+            echo 'Failed to create timepoint'
+            exit 1
+        fi
+        # Check if image was generated
+        has_image=\$(curl -sf '$API_BASE/api/v1/timepoints/'\$tp_id | python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"has_image\", False))')
+        if [ \"\$has_image\" != 'True' ]; then
+            echo 'Image generation failed - has_image is False'
+            exit 1
+        fi
+        echo 'Image generation verified'" \
+        $TIMEOUT_GEN
+fi
+
+# ============================================================
 # Integration Tests with Real Data (if available)
 # ============================================================
 if [ "$QUICK_MODE" != true ]; then
