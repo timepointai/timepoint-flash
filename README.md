@@ -142,8 +142,8 @@ ImageGenAgent <- ImagePromptAgent <- GraphAgent <- CameraAgent <- DialogAgent <-
 
 ### Provider Support
 
-- **Google AI** - Gemini 2.5 Flash, Gemini 3 Pro, Imagen 3
-- **OpenRouter** - 300+ models including Claude, GPT-4o
+- **Google AI** - Gemini 2.5 Flash (text), Gemini 2.5 Flash Image (generation)
+- **OpenRouter** - 300+ models including Claude 4.5, Sonnet 4, GPT-4o
 
 ---
 
@@ -160,8 +160,8 @@ OPENROUTER_API_KEY=your-key
 DATABASE_URL=sqlite+aiosqlite:///./timepoint.db  # or postgresql://
 PRIMARY_PROVIDER=google  # or openrouter
 JUDGE_MODEL=gemini-2.5-flash
-CREATIVE_MODEL=gemini-3-pro-preview
-IMAGE_MODEL=google/gemini-3-pro-image-preview
+CREATIVE_MODEL=gemini-2.5-flash
+IMAGE_MODEL=gemini-2.5-flash-image
 LOGFIRE_TOKEN=your-token  # for observability
 ```
 

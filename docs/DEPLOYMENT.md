@@ -157,8 +157,8 @@ DATABASE_URL=sqlite+aiosqlite:///./timepoint.db
 | `PRIMARY_PROVIDER` | `google` | Primary LLM provider |
 | `FALLBACK_PROVIDER` | `openrouter` | Fallback provider |
 | `JUDGE_MODEL` | `gemini-2.5-flash` | Fast validation model |
-| `CREATIVE_MODEL` | `gemini-3-pro-preview` | Creative generation model |
-| `IMAGE_MODEL` | `google/gemini-3-pro-image-preview` | Image generation model |
+| `CREATIVE_MODEL` | `gemini-2.5-flash` | Creative generation model |
+| `IMAGE_MODEL` | `gemini-2.5-flash-image` | Image generation model (Google native)
 
 ### Observability
 
