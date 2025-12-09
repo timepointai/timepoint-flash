@@ -71,7 +71,7 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelConfig] = {
     "gemini-2.5-flash-image": ImageModelConfig(
         model_id="gemini-2.5-flash-image",
         model_type=ImageModelType.GEMINI_NATIVE,
-        response_modalities=["IMAGE"],  # Can use IMAGE-only
+        response_modalities=["TEXT", "IMAGE"],  # Per Google docs: use both
         supports_image_size=False,  # Only supports default 1024px
         supported_sizes=[],
         max_resolution=1024,
