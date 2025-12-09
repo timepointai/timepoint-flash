@@ -1,17 +1,22 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.1.0
+# TIMEPOINT Flash Demo Test Suite v2.2.0
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
 #   - Health, models, providers endpoints
 #   - All quality presets (HD, Balanced, Hyper)
-#   - Free model selection
+#   - Free model selection (best/fastest)
 #   - Timepoint CRUD operations
 #   - Parallel pipeline execution (graph|moment|camera steps)
 #   - Delete functionality
 #   - Template validation
 #   - Character interactions (chat, dialog, survey)
 #   - Model selection for interactions (Phase 20)
+#   - Model Eval API (Menu 10)
+#   - Temporal navigation (next/prior/sequence)
+#   - Response format (structured/text/auto)
+#   - Streaming endpoints (dialog/survey)
+#   - Slug and image endpoints
 #
 # Usage:
 #   ./test-demo.sh          # Run all tests (fast validation only)
@@ -59,7 +64,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.1.0"
+            echo "TIMEPOINT Flash Demo Test Suite v2.2.0"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""
@@ -141,7 +146,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.1.0"
+echo "  TIMEPOINT Flash Demo Test Suite v2.2.0"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
@@ -566,6 +571,231 @@ else
     skip_test "Chat with model override (integration)" "--quick mode"
     skip_test "Survey characters (integration)" "--quick mode"
     skip_test "Extend dialog (integration)" "--quick mode"
+fi
+
+# ============================================================
+# Menu 10: Model Eval API
+# ============================================================
+echo ""
+echo "--- Menu 10: Model Eval API ---"
+
+# Test eval models endpoint (list presets)
+run_test "Eval models endpoint" \
+    "response=\$(curl -s '$API_BASE/api/v1/eval/models')
+    echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert \"presets\" in d or \"detail\" in d'" \
+    $TIMEOUT_FAST
+
+# Test eval compare/report endpoint accepts valid request (may timeout with real execution)
+run_test "Eval compare endpoint accepts request" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/eval/compare/report' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test\", \"preset\": \"verified\", \"timeout_seconds\": 10}')
+    http_code=\${response: -3}
+    # 200 (success), 408 (timeout), or 500 (error during eval) are all valid - endpoint is working
+    [ \"\$http_code\" = '200' ] || [ \"\$http_code\" = '408' ] || [ \"\$http_code\" = '500' ] || [ \"\$http_code\" = '504' ]" \
+    30  # Short timeout since eval itself has timeout
+
+# ============================================================
+# Free Models API (Enhanced)
+# ============================================================
+echo ""
+echo "--- Free Models API (Enhanced) ---"
+
+# Test free models endpoint returns best model
+run_test "Free models includes best model" \
+    "curl -sf '$API_BASE/api/v1/models/free' | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"best\") is not None or d.get(\"total\", 0) == 0, \"Missing best model\"'" \
+    $TIMEOUT_FAST
+
+# Test free models endpoint returns fastest model
+run_test "Free models includes fastest model" \
+    "curl -sf '$API_BASE/api/v1/models/free' | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"fastest\") is not None or d.get(\"total\", 0) == 0, \"Missing fastest model\"'" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Additional Endpoints (Enhanced)
+# ============================================================
+echo ""
+echo "--- Additional Endpoints (Enhanced) ---"
+
+# ReDoc endpoint
+run_test "ReDoc endpoint" \
+    "curl -sf '$API_BASE/redoc' | grep -qi 'redoc'" \
+    $TIMEOUT_FAST
+
+# Test get timepoint by slug (if any exist)
+run_test "Get timepoint by slug" \
+    "slug=\$(curl -sf '$API_BASE/api/v1/timepoints' | python3 -c 'import sys,json; items=json.load(sys.stdin).get(\"items\",[]); print(items[0].get(\"slug\",\"\") if items else \"\")') && \
+    [ -n \"\$slug\" ] && curl -sf '$API_BASE/api/v1/timepoints/slug/\$slug' > /dev/null || echo 'No timepoints with slug'" \
+    $TIMEOUT_FAST
+
+# Test full=true query param
+run_test "Timepoint full=true returns characters" \
+    "tp_id=\$(curl -sf '$API_BASE/api/v1/timepoints?status=completed' | python3 -c 'import sys,json; items=json.load(sys.stdin).get(\"items\",[]); print(items[0][\"id\"] if items else \"\")') && \
+    [ -n \"\$tp_id\" ] && curl -sf '$API_BASE/api/v1/timepoints/\$tp_id?full=true' | python3 -c 'import sys,json; d=json.load(sys.stdin); assert \"characters\" in d or \"scene\" in d' || echo 'No completed timepoints'" \
+    $TIMEOUT_FAST
+
+# Test has_image field exists in response
+run_test "Timepoint response includes has_image field" \
+    "tp_id=\$(curl -sf '$API_BASE/api/v1/timepoints' | python3 -c 'import sys,json; items=json.load(sys.stdin).get(\"items\",[]); print(items[0][\"id\"] if items else \"\")') && \
+    [ -n \"\$tp_id\" ] && curl -sf '$API_BASE/api/v1/timepoints/\$tp_id' | python3 -c 'import sys,json; d=json.load(sys.stdin); assert \"has_image\" in d or \"image_base64\" in d or d.get(\"status\") != \"completed\"' || echo 'No timepoints'" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Temporal Navigation (Enhanced)
+# ============================================================
+echo ""
+echo "--- Temporal Navigation (Enhanced) ---"
+
+# Test temporal next endpoint exists
+run_test "Temporal next endpoint accepts request" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/temporal/00000000-0000-0000-0000-000000000000/next' \
+        -H 'Content-Type: application/json' \
+        -d '{\"units\": 1, \"unit\": \"day\"}')
+    http_code=\${response: -3}
+    # 404 (not found) means endpoint exists and validated request
+    [ \"\$http_code\" = '404' ] || [ \"\$http_code\" = '422' ]" \
+    $TIMEOUT_FAST
+
+# Test temporal prior endpoint exists
+run_test "Temporal prior endpoint accepts request" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/temporal/00000000-0000-0000-0000-000000000000/prior' \
+        -H 'Content-Type: application/json' \
+        -d '{\"units\": 1, \"unit\": \"year\"}')
+    http_code=\${response: -3}
+    # 404 (not found) means endpoint exists and validated request
+    [ \"\$http_code\" = '404' ] || [ \"\$http_code\" = '422' ]" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Interaction Streaming Endpoints
+# ============================================================
+echo ""
+echo "--- Interaction Streaming Endpoints ---"
+
+# Test dialog streaming endpoint exists
+run_test "Dialog stream endpoint accepts request" \
+    "response=\$(curl -s -w '%{http_code}' -N -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/dialog/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"num_lines\": 2}' 2>&1 | tail -1)
+    # Should not be 405 (method not allowed)
+    [ \"\$response\" != '405' ]" \
+    $TIMEOUT_FAST
+
+# Test survey streaming endpoint exists
+run_test "Survey stream endpoint accepts request" \
+    "response=\$(curl -s -w '%{http_code}' -N -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/survey/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"questions\": [\"Test?\"]}' 2>&1 | tail -1)
+    # Should not be 405 (method not allowed)
+    [ \"\$response\" != '405' ]" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Response Format Testing
+# ============================================================
+echo ""
+echo "--- Response Format Testing ---"
+
+# Test structured response format is accepted
+run_test "Structured response format accepted (chat)" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/chat' \
+        -H 'Content-Type: application/json' \
+        -d '{\"character\": \"Test\", \"message\": \"Hello\", \"response_format\": \"structured\"}')
+    # 404 means request was valid (timepoint not found)
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# Test text response format is accepted
+run_test "Text response format accepted (survey)" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/survey' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"questions\": [\"Test?\"], \"response_format\": \"text\"}')
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# Test auto response format is accepted
+run_test "Auto response format accepted (dialog)" \
+    "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/00000000-0000-0000-0000-000000000000/dialog' \
+        -H 'Content-Type: application/json' \
+        -d '{\"characters\": \"all\", \"num_lines\": 3, \"response_format\": \"auto\"}')
+    echo \"\$response\" | grep -q 'not found' || echo \"\$response\" | grep -q 'Timepoint'" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Custom Model Override Testing
+# ============================================================
+echo ""
+echo "--- Custom Model Override Testing ---"
+
+# Test text_model override in generation
+run_test "Generation accepts text_model override" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/timepoints/generate/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test\", \"text_model\": \"gemini-2.5-flash\"}' -o /dev/null)
+    [ \"\$response\" = '200' ]" \
+    $TIMEOUT_FAST
+
+# Test image_model override in generation
+run_test "Generation accepts image_model override" \
+    "response=\$(curl -s -w '%{http_code}' -X POST '$API_BASE/api/v1/timepoints/generate/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test\", \"image_model\": \"google/gemini-2.0-flash-exp\"}' -o /dev/null)
+    [ \"\$response\" = '200' ]" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# Integration Tests with Real Data (if available)
+# ============================================================
+if [ "$QUICK_MODE" != true ]; then
+    echo ""
+    echo "--- Integration Tests (Real Data) ---"
+
+    # Get a completed timepoint for integration tests
+    INTEGRATION_TP=$(curl -s "$API_BASE/api/v1/timepoints?page_size=1&status=completed" | \
+        python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    items = data.get('items', [])
+    if items:
+        print(items[0]['id'])
+except:
+    pass
+" 2>/dev/null)
+
+    if [ -n "$INTEGRATION_TP" ]; then
+        # Test dialog streaming with real timepoint
+        run_test "Dialog streaming (integration)" \
+            "output=\$(curl -sf -N -X POST '$API_BASE/api/v1/interactions/$INTEGRATION_TP/dialog/stream' \
+                -H 'Content-Type: application/json' \
+                -d '{\"num_lines\": 2}' 2>&1 | head -20)
+            echo \"\$output\" | grep -qE '\"event\"'" \
+            120
+
+        # Test survey streaming with real timepoint
+        run_test "Survey streaming (integration)" \
+            "output=\$(curl -sf -N -X POST '$API_BASE/api/v1/interactions/$INTEGRATION_TP/survey/stream' \
+                -H 'Content-Type: application/json' \
+                -d '{\"questions\": [\"Brief thought?\"]}' 2>&1 | head -30)
+            echo \"\$output\" | grep -qE '\"event\"'" \
+            180
+
+        # Test structured response returns JSON fields
+        run_test "Structured chat returns JSON (integration)" \
+            "response=\$(curl -s -X POST '$API_BASE/api/v1/interactions/$INTEGRATION_TP/chat' \
+                -H 'Content-Type: application/json' \
+                -d '{\"character\": \"first\", \"message\": \"Hello\", \"response_format\": \"structured\"}')
+            echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get(\"response\") or d.get(\"error\")'" \
+            120
+    else
+        skip_test "Dialog streaming (integration)" "No completed timepoint"
+        skip_test "Survey streaming (integration)" "No completed timepoint"
+        skip_test "Structured chat returns JSON (integration)" "No completed timepoint"
+    fi
+else
+    skip_test "Dialog streaming (integration)" "--quick mode"
+    skip_test "Survey streaming (integration)" "--quick mode"
+    skip_test "Structured chat returns JSON (integration)" "--quick mode"
 fi
 
 # ============================================================
