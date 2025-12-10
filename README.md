@@ -63,7 +63,30 @@ cp .env.example .env
 ./demo.sh
 ```
 
-The demo walks you through everything. Pick a historical moment, watch it generate, then chat with the characters.
+The demo is a full-featured CLI with:
+
+```
+=== Main Menu ===
+  1) Generate timepoint (sync)
+  2) Generate timepoint (streaming)
+  3) Generate from template
+  4) RAPID TEST - One-click hyper + image
+  5) RAPID TEST FREE - One-click free model
+  6) Browse timepoints
+  ...
+  10) Model Eval - Compare models
+  11) Chat with character
+  12) Extend dialog
+  13) Survey characters
+```
+
+**Key features:**
+- **RAPID TEST** - One click: picks a random template, uses fastest settings, generates image
+- **Quality presets** - HD (~4-6 min), Balanced (~2-4 min), Hyper (~1-2 min)
+- **Model browser** - Filter by provider, search, pick any model
+- **Free models** - Use OpenRouter's free tier (best quality or fastest)
+- **10 templates** - Caesar, Moon landing, Declaration, Thermopylae, Berlin Wall, etc.
+- **Character interactions** - Chat, extend dialog, survey all characters
 
 ---
 
