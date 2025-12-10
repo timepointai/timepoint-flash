@@ -8,7 +8,7 @@ Get up and running in 2 minutes.
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/realityinspector/timepoint-flash.git
+git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
 pip install -e .
 
@@ -37,7 +37,7 @@ That's it! The demo starts the server and gives you a menu to:
 ### Installation
 
 ```bash
-git clone https://github.com/realityinspector/timepoint-flash.git
+git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
 
 # Optional: use virtual environment

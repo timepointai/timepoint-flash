@@ -73,10 +73,10 @@ observability = [
 # tp = "app.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/realityinspector/timepoint-flash"
-Documentation = "https://github.com/realityinspector/timepoint-flash#readme"
-Repository = "https://github.com/realityinspector/timepoint-flash"
-Issues = "https://github.com/realityinspector/timepoint-flash/issues"
+Homepage = "https://github.com/timepoint-ai/timepoint-flash"
+Documentation = "https://github.com/timepoint-ai/timepoint-flash#readme"
+Repository = "https://github.com/timepoint-ai/timepoint-flash"
+Issues = "https://github.com/timepoint-ai/timepoint-flash/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
