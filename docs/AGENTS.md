@@ -1,173 +1,92 @@
-# TIMEPOINT Flash Agent Architecture
+# How TIMEPOINT Flash Works
 
-TIMEPOINT Flash uses a multi-agent pipeline where 15 specialized AI agents collaborate to generate immersive historical scenes.
+TIMEPOINT generates scenes using 15 specialized AI agents that each handle one part of the process
+in parallel.
 
----
-
-## How It Works
+## The Pipeline
 
 ```
-Query: "signing of the declaration of independence"
-                    |
-                    v
-    ┌─────────────────────────────────────────────────────────────┐
-    │                    GENERATION PIPELINE                       │
-    │                                                              │
-    │  Judge -> Timeline -> Scene -> Characters -> Moment          │
-    │                                    |                         │
-    │  ImageGen <- ImagePrompt <- Graph <- Camera <- Dialog        │
-    │                                                              │
-    └─────────────────────────────────────────────────────────────┘
-                    |
-                    v
-    Scene + 8 Characters + Dialog + Relationships + Image
+Your Query: "signing of the declaration of independence"
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│  Judge → Timeline → Scene ──┬── Characters ── Graph      │
+│                             │        ↓                   │
+│                             ├── Moment                   │
+│                             │        ↓                   │
+│                             └── Dialog → Camera          │
+│                                          ↓               │
+│                                   ImagePrompt → Image    │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+    Complete scene with 8 characters, dialog, relationships, image
 ```
 
-Each agent is a specialist: one validates queries, one extracts dates, one creates characters, one writes dialog, etc. They pass structured data to each other, building up a complete scene.
+**Why 15 agents instead of one big prompt?**
 
----
+1. **Speed** - Independent agents run in parallel, cutting time by ~40%
+2. **Quality** - Each agent has a focused prompt optimized for one task
+3. **Reliability** - If image generation fails, you still get the scene
+4. **Visibility** - You see progress as each step completes
 
-## The 15 Agents
+## What Each Agent Does
 
-### Generation Pipeline (10 agents)
+| Agent | Job | Output |
+|-------|-----|--------|
+| **Judge** | Is this a valid historical query? | yes/no, confidence |
+| **Timeline** | When exactly? | year, month, day, time of day |
+| **Scene** | Where and what's the atmosphere? | location, weather, mood |
+| **Characters** | Who's there? | 8 people with names, roles, bios |
+| **Graph** | How do they relate? | alliances, tensions, history |
+| **Moment** | What's the dramatic tension? | stakes, conflict, emotion |
+| **Dialog** | What are they saying? | 7 period-appropriate lines |
+| **Camera** | How should we frame this? | composition, focal point |
+| **ImagePrompt** | Describe the image in detail | ~11,000 character prompt |
+| **ImageGen** | Create the image | photorealistic scene |
 
-| # | Agent | Purpose | Output |
-|---|-------|---------|--------|
-| 1 | **JudgeAgent** | Validates query, classifies type | `is_valid`, `query_type`, `confidence` |
-| 2 | **TimelineAgent** | Extracts temporal coordinates | `year`, `month`, `day`, `season`, `time_of_day` |
-| 3 | **SceneAgent** | Creates environment & atmosphere | Location, weather, lighting, sounds |
-| 4 | **CharactersAgent** | Generates up to 8 characters | Names, roles, appearances, bios |
-| 5 | **MomentAgent** | Defines plot, tension, stakes | What's happening, why it matters |
-| 6 | **DialogAgent** | Writes period-appropriate dialog | 7 lines of authentic speech |
-| 7 | **CameraAgent** | Composes the visual frame | Shot type, focal point, depth |
-| 8 | **GraphAgent** | Maps character relationships | Who knows whom, alliances, tensions |
-| 9 | **ImagePromptAgent** | Assembles the image prompt | 11K character detailed description |
-| 10 | **ImageGenAgent** | Generates the final image | Photorealistic scene image |
-
-### Character Interactions (3 agents)
-
-| # | Agent | Purpose | Output |
-|---|-------|---------|--------|
-| 11 | **CharacterChatAgent** | Conversations with characters | In-character responses |
-| 12 | **DialogExtensionAgent** | Extends scene dialog | Additional lines |
-| 13 | **SurveyAgent** | Surveys multiple characters | Responses with sentiment |
-
-### Character Bio Generation (2 agents)
-
-| # | Agent | Purpose | Output |
-|---|-------|---------|--------|
-| 14 | **CharacterIdentificationAgent** | Fast character identification | Names, roles (lightweight) |
-| 15 | **CharacterBioAgent** | Detailed character bios | Full bio with graph context |
-
----
+Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
 
 ## Parallel Execution
 
-The pipeline doesn't run sequentially. Independent agents run in parallel:
+The pipeline doesn't wait for each step:
 
 ```
-Phase 1 (sequential): Judge -> Timeline -> Scene
-Phase 2 (parallel):   Characters (ID -> Graph -> Bios in parallel)
-                      + Camera (starts after Scene)
-                      + Moment
-Phase 3 (sequential): Dialog -> ImagePrompt -> ImageGen
+Phase 1 (sequential): Judge → Timeline → Scene
+Phase 2 (parallel):   Characters + Moment + Camera (all at once)
+Phase 3 (sequential): Dialog → ImagePrompt → ImageGen
 ```
 
-This reduces total latency by ~40% compared to pure sequential execution.
+## Adding Your Own Agent
 
----
+1. Create schema: `app/schemas/your_agent.py`
+2. Create prompt: `app/prompts/your_agent.py`
+3. Create agent: `app/agents/your_agent.py`
+4. Wire into pipeline: `app/core/pipeline.py`
+5. Add tests: `tests/unit/test_your_agent.py`
 
-## Model Tiers & Parallelism
+All agents follow the same pattern:
 
-Different model tiers get different parallelism levels to avoid rate limits:
+```python
+class YourAgent:
+    async def run(self, input: InputSchema) -> OutputSchema:
+        prompt = self._build_prompt(input)
+        return await self.router.call(prompt=prompt, response_model=OutputSchema)
+```
 
-| Tier | Models | Max Parallel Calls |
-|------|--------|-------------------|
-| FREE | `:free` suffix models | 1 (sequential) |
-| PAID | OpenRouter paid models | 2-3 |
-| NATIVE | Google Gemini direct | 3-5 |
-
----
-
-## Agent Code Location
-
-All agents live in `app/agents/`:
+## Code Location
 
 ```
 app/agents/
-├── judge.py              # Query validation
-├── timeline.py           # Temporal extraction
-├── scene.py              # Environment generation
-├── characters.py         # Character generation (single-call fallback)
-├── character_identification.py  # Fast ID phase
-├── character_bio.py      # Detailed bio phase
-├── moment.py             # Plot/tension/stakes
-├── dialog.py             # Period dialog
-├── camera.py             # Visual composition
-├── graph.py              # Relationship mapping
-├── image_prompt.py       # Prompt assembly
-├── image_gen.py          # Image generation
-├── character_chat.py     # Chat interactions
-├── dialog_extension.py   # Dialog extension
-└── survey.py             # Character surveys
+├── judge.py           # Query validation
+├── timeline.py        # Date extraction
+├── scene.py           # Environment
+├── characters.py      # Character generation
+├── graph.py           # Relationships
+├── moment.py          # Dramatic tension
+├── dialog.py          # Period dialog
+├── camera.py          # Visual composition
+├── image_prompt.py    # Prompt assembly
+├── image_gen.py       # Image generation
+├── character_chat.py  # Chat interactions
+├── dialog_extension.py
+└── survey.py
 ```
-
----
-
-## Agent Interface
-
-All agents follow a consistent pattern:
-
-```python
-class ExampleAgent:
-    def __init__(self, router: LLMRouter):
-        self.router = router
-
-    async def run(self, input: InputSchema) -> OutputSchema:
-        prompt = self._build_prompt(input)
-        response = await self.router.call(
-            prompt=prompt,
-            response_model=OutputSchema,
-            temperature=0.7
-        )
-        return response
-```
-
-Key points:
-- Agents receive an `LLMRouter` for model abstraction
-- Input/output are Pydantic schemas for type safety
-- Prompts are built from templates in `app/prompts/`
-- Response models enable structured JSON output
-
----
-
-## Adding a New Agent
-
-1. Create schema in `app/schemas/your_agent.py`
-2. Create prompt in `app/prompts/your_agent.py`
-3. Create agent in `app/agents/your_agent.py`
-4. Add to pipeline in `app/core/pipeline.py`
-5. Add tests in `tests/unit/test_your_agent.py`
-
----
-
-## Why Multi-Agent?
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Single mega-prompt** | Simpler, one call | Less control, harder to debug |
-| **Multi-agent pipeline** | Specialized prompts, parallel execution, step-by-step progress | More complexity, more calls |
-
-TIMEPOINT Flash uses multi-agent because:
-1. **Specialization** - Each agent has a focused prompt optimized for one task
-2. **Parallelism** - Independent agents run concurrently
-3. **Transparency** - SSE events show progress through each step
-4. **Reliability** - One step failing doesn't crash the whole pipeline
-5. **Flexibility** - Easy to swap models per agent or add new agents
-
----
-
-## Learn More
-
-- [API Reference](API.md) - All endpoints including agent outputs
-- [Temporal Navigation](TEMPORAL.md) - Time travel between moments
