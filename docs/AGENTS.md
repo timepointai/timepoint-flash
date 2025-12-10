@@ -45,6 +45,58 @@ Your Query: "signing of the declaration of independence"
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
 
+## The Graph Agent (Technical Details)
+
+The Graph agent extracts a structured relationship network from the characters. No graph library is used—it's pure LLM extraction into a graph-ready schema.
+
+**Schema:**
+
+```python
+# Directed edges with attributes
+class Relationship:
+    from_character: str      # "Brutus"
+    to_character: str        # "Caesar"
+    relationship_type: str   # ally|rival|enemy|subordinate|leader|mentor|family|friend|stranger|neutral
+    tension_level: str       # friendly|neutral|tense|hostile
+    description: str         # "Surrogate father/son, now betrayer"
+
+# Faction clustering
+class Faction:
+    name: str               # "Conspirators"
+    members: list[str]      # ["Brutus", "Cassius", "Casca"]
+    goal: str               # "End tyranny, restore the Republic"
+
+# Full graph output
+class GraphData:
+    relationships: list[Relationship]
+    factions: list[Faction]
+    power_dynamics: str     # "Caesar holds absolute power..."
+    central_conflict: str   # "Loyalty vs. duty to Rome"
+    alliances: list[str]    # Key alliance descriptions
+    rivalries: list[str]    # Key rivalry descriptions
+    historical_context: str # Background for relationships
+```
+
+**Example output (Caesar assassination):**
+
+```json
+{
+  "relationships": [
+    {"from": "Brutus", "to": "Caesar", "type": "family", "tension": "hostile"},
+    {"from": "Cassius", "to": "Brutus", "type": "ally", "tension": "tense"},
+    {"from": "Antony", "to": "Caesar", "type": "ally", "tension": "friendly"}
+  ],
+  "factions": [
+    {"name": "Conspirators", "members": ["Brutus", "Cassius", "Casca"], "goal": "End tyranny"},
+    {"name": "Loyalists", "members": ["Antony", "Lepidus"], "goal": "Protect Caesar"}
+  ],
+  "power_dynamics": "Caesar holds dictatorial power; Senate is divided",
+  "central_conflict": "Republic vs. autocracy, loyalty vs. principle"
+}
+```
+
+**Graph-ready:** The `Relationship.to_edge()` method returns `(from, to, type)` tuples for easy conversion to networkx/igraph if you want to add visualization.
+
 ## Parallel Execution
 
 The pipeline doesn't wait for each step:
