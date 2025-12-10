@@ -1,4 +1,4 @@
-# TIMEPOINT Flash v2.2.0 Deployment Guide
+# TIMEPOINT Flash Deployment Guide
 
 This guide covers deploying TIMEPOINT Flash to production environments.
 
@@ -185,7 +185,7 @@ curl http://localhost:8000/api/v1/health
 ```json
 {
   "status": "healthy",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "environment": "production"
 }
 ```
