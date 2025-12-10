@@ -68,22 +68,26 @@ cp .env.example .env
 Demo dashboard dials you in:
 
 ```
-=== Control Deck ===
-  1) Spin up timepoint (sync mode)
-  2) Stream generation live
-  3) Load from preset templates
-  4) RAPID PROTOTYPE – One-tap hyper mode + image render
-  5) RAPID PROTOTYPE FREE – Zero-cost model blast
-  6) Scan archived timepoints
-  ...
-  10) Model showdown – Benchmark and select
-  11) Grill a character in chat
-  12) Amp up the dialog
-  13) Poll the full cast
+=== Main Menu ===
+  1) Generate timepoint (sync) - Wait for full result
+  2) Generate timepoint (streaming) - See live progress
+  3) Generate from template
+  4) RAPID TEST - One-click hyper + image (streaming)
+  5) RAPID TEST FREE - One-click fastest free model + image
+  6) Browse timepoints
+  7) Health check
+  8) API documentation
+  9) Test endpoints
+  10) Model Eval - Compare model performance
+  --- Character Interactions ---
+  11) Chat with character
+  12) Extend dialog
+  13) Survey characters
+  q) Quit
 ```
 
 **Power moves:**
-- **RAPID PROTOTYPE**: Random template, max speed, instant image – test the flux.
+- **RAPID TEST**: Random template, max speed, instant image – test the flux.
 - **Dial presets**: HD for pixel-perfect (4-6 min), Balanced for flow (2-4 min), Hyper for velocity (1-2 min).
 - **Model selector**: Filter providers, hunt specifics, lock your weapon.
 - **Free tier ops**: Tap OpenRouter's no-pay zone – quality king or speed demon.
