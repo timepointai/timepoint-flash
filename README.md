@@ -182,7 +182,7 @@ Plus 3 interaction agents: **CharacterChatAgent**, **DialogExtensionAgent**, **S
 GOOGLE_API_KEY=your-key
 OPENROUTER_API_KEY=your-key
 
-# Database (SQLite default, PostgreSQL for production)
+# Database
 DATABASE_URL=sqlite+aiosqlite:///./timepoint.db
 
 # Provider selection
@@ -242,8 +242,7 @@ timepoint-flash/
 ├── tests/                   # Unit and integration tests
 ├── docs/                    # Additional documentation
 ├── run.sh                   # Server start script
-├── demo.sh                  # Interactive demo CLI
-└── docker-compose.yml       # Production deployment
+└── demo.sh                  # Interactive demo CLI
 ```
 
 ### Type Checking & Linting
@@ -255,33 +254,11 @@ ruff check app/
 
 ---
 
-## Deployment
-
-### Docker
-
-```bash
-# Production (with PostgreSQL)
-docker compose up -d
-
-# Development (with hot reload)
-docker compose -f docker-compose.dev.yml up
-```
-
-### Cloud Platforms
-
-- **Railway**: Auto-deploys with `railway.json`
-- **Render**: Uses `render.yaml` Blueprint
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for details.
-
----
-
 ## Documentation
 
 - [docs/AGENTS.md](docs/AGENTS.md) - Multi-agent architecture
 - [docs/API.md](docs/API.md) - Complete API reference
 - [docs/TEMPORAL.md](docs/TEMPORAL.md) - Temporal navigation
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide
 
 ---
 
