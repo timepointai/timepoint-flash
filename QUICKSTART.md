@@ -1,128 +1,88 @@
 # TIMEPOINT Flash Quick Start Guide
 
-Get up and running with TIMEPOINT Flash in 5 minutes.
+Get up and running in 2 minutes.
 
 ---
 
-## 1. Prerequisites
-
-- **Python 3.10+** (required for SQLAlchemy compatibility)
-- **API Key**: Google API key or OpenRouter API key
-
-### Check Python Version
+## Fastest Path: Interactive Demo
 
 ```bash
-python3 --version
-# Should be 3.10 or higher
+# 1. Clone & install
+git clone https://github.com/realityinspector/timepoint-flash.git
+cd timepoint-flash
+pip install -e .
 
-# If you have multiple versions, use python3.10 explicitly
-python3.10 --version
+# 2. Set your API key
+export GOOGLE_API_KEY="your-key"
+
+# 3. Run the demo
+./demo.sh
 ```
 
+That's it! The demo starts the server and gives you a menu to:
+- Generate timepoints with different presets (HD, Balanced, Hyper)
+- Browse and view generated timepoints
+- Chat with characters from any scene
+- Extend dialog or survey all characters
+
 ---
 
-## 2. Installation
+## Manual Setup (for API access)
 
-### Clone and Install
+### Prerequisites
+
+- Python 3.10+ (`python3.10 --version`)
+- API Key: [Google AI](https://aistudio.google.com/) or [OpenRouter](https://openrouter.ai/)
+
+### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/realityinspector/timepoint-flash.git
 cd timepoint-flash
 
-# Create virtual environment (optional but recommended)
-python3.10 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Optional: use virtual environment
+python3.10 -m venv .venv && source .venv/bin/activate
 
-# Install package and dependencies
 pip install -e .
 ```
 
-### Configure API Keys
-
-Create a `.env` file in the project root:
+### Configure API Key
 
 ```bash
-# Option 1: Google AI (recommended for best results)
-GOOGLE_API_KEY=your-google-api-key
+# Option 1: Export directly
+export GOOGLE_API_KEY="your-key"
 
-# Option 2: OpenRouter (300+ model options)
-OPENROUTER_API_KEY=your-openrouter-api-key
-
-# You can use both for fallback support
+# Option 2: Create .env file
+echo 'GOOGLE_API_KEY=your-key' > .env
 ```
 
-Or export directly:
+### Start Server
 
 ```bash
-export GOOGLE_API_KEY="your-google-api-key"
-```
-
----
-
-## 3. Start the Server
-
-```bash
-# Start FastAPI with auto-reload
 uvicorn app.main:app --reload
-
-# Or with explicit port
-uvicorn app.main:app --reload --port 8000
+# Server at http://localhost:8000
 ```
 
-### Verify Server is Running
+### Generate Your First Timepoint
 
 ```bash
-# Check root health
-curl http://localhost:8000/health
-# Returns: {"status": "healthy", "version": "2.2.0"}
-
-# Check API health
-curl http://localhost:8000/api/v1/health
-# Returns: {"status": "healthy", "database": "connected"}
-```
-
----
-
-## 4. Generate Your First Timepoint
-
-### Option A: Streaming (Recommended)
-
-Watch the generation progress in real-time:
-
-```bash
-curl -N http://localhost:8000/api/v1/timepoints/generate/stream \
+curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
   -d '{"query": "signing of the declaration of independence"}'
 ```
 
-You'll see events like:
+Watch the 15 agents work in real-time:
 ```
-data: {"event": "start", "step": "initialization", "progress": 0}
 data: {"event": "step_complete", "step": "judge", "progress": 10}
 data: {"event": "step_complete", "step": "timeline", "progress": 20}
+data: {"event": "step_complete", "step": "scene", "progress": 30}
 ...
-data: {"event": "done", "step": "complete", "progress": 100, "data": {"timepoint_id": "..."}}
-```
-
-### Option B: Async Generation
-
-Start generation and poll for completion:
-
-```bash
-# Start generation
-curl -X POST http://localhost:8000/api/v1/timepoints/generate \
-  -H "Content-Type: application/json" \
-  -d '{"query": "rome 50 BCE"}'
-# Returns: {"id": "...", "status": "processing", "message": "..."}
-
-# Check status
-curl http://localhost:8000/api/v1/timepoints/{id}
+data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123"}}
 ```
 
 ---
 
-## 5. Explore the Results
+## Explore the Results
 
 ### Get Timepoint by ID
 
@@ -147,7 +107,7 @@ curl "http://localhost:8000/api/v1/timepoints?page=1&page_size=10"
 
 ---
 
-## 6. Temporal Navigation
+## Temporal Navigation
 
 Navigate through time from an existing timepoint:
 
@@ -175,7 +135,7 @@ curl "http://localhost:8000/api/v1/temporal/{timepoint-id}/sequence?direction=bo
 
 ---
 
-## 7. Model Discovery
+## Model Discovery
 
 ### List Available Models
 
@@ -204,7 +164,7 @@ curl http://localhost:8000/api/v1/models/providers
 
 ---
 
-## 8. Generate with Image
+## Generate with Image
 
 Request image generation along with the timepoint:
 
@@ -216,7 +176,7 @@ curl -N http://localhost:8000/api/v1/timepoints/generate/stream \
 
 ---
 
-## 9. Run Tests
+## Run Tests
 
 Verify everything is working:
 
@@ -258,7 +218,7 @@ rm -f timepoint.db test_timepoint.db
 
 ---
 
-## 10. Character Interactions
+## Character Interactions
 
 After generating a timepoint, you can interact with its characters:
 
