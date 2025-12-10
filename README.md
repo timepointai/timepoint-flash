@@ -1,187 +1,191 @@
 # TIMEPOINT Flash
 
-Type any moment in history. Get a fully-realized scene you can explore.
+Dial into any moment in history. Twist the knobs to remix reality. Get a locked-in, photoreal scene ready to probe, prototype, or push boundaries.
 
 ```
 > "assassination of julius caesar"
 ```
 
-**2 minutes later:**
+**Lock and load in under 2 minutes:**
 
 ```
 March 15, 44 BCE - The Ides of March
-Theatre of Pompey, Rome
+Theatre of Pompey, Rome – Tension crackling like static in the air
 
-CHARACTERS:
-- Julius Caesar - Dictator of Rome, 55, purple-trimmed toga
-- Marcus Brutus - Senator and conspirator, 41, conflicted expression
-- Gaius Cassius - Mastermind of the plot, 42, cold determination
-- Mark Antony - Caesar's loyal ally, 39, unaware of the danger
-- Decimus Brutus - Trusted friend turned betrayer, 43
-...and 3 more
+CORE ELEMENTS:
+- Julius Caesar: Dictator locked in the crosshairs, 55, purple-trimmed toga masking the storm
+- Marcus Brutus: Senator flipping the script, 41, honor clashing with betrayal
+- Gaius Cassius: Plot architect, 42, eyes like cold steel
+- Mark Antony: Loyal wildcard, 39, one wrong move from unleashing hell
+- Decimus Brutus: Inner-circle defector, 43, trust shattered
+...plus 3 more shadows in the mix
 
-DIALOG:
+DIALOG PULSE:
 Caesar: "What is this? Why do you press upon me so?"
 Casca: "Speak, hands, for me!" *strikes first*
 Brutus: "Et tu, Brute?"
-Caesar: *falls* "Then fall, Caesar..."
+Caesar: *crumples* "Then fall, Caesar..."
 
-RELATIONSHIPS:
-- Brutus ↔ Caesar: Surrogate father/son, now betrayer
-- Cassius → Brutus: Manipulator, exploited his honor
-- Antony → Caesar: Fierce loyalty, will seek vengeance
+RELATIONSHIP GRID:
+- Brutus ↔ Caesar: Father-son bond wired for detonation
+- Cassius → Brutus: Master manipulator hacking into ideals
+- Antony → Caesar: Unbreakable alliance, primed for payback
 ```
 
-Plus an AI-generated image of the scene, and you can **chat with any character**:
+Plus a hyper-real AI-rendered visual locked on the chaos. Now **interrogate the players**:
 
 ```
 > You: "Brutus, do you regret what you've done?"
 
-Brutus: "Regret? Every fiber of my being screams with it. But Rome...
-Rome demanded this sacrifice. I loved Caesar, but I loved Rome more.
-History will judge whether I chose wisely. I fear it will not be kind."
+Brutus: "Regret? It surges through me like a glitch in the system. But Rome... Rome overrides all. I revered Caesar, yet the republic's code demanded the reset. Will the timeline forgive? I doubt it."
 ```
+
+This is your rapid prototype deck for synthetic time travel – part of Timepoint AI's modular lab. Flash spins up scenes for web/app devs to test, tweak, and deploy. Pair it with Daedalus for heavy simulations or Clockchain for oracle-proof predictions.
 
 ---
 
-## Try It (5 minutes)
+## Gear Up and Launch (5 Minutes Flat)
 
 ```bash
-# 1. Clone and install
+# 1. Clone the rig
 git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
+
+# 2. Lock in dependencies
 pip install -e .
 
-# 2. Add your API key
+# 3. Wire your API key
 cp .env.example .env
-# Edit .env → add GOOGLE_API_KEY (get one at https://aistudio.google.com)
+# Edit .env → plug in GOOGLE_API_KEY (grab one at https://aistudio.google.com) or OPENROUTER_API_KEY for model flexibility
 
-# 3. Start the server
+# 4. Fire up the server
 ./run.sh -r
 
-# 4. In another terminal, run the demo
+# 5. In a fresh terminal, ignite the demo
 ./demo.sh
 ```
 
-The demo is a full-featured CLI with:
+Demo dashboard dials you in:
 
 ```
-=== Main Menu ===
-  1) Generate timepoint (sync)
-  2) Generate timepoint (streaming)
-  3) Generate from template
-  4) RAPID TEST - One-click hyper + image
-  5) RAPID TEST FREE - One-click free model
-  6) Browse timepoints
+=== Control Deck ===
+  1) Spin up timepoint (sync mode)
+  2) Stream generation live
+  3) Load from preset templates
+  4) RAPID PROTOTYPE – One-tap hyper mode + image render
+  5) RAPID PROTOTYPE FREE – Zero-cost model blast
+  6) Scan archived timepoints
   ...
-  10) Model Eval - Compare models
-  11) Chat with character
-  12) Extend dialog
-  13) Survey characters
+  10) Model showdown – Benchmark and select
+  11) Grill a character in chat
+  12) Amp up the dialog
+  13) Poll the full cast
 ```
 
-**Key features:**
-- **RAPID TEST** - One click: picks a random template, uses fastest settings, generates image
-- **Quality presets** - HD (~4-6 min), Balanced (~2-4 min), Hyper (~1-2 min)
-- **Model browser** - Filter by provider, search, pick any model
-- **Free models** - Use OpenRouter's free tier (best quality or fastest)
-- **10 templates** - Caesar, Moon landing, Declaration, Thermopylae, Berlin Wall, etc.
-- **Character interactions** - Chat, extend dialog, survey all characters
+**Power moves:**
+- **RAPID PROTOTYPE**: Random template, max speed, instant image – test the flux.
+- **Dial presets**: HD for pixel-perfect (4-6 min), Balanced for flow (2-4 min), Hyper for velocity (1-2 min).
+- **Model selector**: Filter providers, hunt specifics, lock your weapon.
+- **Free tier ops**: Tap OpenRouter's no-pay zone – quality king or speed demon.
+- **10 locked templates**: Caesar takedown, Moon touchdown, Independence ink, Thermopylae stand, Berlin Wall breach, etc.
+- **Player probes**: Chat deep, extend lines, survey perspectives.
 
 ---
 
-## What Can You Do?
+## What's Your Play?
 
-**Generate scenes** from any query:
-- `"moon landing 1969"`
-- `"last supper"`
-- `"cleopatra meets caesar"`
-- `"boston tea party"`
-- `"beethoven's final concert"`
+**Prototype scenes** from raw input:
+- `"moon landing 1969"` – Touchdown vibes, zero gravity.
+- `"last supper"` – Table tension, shadows shifting.
+- `"cleopatra meets caesar"` – Empire remix in progress.
+- `"boston tea party"` – Rebellion brewing hot.
+- `"beethoven's final concert"` – Symphony hits peak distortion.
 
-**Chat with characters** - ask them anything, they respond in-character with period-appropriate knowledge
+**Probe characters** – Grill them on motives, futures, what-ifs. They stay in-code with era-locked intel.
 
-**Extend the story** - generate more dialog, or jump forward/backward in time:
+**Shift timelines** – Crank forward or rewind:
 ```bash
-# One hour after Caesar's death...
+# One hour post-Caesar reset...
 POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
 ```
 
-**Survey everyone** - ask all characters the same question, get their perspectives:
+**Scan the grid** – Hit every player with the same query, map their vectors:
 ```
 "What do you fear most right now?"
 
-Caesar: "I fear nothing. I am Caesar."
-Brutus: "That Rome will not understand..."
-Cassius: "That Antony will rally the mob..."
+Caesar: "Fear? I define the code."
+Brutus: "That the republic's loop breaks..."
+Cassius: "Antony flipping the switch..."
 ```
 
 ---
 
-## How It Works
+## Under the Hood
 
-15 AI agents collaborate to build each scene:
+15 specialized agents sync up like a well-oiled synthesizer:
 
-1. **Validate** your query (is it historical? specific enough?)
-2. **Extract** the date, location, time of day
-3. **Research** who was there, what was happening
-4. **Generate** 8 detailed characters with bios
-5. **Map** their relationships (allies, enemies, tensions)
-6. **Write** period-appropriate dialog
-7. **Compose** the visual scene
-8. **Generate** a photorealistic image
+1. **Lock query** – Validate for historical lock-on and precision.
+2. **Pin coordinates** – Date, location, temporal pulse.
+3. **Map the field** – Who's in play, what's charging the air.
+4. **Build profiles** – 8 wired characters with full specs.
+5. **Grid connections** – Allies, rivals, live wires.
+6. **Script the exchange** – Era-coded dialog that hits hard.
+7. **Frame the shot** – Composition dialed for impact.
+8. **Render visual** – Photoreal lock, no artifacts.
 
-Each step streams progress in real-time. The whole process takes 1-4 minutes depending on settings.
+Streams hit your feed in real-time. Cycle time: 1-4 minutes, preset-dependent.
 
 ---
 
-## API
+## API Lock-In
 
-Everything in the demo is available via REST API:
+Full control via REST – no fluff:
 
 ```bash
-# Generate a scene
+# Generate and stream a scene
 curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
   -d '{"query": "signing of the declaration of independence", "generate_image": true}'
 
-# Chat with a character
+# Interrogate a player
 curl -X POST http://localhost:8000/api/v1/interactions/{id}/chat \
   -H "Content-Type: application/json" \
   -d '{"character": "Benjamin Franklin", "message": "What do you think of this document?"}'
 ```
 
-Interactive API docs at `http://localhost:8000/docs`
+Swagger docs live at `http://localhost:8000/docs`.
 
-Full reference: [docs/API.md](docs/API.md)
+Deep dive: [docs/API.md](docs/API.md)
 
 ---
 
-## Configuration
+## Configure Your Rig
 
-Get a free API key from [Google AI Studio](https://aistudio.google.com) or [OpenRouter](https://openrouter.ai).
+Snag a free key from [Google AI Studio](https://aistudio.google.com) or [OpenRouter](https://openrouter.ai).
 
 ```bash
 # .env
-GOOGLE_API_KEY=your-key        # Required (or OPENROUTER_API_KEY)
-DATABASE_URL=sqlite+aiosqlite:///./timepoint.db  # Default, just works
+GOOGLE_API_KEY=your-key        # Core thrust (or OPENROUTER_API_KEY for alternatives)
+DATABASE_URL=sqlite+aiosqlite:///./timepoint.db  # Plug-and-play storage
 ```
 
-Quality presets in the demo:
+Preset dials:
 
-| Preset | Speed | Best For |
-|--------|-------|----------|
-| **Hyper** | ~1-2 min | Quick exploration |
-| **Balanced** | ~2-4 min | Good quality |
-| **HD** | ~4-6 min | Best results |
+| Preset | Cycle Time | Lock For |
+|--------|------------|----------|
+| **Hyper** | ~1-2 min | Quick scans |
+| **Balanced** | ~2-4 min | Solid builds |
+| **HD** | ~4-6 min | Max fidelity |
 
 ---
 
-## Learn More
+## Dive Deeper
 
-- [API Reference](docs/API.md) - Full endpoint documentation
-- [Time Travel](docs/TEMPORAL.md) - Navigate forward/backward through history
-- [Architecture](docs/AGENTS.md) - How the multi-agent pipeline works
+- [API Reference](docs/API.md) – Endpoint blueprints.
+- [Temporal Shifts](docs/TEMPORAL.md) – Navigate the continuum.
+- [Agent Architecture](docs/AGENTS.md) – Pipeline breakdown.
+
+Join the lab: Contribute mods, fork for your stack, or reach out [@seanmcdonaldxyz](https://x.com/seanmcdonaldxyz) for enterprise support and hosted inference.
 
 ---
 
@@ -191,4 +195,4 @@ Apache 2.0
 
 ---
 
-**Built with** Python, FastAPI, Google Gemini
+**Wired with** Python, FastAPI, Google Gemini – Part of Timepoint AI's synthetic time travel ecosystem.
