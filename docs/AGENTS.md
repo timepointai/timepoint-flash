@@ -171,4 +171,4 @@ TIMEPOINT Flash uses multi-agent because:
 
 - [API Reference](API.md) - All endpoints including agent outputs
 - [Temporal Navigation](TEMPORAL.md) - Time travel between moments
-- [HANDOFF.md](../HANDOFF.md) - Development history and technical details
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment
