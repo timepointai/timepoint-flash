@@ -1,69 +1,58 @@
-# TIMEPOINT Flash v2.2.0
+# TIMEPOINT Flash v2.2.1
 
-AI-powered photorealistic time travel system with multi-agent workflows, temporal navigation, character interactions, and batteries-included developer experience.
+**TL;DR**: Type a historical moment, get a fully-realized scene with characters, dialog, relationships, and an AI-generated image.
+
+```
+"signing of the declaration of independence"
+         ↓ 15 AI agents ↓
+Scene + 8 Characters + Dialog + Relationships + Image
+```
 
 ---
 
-## Overview
+## What It Does
 
-TIMEPOINT Flash generates immersive historical moments using a pipeline of 15 specialized AI agents. Given a natural language query like "signing of the declaration of independence", it produces:
+Give TIMEPOINT Flash a natural language query and it generates:
 
-- Validated temporal coordinates (year, season, time of day)
-- Detailed scene environment and atmosphere
-- Up to 8 historically-accurate characters
-- Period-appropriate dialog (7 lines)
-- Camera composition and framing
-- Character relationship graph
-- Photorealistic image prompt
-- Optional generated image
+| Output | Example |
+|--------|---------|
+| **When** | July 4, 1776, afternoon, summer |
+| **Where** | Independence Hall, Philadelphia |
+| **Who** | 8 characters with bios, roles, appearances |
+| **What** | Scene description, atmosphere, tension |
+| **Dialog** | 7 period-appropriate lines |
+| **Relationships** | Who knows whom, alliances, rivalries |
+| **Image** | Photorealistic AI-generated scene |
 
-**NEW in v2.2**: Model selection for character interactions, plus chat, dialog extension, and character surveys.
+Then **chat with the characters**, extend the dialog, or survey them all with questions.
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.10+
-- Google API key (for Gemini models) and/or OpenRouter API key
-
-### Installation
-
 ```bash
-# Clone repository
+# 1. Clone & install
 git clone https://github.com/realityinspector/timepoint-flash.git
 cd timepoint-flash
-
-# Install dependencies
 pip install -e .
 
-# Set API keys
-export GOOGLE_API_KEY="your-google-api-key"
-# or
-export OPENROUTER_API_KEY="your-openrouter-api-key"
+# 2. Set API key
+export GOOGLE_API_KEY="your-key"  # or OPENROUTER_API_KEY
+
+# 3. Run the demo (easiest)
+./demo.sh
 ```
 
-### Run the Server
+The interactive demo lets you generate timepoints, browse results, chat with characters, and more - no curl commands needed.
+
+### Or Use the API Directly
 
 ```bash
-# Start FastAPI server
+# Start server
 uvicorn app.main:app --reload
 
-# Check health
-curl http://localhost:8000/health
-```
-
-### Generate a Timepoint
-
-```bash
-# Via API
-curl -X POST http://localhost:8000/api/v1/timepoints/generate \
+# Generate a timepoint
+curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
   -d '{"query": "signing of the declaration of independence"}'
-
-# Streaming (SSE)
-curl -N http://localhost:8000/api/v1/timepoints/generate/stream \
-  -H "Content-Type: application/json" \
-  -d '{"query": "rome 50 BCE"}'
 ```
 
 ---
@@ -264,4 +253,4 @@ Apache License 2.0 - see LICENSE and NOTICE files for details.
 
 **Built with** FastAPI | LangGraph | Google Gemini | Pydantic | SQLAlchemy
 
-**v2.2.0 Status**: Complete - Ready for Production
+**v2.2.1** | Production Ready | [API Docs](http://localhost:8000/docs)

@@ -1,6 +1,8 @@
 # TIMEPOINT Flash API Reference
 
-Complete API documentation for TIMEPOINT Flash v2.2.0.
+Complete API documentation for TIMEPOINT Flash v2.2.1.
+
+**Interactive docs**: http://localhost:8000/docs (Swagger) | http://localhost:8000/redoc (ReDoc)
 
 Base URL: `http://localhost:8000`
 
@@ -16,7 +18,7 @@ Root health check.
 ```json
 {
   "status": "healthy",
-  "version": "2.2.0"
+  "version": "2.2.1"
 }
 ```
 
