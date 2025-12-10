@@ -161,4 +161,4 @@ VERDICT: Pipeline wins on quality (8.9 vs 8.6)
 
 ---
 
-*Last updated: 2025-12-09*
+*Last updated: 2025-12-10*

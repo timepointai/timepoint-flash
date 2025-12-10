@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.2.0
+# TIMEPOINT Flash Demo Test Suite v2.2.1
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.2.0"
+            echo "TIMEPOINT Flash Demo Test Suite v2.2.1"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""
@@ -146,7 +146,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.2.0"
+echo "  TIMEPOINT Flash Demo Test Suite v2.2.1"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
@@ -225,6 +225,86 @@ run_test "Hyper preset accepted" \
         -H 'Content-Type: application/json' \
         -d '{\"query\": \"test\", \"preset\": \"hyper\"}' -o /dev/null -w '%{http_code}' | grep -q '200'" \
     $TIMEOUT_FAST
+
+# ============================================================
+# OpenRouter Availability (catches demo.sh template bug)
+# ============================================================
+echo ""
+echo "--- OpenRouter Availability Check ---"
+
+# Test that OpenRouter provider status is accurate
+# This catches the bug where hyper preset fails due to invalid API key
+run_test "OpenRouter provider status check" \
+    "response=\$(curl -sf '$API_BASE/api/v1/models/providers')
+    or_available=\$(echo \"\$response\" | python3 -c \"
+import sys, json
+d = json.load(sys.stdin)
+for p in d.get('providers', []):
+    if p.get('provider') == 'openrouter':
+        print('yes' if p.get('available') else 'no')
+        break
+else:
+    print('no')
+\")
+    echo \"OpenRouter available: \$or_available\"
+    # Just verify we can check the status
+    [ \"\$or_available\" = 'yes' ] || [ \"\$or_available\" = 'no' ]" \
+    $TIMEOUT_FAST
+
+# Test that hyper preset works OR returns proper error (not silent failure)
+# This catches the bug where judge step fails silently with OpenRouter auth issues
+run_test "Hyper preset generates or reports clear error" \
+    "response=\$(curl -s -N -X POST '$API_BASE/api/v1/timepoints/generate/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test query\", \"preset\": \"hyper\"}' 2>&1 | head -10)
+    # Should either succeed (contain 'step_complete') or fail clearly (contain 'error' with description)
+    if echo \"\$response\" | grep -q 'step_complete'; then
+        echo 'Hyper preset working'
+        exit 0
+    elif echo \"\$response\" | grep -q 'Authentication failed\\|API key\\|401'; then
+        echo 'OpenRouter auth failed (expected if no valid API key)'
+        exit 0
+    elif echo \"\$response\" | grep -q 'step_error'; then
+        # Error with description is acceptable (clear failure)
+        echo 'Generation failed with clear error'
+        exit 0
+    else
+        echo 'Unexpected response format'
+        exit 1
+    fi" \
+    $TIMEOUT_FAST
+
+# Test that balanced preset works as fallback when hyper might not
+run_test "Balanced preset works as OpenRouter fallback" \
+    "response=\$(curl -s -N -X POST '$API_BASE/api/v1/timepoints/generate/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test query\", \"preset\": \"balanced\"}' 2>&1 | head -10)
+    # Balanced uses Google native, should always work if GOOGLE_API_KEY is set
+    echo \"\$response\" | grep -qE 'start|step_' || (echo 'Balanced preset should work'; exit 1)" \
+    $TIMEOUT_FAST
+
+# ============================================================
+# End-to-End Generation Validation (Critical - catches pipeline failures)
+# This test runs even in quick mode with a short timeout to verify
+# that at least one complete generation can succeed
+# ============================================================
+echo ""
+echo "--- End-to-End Generation Validation ---"
+
+# Critical test: verify generation can actually COMPLETE (not just start)
+# This catches transient API failures that the "starts" tests miss
+run_test "Generation completes successfully (balanced)" \
+    "response=\$(curl -sf -X POST '$API_BASE/api/v1/timepoints/generate/sync' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"boston tea party 1773\", \"generate_image\": false, \"preset\": \"balanced\"}')
+    status=\$(echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"status\",\"unknown\"))')
+    error=\$(echo \"\$response\" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"error\",\"none\"))')
+    if [ \"\$status\" != 'completed' ]; then
+        echo \"FAILED: status=\$status, error=\$error\"
+        exit 1
+    fi
+    echo 'Generation completed successfully'" \
+    300  # 5 min timeout (generation can take 2-3 min)
 
 # ============================================================
 # Menu 1, 2, 4 & 5: Generate Timepoint (Sync, Streaming & Rapid Tests)

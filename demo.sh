@@ -25,6 +25,9 @@ PRESET_HYPER="hyper"
 PRESET_BALANCED="balanced"
 CURRENT_PRESET=""
 
+# Provider availability cache
+OPENROUTER_VERIFIED="unknown"
+
 # Custom model selection (when not using presets)
 CUSTOM_TEXT_MODEL=""
 CUSTOM_IMAGE_MODEL=""
@@ -79,20 +82,32 @@ select_preset() {
     CUSTOM_TEXT_MODEL=""
     CUSTOM_IMAGE_MODEL=""
 
+    # Check OpenRouter availability for hyper preset
+    verify_openrouter
+
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
     echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 2.5 Flash + extended thinking)"
     echo -e "     ${DIM}Deeper analysis, high detail | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
     echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash)"
     echo -e "     ${DIM}Recommended default | ~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min${NC}"
-    echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
-    echo -e "     ${DIM}Fastest generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
+    if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+        echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
+        echo -e "     ${DIM}Fastest generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
+    else
+        echo -e "  ${DIM}3) Hyper - (unavailable - OpenRouter API key issue)${NC}"
+    fi
     echo -e "  ${YELLOW}4)${NC} ${BOLD}Browse models...${NC} - Choose your own"
     echo -e "     ${DIM}Interactive model selection from available providers${NC}"
-    echo -e "  ${GREEN}5)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
-    echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
-    echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
-    echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
+    if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+        echo -e "  ${GREEN}5)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
+        echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
+        echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
+        echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
+    else
+        echo -e "  ${DIM}5) Free (Best) - (unavailable - OpenRouter API key issue)${NC}"
+        echo -e "  ${DIM}6) Free (Fastest) - (unavailable - OpenRouter API key issue)${NC}"
+    fi
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
     read -r preset_choice
@@ -107,17 +122,35 @@ select_preset() {
             echo -e "${GREEN}Using Balanced preset (~${TIMING_BALANCED[0]}-${TIMING_BALANCED[1]} min)${NC}"
             ;;
         3)
-            CURRENT_PRESET="$PRESET_HYPER"
-            echo -e "${CYAN}Using Hyper preset (~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min)${NC}"
+            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+                CURRENT_PRESET="$PRESET_HYPER"
+                echo -e "${CYAN}Using Hyper preset (~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min)${NC}"
+            else
+                echo -e "${YELLOW}Hyper preset unavailable (OpenRouter API key issue)${NC}"
+                echo -e "${GREEN}Falling back to Balanced preset${NC}"
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
             ;;
         4)
             browse_models
             ;;
         5)
-            select_free_model "best"
+            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+                select_free_model "best"
+            else
+                echo -e "${YELLOW}Free models unavailable (OpenRouter API key issue)${NC}"
+                echo -e "${GREEN}Falling back to Balanced preset${NC}"
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
             ;;
         6)
-            select_free_model "fastest"
+            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+                select_free_model "fastest"
+            else
+                echo -e "${YELLOW}Free models unavailable (OpenRouter API key issue)${NC}"
+                echo -e "${GREEN}Falling back to Balanced preset${NC}"
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
             ;;
         *)
             CURRENT_PRESET="$PRESET_BALANCED"
@@ -504,6 +537,56 @@ check_server() {
     fi
 }
 
+# Check if OpenRouter is actually working (not just configured)
+# This makes a lightweight API call to verify the key is valid
+verify_openrouter() {
+    if [ "$OPENROUTER_VERIFIED" != "unknown" ]; then
+        return  # Already checked
+    fi
+
+    # Check if provider reports openrouter as available (key is configured)
+    provider_status=$(curl -s "$API_BASE/api/v1/models/providers" 2>/dev/null)
+    or_available=$(echo "$provider_status" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    found = any(p.get('provider') == 'openrouter' and p.get('available') for p in d.get('providers', []))
+    print('yes' if found else 'no')
+except:
+    print('no')
+" 2>/dev/null || echo "no")
+
+    if [ "$or_available" = "yes" ]; then
+        # OpenRouter is configured, test if the API key actually works
+        # Use the free models endpoint which makes a real OpenRouter API call
+        test_result=$(curl -s -m 10 "$API_BASE/api/v1/models/free" 2>/dev/null)
+
+        # Check for various error indicators
+        if echo "$test_result" | grep -qi "error\|401\|403\|Authentication\|Unauthorized\|Invalid"; then
+            OPENROUTER_VERIFIED="false"
+        elif echo "$test_result" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    # If we got a valid response with free models or at least no error, it's working
+    if 'error' in d or 'detail' in d:
+        print('error')
+    elif 'all_free' in d or 'total' in d:
+        print('ok')
+    else:
+        print('unknown')
+except:
+    print('error')
+" 2>/dev/null | grep -q "ok"; then
+            OPENROUTER_VERIFIED="true"
+        else
+            OPENROUTER_VERIFIED="false"
+        fi
+    else
+        OPENROUTER_VERIFIED="false"
+    fi
+}
+
 wait_for_key() {
     echo ""
     echo -e "${DIM}Press any key to continue...${NC}"
@@ -882,19 +965,31 @@ rapid_test() {
     echo -e "${CYAN}One-click hyper speed test with image generation${NC}"
     echo ""
 
+    # Check OpenRouter availability for hyper preset
+    verify_openrouter
+
     # Pick a random template
     template_count=${#TEMPLATES[@]}
     random_idx=$((RANDOM % template_count))
     query="${TEMPLATES[$random_idx]}"
 
     echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
-    echo -e "${DIM}Using: Hyper preset + Image generation + Streaming${NC}"
-    echo ""
 
-    # Run streaming with hyper preset and image enabled, skip all prompts
-    CURRENT_PRESET="$PRESET_HYPER"
-    USE_CUSTOM_MODELS="false"
-    generate_stream "$query" "true" "true" "$PRESET_HYPER"
+    # Use hyper if OpenRouter is available, otherwise fall back to balanced
+    if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+        echo -e "${DIM}Using: Hyper preset + Image generation + Streaming${NC}"
+        echo ""
+        CURRENT_PRESET="$PRESET_HYPER"
+        USE_CUSTOM_MODELS="false"
+        generate_stream "$query" "true" "true" "$PRESET_HYPER"
+    else
+        echo -e "${YELLOW}OpenRouter unavailable - using Balanced preset instead${NC}"
+        echo -e "${DIM}Using: Balanced preset + Image generation + Streaming${NC}"
+        echo ""
+        CURRENT_PRESET="$PRESET_BALANCED"
+        USE_CUSTOM_MODELS="false"
+        generate_stream "$query" "true" "true" "$PRESET_BALANCED"
+    fi
 }
 
 # Rapid test with FREE model - one-click fastest free model + image streaming
@@ -904,33 +999,95 @@ rapid_test_free() {
     echo -e "${GREEN}One-click test using fastest FREE model${NC}"
     echo ""
 
+    # Check OpenRouter availability first
+    verify_openrouter
+
+    if [ "$OPENROUTER_VERIFIED" != "true" ]; then
+        echo -e "${YELLOW}OpenRouter unavailable - using Balanced preset instead${NC}"
+        echo ""
+
+        # Pick a random template
+        template_count=${#TEMPLATES[@]}
+        random_idx=$((RANDOM % template_count))
+        query="${TEMPLATES[$random_idx]}"
+
+        echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
+        echo -e "${DIM}Using: Balanced preset + Image generation + Streaming${NC}"
+        echo ""
+        CURRENT_PRESET="$PRESET_BALANCED"
+        USE_CUSTOM_MODELS="false"
+        generate_stream "$query" "true" "true" "$PRESET_BALANCED"
+        return
+    fi
+
     # Fetch fastest free model from API
     echo -e "${DIM}Fetching fastest free model from OpenRouter...${NC}"
     free_response=$(curl -s "$API_BASE/api/v1/models/free")
 
     if [ -z "$free_response" ] || echo "$free_response" | grep -q "error"; then
-        echo -e "${RED}Failed to fetch free models. Falling back to hyper preset.${NC}"
-        rapid_test
+        echo -e "${RED}Failed to fetch free models. Falling back to balanced preset.${NC}"
+        echo ""
+
+        # Pick a random template
+        template_count=${#TEMPLATES[@]}
+        random_idx=$((RANDOM % template_count))
+        query="${TEMPLATES[$random_idx]}"
+
+        echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        USE_CUSTOM_MODELS="false"
+        generate_stream "$query" "true" "true" "$PRESET_BALANCED"
         return
     fi
 
-    # Parse the fastest model
-    fastest_model=$(echo "$free_response" | python3 -c "
+    # Parse the fastest model with debug info
+    parse_result=$(echo "$free_response" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     fastest = data.get('fastest')
-    if fastest:
-        print(fastest.get('id', ''))
+    total = data.get('total', 0)
+    if fastest and fastest.get('id'):
+        print(f'OK:{fastest.get(\"id\")}')
+    elif total == 0:
+        print('EMPTY:no free models returned')
+    elif not fastest:
+        print('MISSING:fastest field not in response')
     else:
-        print('')
-except:
-    print('')
+        print('NOID:fastest model has no id')
+except Exception as e:
+    print(f'ERROR:{e}')
 " 2>/dev/null)
 
+    # Extract model ID if parsing succeeded
+    if [[ "$parse_result" == OK:* ]]; then
+        fastest_model="${parse_result#OK:}"
+    else
+        fastest_model=""
+    fi
+
     if [ -z "$fastest_model" ]; then
-        echo -e "${RED}No fastest free model available. Falling back to hyper preset.${NC}"
-        rapid_test
+        # Show why we couldn't get the model
+        if [[ "$parse_result" == EMPTY:* ]]; then
+            echo -e "${YELLOW}No free models available from OpenRouter.${NC}"
+        elif [[ "$parse_result" == MISSING:* ]]; then
+            echo -e "${YELLOW}Free models endpoint returned unexpected format.${NC}"
+        elif [[ "$parse_result" == ERROR:* ]]; then
+            echo -e "${YELLOW}Failed to parse free models response: ${parse_result#ERROR:}${NC}"
+        else
+            echo -e "${YELLOW}Could not determine fastest free model.${NC}"
+        fi
+        echo -e "${DIM}Falling back to balanced preset.${NC}"
+
+        # Pick a random template
+        template_count=${#TEMPLATES[@]}
+        random_idx=$((RANDOM % template_count))
+        query="${TEMPLATES[$random_idx]}"
+
+        echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
+        CURRENT_PRESET="$PRESET_BALANCED"
+        USE_CUSTOM_MODELS="false"
+        generate_stream "$query" "true" "true" "$PRESET_BALANCED"
         return
     fi
 
@@ -2198,6 +2355,9 @@ main() {
     check_server
 
     while true; do
+        # Reset OpenRouter verification on each loop so API key changes are detected
+        OPENROUTER_VERIFIED="unknown"
+
         print_header
         print_menu
 

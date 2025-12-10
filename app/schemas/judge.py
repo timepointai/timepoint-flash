@@ -61,9 +61,9 @@ class JudgeResult(BaseModel):
         default=QueryType.HISTORICAL,
         description="Classification of the temporal query",
     )
-    cleaned_query: str = Field(
-        default="",
-        description="Normalized/improved version of the query",
+    cleaned_query: str | None = Field(
+        default=None,
+        description="Normalized/improved version of the query (null for invalid queries)",
     )
     confidence: float = Field(
         default=0.8,
