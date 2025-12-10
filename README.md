@@ -30,7 +30,7 @@ Then **chat with the characters**, extend the dialog, or survey them all with qu
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/realityinspector/timepoint-flash.git
+git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
 pip install -e .
 
@@ -224,6 +224,7 @@ timepoint-flash/
 ## Documentation
 
 - [QUICKSTART.md](QUICKSTART.md) - Step-by-step getting started guide
+- [docs/AGENTS.md](docs/AGENTS.md) - Multi-agent architecture explained
 - [docs/API.md](docs/API.md) - Complete API reference
 - [docs/TEMPORAL.md](docs/TEMPORAL.md) - Temporal navigation guide
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide
