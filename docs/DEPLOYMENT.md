@@ -39,7 +39,7 @@ The Blueprint creates both the web service and PostgreSQL database.
 
 ```bash
 # Clone repository
-git clone https://github.com/realityinspector/timepoint-flash.git
+git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
 
 # Configure environment
@@ -334,5 +334,5 @@ kubectl logs -f deployment/timepoint-flash
 
 ## Support
 
-- Issues: https://github.com/realityinspector/timepoint-flash/issues
-- Documentation: https://github.com/realityinspector/timepoint-flash/tree/main/docs
+- Issues: https://github.com/timepoint-ai/timepoint-flash/issues
+- Documentation: https://github.com/timepoint-ai/timepoint-flash/tree/main/docs
