@@ -37,7 +37,7 @@ Plus a hyper-real AI-rendered visual locked on the chaos. Now **interrogate the 
 ```
 > You: "Brutus, do you regret what you've done?"
 
-Brutus: "Regret? It surges through me like a glitch in the system. But Rome... Rome overrides all. I revered Caesar, yet the republic's code demanded the reset. Will the timeline forgive? I doubt it."
+Brutus: "Regret, you ask? One does not regret performing a necessary duty for the Republic, however grievous the cost to one's own soul. My heart aches for the friend I lost, but my conscience stands firm for the liberty of Rome."
 ```
 
 This is your rapid prototype deck for synthetic time travel – part of Timepoint AI's modular lab. Flash spins up scenes for web/app devs to test, tweak, and deploy. Pair it with Daedalus for heavy simulations or Clockchain for oracle-proof predictions.
@@ -117,9 +117,9 @@ POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
 ```
 "What do you fear most right now?"
 
-Caesar: "Fear? I define the code."
-Brutus: "That the republic's loop breaks..."
-Cassius: "Antony flipping the switch..."
+Caesar: "My greatest concern is not for myself, but for the stability of Rome, and the treacherous hearts that might seek to unravel the peace I have forged."
+Brutus: "That our Republic, forged by the spirit of liberty, becomes merely a name, subservient to the will of one man."
+Cassius: "That the spirit of our Republic will be extinguished, replaced by the shadow of one man's boundless ambition."
 ```
 
 ---
