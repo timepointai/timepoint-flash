@@ -88,11 +88,12 @@ Demo dashboard dials you in:
 
 **Power moves:**
 - **RAPID TEST**: Random template, max speed, instant image – test the flux.
-- **Dial presets**: HD for pixel-perfect (4-6 min), Balanced for flow (2-4 min), Hyper for velocity (1-2 min).
+- **Dial presets**: HD for pixel-perfect (~2 min), Balanced for flow (~90s), Hyper for velocity (~50s via OpenRouter).
 - **Model selector**: Filter providers, hunt specifics, lock your weapon.
-- **Free tier ops**: Tap OpenRouter's no-pay zone – quality king or speed demon.
+- **Free tier ops**: Tap OpenRouter's no-pay zone via `/api/v1/models/free` – quality king or speed demon.
 - **10 locked templates**: Caesar takedown, Moon touchdown, Independence ink, Thermopylae stand, Berlin Wall breach, etc.
 - **Player probes**: Chat deep, extend lines, survey perspectives.
+- **Streaming API**: Use `/generate/stream` for real-time progress updates (recommended).
 
 ---
 
@@ -175,11 +176,11 @@ DATABASE_URL=sqlite+aiosqlite:///./timepoint.db  # Plug-and-play storage
 
 Preset dials:
 
-| Preset | Cycle Time | Lock For |
-|--------|------------|----------|
-| **Hyper** | ~1-2 min | Quick scans |
-| **Balanced** | ~2-4 min | Solid builds |
-| **HD** | ~4-6 min | Max fidelity |
+| Preset | Cycle Time | Provider | Lock For |
+|--------|------------|----------|----------|
+| **Hyper** | ~50s | OpenRouter | Quick scans, prototyping |
+| **Balanced** | ~90s | Google Native | Solid builds |
+| **HD** | ~2 min | Google Native | Max fidelity (extended thinking) |
 
 ---
 

@@ -8,11 +8,11 @@ Interactive docs: [Swagger UI](http://localhost:8000/docs) | [ReDoc](http://loca
 
 ## Quick Examples
 
-**Generate a scene:**
+**Generate a scene (streaming - recommended):**
 ```bash
 curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
-  -d '{"query": "moon landing 1969", "generate_image": true}'
+  -d '{"query": "moon landing 1969", "preset": "hyper", "generate_image": true}'
 ```
 
 **Chat with a character:**
@@ -31,21 +31,56 @@ curl -X POST http://localhost:8000/api/v1/temporal/{timepoint_id}/next \
 
 ---
 
+## Quality Presets
+
+Control the speed/quality tradeoff with presets:
+
+| Preset | Speed | Quality | Text Model | Provider |
+|--------|-------|---------|------------|----------|
+| **hyper** | ~50s | Good | `google/gemini-2.0-flash-001` | OpenRouter |
+| **balanced** | ~90s | Better | `gemini-2.5-flash` | Google Native |
+| **hd** | ~120s | Best | `gemini-2.5-flash` (extended thinking) | Google Native |
+
+**Usage:**
+```json
+{
+  "query": "boston tea party",
+  "preset": "hyper",
+  "generate_image": false
+}
+```
+
+**Model Overrides:**
+
+Override preset models for custom configurations:
+```json
+{
+  "query": "boston tea party",
+  "text_model": "google/gemini-2.0-flash-001",
+  "image_model": "gemini-2.5-flash-image"
+}
+```
+
+---
+
 ## Endpoints Overview
 
 | Category | Endpoint | Description |
 |----------|----------|-------------|
-| **Generate** | `POST /api/v1/timepoints/generate/stream` | Create a scene (streaming) |
+| **Generate** | `POST /api/v1/timepoints/generate/stream` | Create a scene (streaming) - **recommended** |
+| **Generate** | `POST /api/v1/timepoints/generate/sync` | Create a scene (blocking) |
+| **Generate** | `POST /api/v1/timepoints/generate` | Create a scene (background task) |
 | **Get** | `GET /api/v1/timepoints/{id}` | Retrieve a scene |
 | **Chat** | `POST /api/v1/interactions/{id}/chat` | Talk to a character |
 | **Time Travel** | `POST /api/v1/temporal/{id}/next` | Jump forward |
 | **Time Travel** | `POST /api/v1/temporal/{id}/prior` | Jump backward |
+| **Models** | `GET /api/v1/models/free` | List free OpenRouter models |
 
 ---
 
 ## Timepoints
 
-### POST /api/v1/timepoints/generate/stream
+### POST /api/v1/timepoints/generate/stream (Recommended)
 
 Generate a scene with real-time progress updates via Server-Sent Events.
 
@@ -53,6 +88,7 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 ```json
 {
   "query": "signing of the declaration of independence",
+  "preset": "hyper",
   "generate_image": true
 }
 ```
@@ -61,6 +97,9 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 |-------|------|----------|-------------|
 | query | string | Yes | Historical moment (3-500 chars) |
 | generate_image | boolean | No | Generate AI image (default: false) |
+| preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default) |
+| text_model | string | No | Override text model (ignores preset) |
+| image_model | string | No | Override image model (ignores preset) |
 
 **Response:** SSE stream with events:
 
@@ -69,10 +108,41 @@ data: {"event": "start", "step": "initialization", "progress": 0}
 data: {"event": "step_complete", "step": "judge", "progress": 10}
 data: {"event": "step_complete", "step": "timeline", "progress": 20}
 data: {"event": "step_complete", "step": "scene", "progress": 30}
-data: {"event": "step_complete", "step": "characters", "progress": 40}
-data: {"event": "step_complete", "step": "dialog", "progress": 60}
+data: {"event": "step_complete", "step": "characters", "progress": 50}
+data: {"event": "step_complete", "step": "moment", "progress": 65}
+data: {"event": "step_complete", "step": "camera", "progress": 65}
+data: {"event": "step_complete", "step": "dialog", "progress": 80}
 data: {"event": "step_complete", "step": "image_prompt", "progress": 90}
-data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123"}}
+data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123", "slug": "...", "status": "completed"}}
+```
+
+---
+
+### POST /api/v1/timepoints/generate/sync
+
+Generate a scene synchronously. Blocks until complete (30-120 seconds).
+
+**Request:** Same as streaming endpoint.
+
+**Response:** Full `TimepointResponse` object.
+
+---
+
+### POST /api/v1/timepoints/generate
+
+Start background generation. Returns immediately with timepoint ID.
+
+**Note:** Poll `GET /api/v1/timepoints/{id}` for completion status.
+
+**Request:** Same as streaming endpoint (preset support limited - see Known Issues).
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "message": "Generation started for 'moon landing 1969'"
+}
 ```
 
 ---
@@ -84,6 +154,7 @@ Get a completed scene.
 **Query Params:**
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
+| full | boolean | false | Include full metadata (scene, characters, dialog) |
 | include_image | boolean | false | Include base64 image data |
 
 **Response:**
@@ -100,12 +171,12 @@ Get a completed scene.
   "location": "Independence Hall, Philadelphia",
   "characters": {
     "characters": [
-      {"name": "John Hancock", "role": "President of Congress", "bio": "..."},
-      {"name": "Benjamin Franklin", "role": "Elder statesman", "bio": "..."}
+      {"name": "John Hancock", "role": "primary", "description": "..."},
+      {"name": "Benjamin Franklin", "role": "secondary", "description": "..."}
     ]
   },
   "dialog": [
-    {"speaker": "John Hancock", "line": "Let us sign this declaration..."}
+    {"speaker": "John Hancock", "text": "Let us sign this declaration..."}
   ],
   "scene": {"setting": "...", "atmosphere": "..."},
   "image_prompt": "..."
@@ -123,6 +194,7 @@ List all scenes with pagination.
 |------|------|---------|
 | page | int | 1 |
 | page_size | int | 20 |
+| status | string | null | Filter by status (completed, failed, processing) |
 
 ---
 
@@ -258,9 +330,47 @@ Get all linked scenes (prior and next).
 
 List available AI models.
 
+**Query Params:**
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| fetch_remote | boolean | false | Fetch live models from OpenRouter |
+| free_only | boolean | false | Only return free models |
+
+### GET /api/v1/models/free
+
+Get available free models from OpenRouter.
+
+**Response:**
+```json
+{
+  "best": {
+    "id": "google/gemini-2.0-flash-exp:free",
+    "name": "Google: Gemini 2.0 Flash Experimental (free)",
+    "context_length": 1048576,
+    "is_free": true
+  },
+  "fastest": {
+    "id": "google/gemini-2.0-flash-exp:free",
+    "name": "Google: Gemini 2.0 Flash Experimental (free)",
+    "context_length": 1048576,
+    "is_free": true
+  },
+  "all_free": [...],
+  "total": 15
+}
+```
+
 ### GET /api/v1/models/providers
 
 Check which providers (Google, OpenRouter) are configured.
+
+**Response:**
+```json
+{
+  "google": true,
+  "openrouter": true
+}
+```
 
 ---
 
@@ -269,7 +379,15 @@ Check which providers (Google, OpenRouter) are configured.
 ### GET /health
 
 ```json
-{"status": "healthy", "version": "2.2.1"}
+{
+  "status": "healthy",
+  "version": "2.2.0",
+  "database": true,
+  "providers": {
+    "google": true,
+    "openrouter": true
+  }
+}
 ```
 
 ---
@@ -290,3 +408,15 @@ All errors return:
 | 500 | Server error |
 
 Rate limit: 60 requests/minute per IP.
+
+---
+
+## Known Issues
+
+1. **`POST /generate` ignores preset parameter** - The background generation endpoint does not pass the preset to the pipeline. Use `/generate/stream` or `/generate/sync` instead.
+
+2. **No free model preset** - While free models are available via `/api/v1/models/free`, no built-in preset uses them. Use `text_model` override to specify free models manually.
+
+---
+
+*Last updated: 2025-12-17*
