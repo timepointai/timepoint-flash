@@ -161,4 +161,36 @@ VERDICT: Pipeline wins on quality (8.9 vs 8.6)
 
 ---
 
-*Last updated: 2025-12-10*
+## Known Issues
+
+Issues discovered during testing that affect functionality:
+
+### 1. Background Generation Ignores Preset (Bug)
+
+**Location:** `app/api/v1/timepoints.py` - `run_generation_task()`
+
+**Issue:** The `POST /api/v1/timepoints/generate` endpoint accepts a `preset` parameter but doesn't pass it to the `GenerationPipeline()`. The pipeline always uses default settings.
+
+**Workaround:** Use `/generate/stream` or `/generate/sync` endpoints instead.
+
+**Fix:** Pass preset, text_model, and image_model to pipeline in background task.
+
+---
+
+### 2. No Free Model Preset
+
+**Issue:** While free models are available via `/api/v1/models/free` (e.g., `google/gemini-2.0-flash-001:free`), no built-in preset uses them. Users must manually specify free models via `text_model` override.
+
+**Enhancement:** Add a "free" preset that uses verified free models.
+
+---
+
+### 3. Fallback Direction
+
+**Issue:** The fallback logic goes free → paid models, but not paid → free. When paid models fail (e.g., rate limits), the system doesn't try free alternatives.
+
+**Enhancement:** Add configurable fallback to include free models as last resort.
+
+---
+
+*Last updated: 2025-12-17*
