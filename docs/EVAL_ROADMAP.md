@@ -177,11 +177,15 @@ Issues discovered during testing that affect functionality:
 
 ---
 
-### 2. No Free Model Preset
+### 2. No API `preset: "free"` Option
 
-**Issue:** While free models are available via `/api/v1/models/free` (e.g., `google/gemini-2.0-flash-001:free`), no built-in preset uses them. Users must manually specify free models via `text_model` override.
+**Issue:** The API does not have a built-in `preset: "free"` parameter option.
 
-**Enhancement:** Add a "free" preset that uses verified free models.
+**Current Support:**
+- **CLI (demo.sh)**: Full free model support via preset options 5/6 ("Free Best"/"Free Fastest") and "RAPID TEST FREE" menu option
+- **API**: Use `text_model` override with free model IDs from `/api/v1/models/free` (e.g., `google/gemini-2.0-flash-001:free`)
+
+**Enhancement:** Add a "free" preset to the API for consistency with CLI.
 
 ---
 
