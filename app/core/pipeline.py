@@ -172,6 +172,34 @@ class PipelineState:
         """Check if any step failed."""
         return any(not r.success for r in self.step_results)
 
+    @property
+    def has_critical_errors(self) -> bool:
+        """Check if any critical (non-image) step failed.
+
+        Image generation failures are non-critical because the user
+        still gets all the valuable text content (characters, dialog, etc).
+        """
+        return any(
+            not r.success and r.step != PipelineStep.IMAGE_GENERATION
+            for r in self.step_results
+        )
+
+    @property
+    def image_generation_failed(self) -> bool:
+        """Check if image generation specifically failed."""
+        for r in self.step_results:
+            if r.step == PipelineStep.IMAGE_GENERATION and not r.success:
+                return True
+        return False
+
+    @property
+    def image_generation_error(self) -> str | None:
+        """Get the image generation error message if it failed."""
+        for r in self.step_results:
+            if r.step == PipelineStep.IMAGE_GENERATION and not r.success:
+                return r.error
+        return None
+
     def get_step_result(self, step: PipelineStep) -> StepResult | None:
         """Get result for a specific step."""
         for result in self.step_results:
@@ -1395,13 +1423,22 @@ class GenerationPipeline:
         Returns:
             Timepoint model ready for database
         """
-        # Determine status
+        # Determine status - image generation failures are non-critical
+        # If all text content was generated successfully but only image failed,
+        # we still mark as COMPLETED so user gets their valuable content
         if not state.is_valid:
             status = TimepointStatus.FAILED
-        elif state.has_errors:
+        elif state.has_critical_errors:
+            # Critical step failed (judge, timeline, scene, characters, dialog, etc.)
             status = TimepointStatus.FAILED
         else:
+            # All critical steps succeeded - mark as completed
+            # (even if image generation failed due to rate limits)
             status = TimepointStatus.COMPLETED
+            if state.image_generation_failed:
+                logger.warning(
+                    f"Timepoint completed but image generation failed: {state.image_generation_error}"
+                )
 
         # Generate slug
         year = state.timeline_data.year if state.timeline_data else None
@@ -1465,6 +1502,11 @@ class GenerationPipeline:
         if status == TimepointStatus.FAILED:
             errors = [r.error for r in state.step_results if r.error]
             timepoint.error_message = "; ".join(errors) if errors else "Unknown error"
+        elif state.image_generation_failed:
+            # Store image error as warning in metadata (not a failure)
+            if timepoint.metadata_json is None:
+                timepoint.metadata_json = {}
+            timepoint.metadata_json["image_generation_warning"] = state.image_generation_error
 
         return timepoint
 
