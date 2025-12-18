@@ -748,6 +748,91 @@ class LLMRouter:
 
             raise
 
+    async def _generate_image_with_retry(
+        self,
+        provider: LLMProvider,
+        model: str,
+        prompt: str,
+        **kwargs: Any,
+    ) -> LLMResponse[str]:
+        """Call image generation with proactive rate limiting and exponential backoff retry.
+
+        Handles rate limits gracefully with:
+        1. Proactive rate limiting (token bucket) to prevent 429s
+        2. Reactive retry with exponential backoff if 429s still occur
+
+        Args:
+            provider: The LLM provider to use
+            model: Model ID
+            prompt: The image prompt
+            **kwargs: Additional parameters
+
+        Returns:
+            LLMResponse from the provider
+
+        Raises:
+            ProviderError: If all retries fail
+        """
+        last_error = None
+        backoff = INITIAL_BACKOFF
+        # Use more retries for image generation since it's expensive to fail
+        image_max_retries = MAX_RETRIES + 2  # 7 retries total
+
+        for attempt in range(1, image_max_retries + 1):
+            try:
+                # Proactive rate limiting: wait for token before making call
+                # Image generation uses native tier (Google API)
+                tier = "native"
+                acquired = await acquire_rate_limit(model, timeout=60.0)  # Longer timeout for images
+                if not acquired:
+                    logger.warning(
+                        f"Rate limit token not acquired for image model {model} (tier={tier}), "
+                        "proceeding anyway with risk of 429"
+                    )
+
+                return await provider.generate_image(prompt, model, **kwargs)
+            except RateLimitError as e:
+                last_error = e
+
+                # Get retry-after from headers if available, otherwise use longer backoff for images
+                wait_time = e.retry_after if e.retry_after else backoff
+                # For image generation, use longer max backoff
+                image_max_backoff = MAX_BACKOFF * 2  # 4 minutes max for images
+                wait_time = min(wait_time, image_max_backoff)
+
+                if attempt < image_max_retries:
+                    logger.warning(
+                        f"Image rate limit hit on {model} (attempt {attempt}/{image_max_retries}). "
+                        f"Waiting {wait_time:.1f}s before retry..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, image_max_backoff)
+                else:
+                    logger.warning(
+                        f"Image rate limit persists after {image_max_retries} attempts on {model}"
+                    )
+            except ProviderError as e:
+                # Retry on transient server errors (500, 502, 503, 504)
+                if e.retryable and attempt < image_max_retries:
+                    last_error = e
+                    wait_time = min(backoff, MAX_BACKOFF)
+                    logger.warning(
+                        f"Image server error on {model} (attempt {attempt}/{image_max_retries}): {e}. "
+                        f"Waiting {wait_time:.1f}s before retry..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
+                else:
+                    # Non-retryable errors or max retries exhausted
+                    raise
+
+        # All retries exhausted
+        raise last_error or ProviderError(
+            message="All image generation retry attempts exhausted",
+            provider=provider.provider_type,
+            retryable=False,
+        )
+
     async def generate_image(
         self,
         prompt: str,
@@ -760,6 +845,8 @@ class LLMRouter:
         - Balanced: Google native Nano Banana
         - Hyper: OpenRouter fast image model
 
+        Includes automatic retry with exponential backoff for rate limits.
+
         Args:
             prompt: The image generation prompt.
             **kwargs: Additional parameters (aspect_ratio, image_size).
@@ -768,7 +855,7 @@ class LLMRouter:
             LLMResponse containing base64-encoded image.
 
         Raises:
-            ProviderError: If image generation fails.
+            ProviderError: If image generation fails after all retries.
         """
         # Determine provider for image generation
         # Prefer preset's image_provider, then Google native, then fallback
@@ -794,7 +881,7 @@ class LLMRouter:
 
         logger.debug(f"Image generation: using {image_provider.value} with model {model}")
 
-        return await provider.generate_image(prompt, model, **image_kwargs)
+        return await self._generate_image_with_retry(provider, model, prompt, **image_kwargs)
 
     async def analyze_image(
         self,
