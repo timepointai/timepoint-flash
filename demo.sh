@@ -536,7 +536,7 @@ print_menu() {
     echo -e "  ${GREEN}1)${NC} Generate timepoint (sync) - Wait for full result"
     echo -e "  ${GREEN}2)${NC} Generate timepoint (streaming) - See live progress"
     echo -e "  ${GREEN}3)${NC} Generate from template"
-    echo -e "  ${CYAN}4)${NC} ${BOLD}RAPID TEST${NC} - One-click hyper + image (streaming)"
+    echo -e "  ${CYAN}4)${NC} ${BOLD}RAPID TEST${NC} - One-click Gemini 3 + image (streaming)"
     echo -e "  ${GREEN}5)${NC} ${BOLD}RAPID TEST FREE${NC} - One-click fastest free model + image"
     echo -e "  ${GREEN}6)${NC} Browse timepoints"
     echo -e "  ${GREEN}7)${NC} Health check"
@@ -980,14 +980,14 @@ generate_from_template() {
     fi
 }
 
-# Rapid test - one-click hyper + image streaming
+# Rapid test - one-click Gemini 3 + image streaming
 rapid_test() {
     echo -e "${BOLD}=== RAPID TEST ===${NC}"
     echo ""
-    echo -e "${CYAN}One-click hyper speed test with image generation${NC}"
+    echo -e "${MAGENTA}One-click Gemini 3 Flash test with image generation${NC}"
     echo ""
 
-    # Check OpenRouter availability for hyper preset
+    # Check OpenRouter availability for Gemini 3 preset
     verify_openrouter
 
     # Pick a random template
@@ -997,13 +997,13 @@ rapid_test() {
 
     echo -e "${GREEN}Random template:${NC} ${BOLD}$query${NC}"
 
-    # Use hyper if OpenRouter is available, otherwise fall back to balanced
+    # Use Gemini 3 if OpenRouter is available, otherwise fall back to balanced
     if [ "$OPENROUTER_VERIFIED" = "true" ]; then
-        echo -e "${DIM}Using: Hyper preset + Image generation + Streaming${NC}"
+        echo -e "${DIM}Using: Gemini 3 Flash preset + Image generation + Streaming${NC}"
         echo ""
-        CURRENT_PRESET="$PRESET_HYPER"
+        CURRENT_PRESET="$PRESET_GEMINI3"
         USE_CUSTOM_MODELS="false"
-        generate_stream "$query" "true" "true" "$PRESET_HYPER"
+        generate_stream "$query" "true" "true" "$PRESET_GEMINI3"
     else
         echo -e "${YELLOW}OpenRouter unavailable - using Balanced preset instead${NC}"
         echo -e "${DIM}Using: Balanced preset + Image generation + Streaming${NC}"
@@ -1906,67 +1906,73 @@ select_interaction_model() {
     echo ""
     echo -e "  ${GREEN}1)${NC} ${BOLD}Default${NC} - Use server default model"
     echo -e "     ${DIM}gemini-2.5-flash (Google native)${NC}"
-    echo -e "  ${MAGENTA}2)${NC} ${BOLD}Claude Opus 4.5${NC} - Anthropic frontier reasoning via OpenRouter"
+    echo -e "  ${MAGENTA}2)${NC} ${BOLD}Gemini 3 Flash${NC} - Google latest thinking model via OpenRouter"
+    echo -e "     ${DIM}google/gemini-3-flash-preview${NC}"
+    echo -e "  ${MAGENTA}3)${NC} ${BOLD}Claude Opus 4.5${NC} - Anthropic frontier reasoning via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-opus-4.5${NC}"
-    echo -e "  ${MAGENTA}3)${NC} ${BOLD}Claude Sonnet 4.5${NC} - Anthropic best for coding/agents via OpenRouter"
+    echo -e "  ${MAGENTA}4)${NC} ${BOLD}Claude Sonnet 4.5${NC} - Anthropic best for coding/agents via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-sonnet-4.5${NC}"
-    echo -e "  ${MAGENTA}4)${NC} ${BOLD}Claude Opus 4${NC} - Anthropic flagship via OpenRouter"
+    echo -e "  ${MAGENTA}5)${NC} ${BOLD}Claude Opus 4${NC} - Anthropic flagship via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-opus-4${NC}"
-    echo -e "  ${MAGENTA}5)${NC} ${BOLD}Claude Sonnet 4${NC} - Anthropic balanced via OpenRouter"
+    echo -e "  ${MAGENTA}6)${NC} ${BOLD}Claude Sonnet 4${NC} - Anthropic balanced via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-sonnet-4${NC}"
-    echo -e "  ${MAGENTA}6)${NC} ${BOLD}Claude 3.5 Sonnet${NC} - Anthropic via OpenRouter"
+    echo -e "  ${MAGENTA}7)${NC} ${BOLD}Claude 3.5 Sonnet${NC} - Anthropic via OpenRouter"
     echo -e "     ${DIM}anthropic/claude-3.5-sonnet${NC}"
-    echo -e "  ${YELLOW}7)${NC} ${BOLD}GPT-4${NC} - OpenAI via OpenRouter"
+    echo -e "  ${YELLOW}8)${NC} ${BOLD}GPT-4${NC} - OpenAI via OpenRouter"
     echo -e "     ${DIM}openai/gpt-4${NC}"
-    echo -e "  ${CYAN}8)${NC} ${BOLD}Llama 3.1 405B${NC} - Meta flagship via OpenRouter"
+    echo -e "  ${CYAN}9)${NC} ${BOLD}Llama 3.1 405B${NC} - Meta flagship via OpenRouter"
     echo -e "     ${DIM}meta-llama/llama-3.1-405b-instruct${NC}"
-    echo -e "  ${CYAN}9)${NC} ${BOLD}Llama 3.1 70B${NC} - Meta large via OpenRouter"
+    echo -e "  ${CYAN}10)${NC} ${BOLD}Llama 3.1 70B${NC} - Meta large via OpenRouter"
     echo -e "     ${DIM}meta-llama/llama-3.1-70b-instruct${NC}"
-    echo -e "  ${GREEN}10)${NC} ${BOLD}Qwen 2.5 3B${NC} - Alibaba small/fast via OpenRouter"
+    echo -e "  ${GREEN}11)${NC} ${BOLD}Qwen 2.5 3B${NC} - Alibaba small/fast via OpenRouter"
     echo -e "     ${DIM}qwen/qwen-2.5-3b-instruct${NC}"
-    echo -e "  ${DIM}11)${NC} ${BOLD}Custom...${NC} - Enter model ID"
+    echo -e "  ${DIM}12)${NC} ${BOLD}Custom...${NC} - Enter model ID"
     echo ""
     echo -e "${YELLOW}Select (default=1): ${NC}\c"
     read -r model_choice
 
     case "$model_choice" in
         2)
+            INTERACTION_MODEL="google/gemini-3-flash-preview"
+            echo -e "${GREEN}Using: google/gemini-3-flash-preview${NC}"
+            ;;
+        3)
             INTERACTION_MODEL="anthropic/claude-opus-4.5"
             echo -e "${GREEN}Using: anthropic/claude-opus-4.5${NC}"
             ;;
-        3)
+        4)
             INTERACTION_MODEL="anthropic/claude-sonnet-4.5"
             echo -e "${GREEN}Using: anthropic/claude-sonnet-4.5${NC}"
             ;;
-        4)
+        5)
             INTERACTION_MODEL="anthropic/claude-opus-4"
             echo -e "${GREEN}Using: anthropic/claude-opus-4${NC}"
             ;;
-        5)
+        6)
             INTERACTION_MODEL="anthropic/claude-sonnet-4"
             echo -e "${GREEN}Using: anthropic/claude-sonnet-4${NC}"
             ;;
-        6)
+        7)
             INTERACTION_MODEL="anthropic/claude-3.5-sonnet"
             echo -e "${GREEN}Using: anthropic/claude-3.5-sonnet${NC}"
             ;;
-        7)
+        8)
             INTERACTION_MODEL="openai/gpt-4"
             echo -e "${GREEN}Using: openai/gpt-4${NC}"
             ;;
-        8)
+        9)
             INTERACTION_MODEL="meta-llama/llama-3.1-405b-instruct"
             echo -e "${GREEN}Using: meta-llama/llama-3.1-405b-instruct${NC}"
             ;;
-        9)
+        10)
             INTERACTION_MODEL="meta-llama/llama-3.1-70b-instruct"
             echo -e "${GREEN}Using: meta-llama/llama-3.1-70b-instruct${NC}"
             ;;
-        10)
+        11)
             INTERACTION_MODEL="qwen/qwen-2.5-3b-instruct"
             echo -e "${GREEN}Using: qwen/qwen-2.5-3b-instruct${NC}"
             ;;
-        11)
+        12)
             echo -e "${YELLOW}Enter model ID (e.g., 'google/gemini-2.5-flash-preview'): ${NC}\c"
             read -r custom_model
             if [ -n "$custom_model" ]; then

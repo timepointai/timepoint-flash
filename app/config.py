@@ -377,13 +377,21 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_providers(self) -> "Settings":
-        """Ensure at least one provider API key is configured."""
-        if not self.GOOGLE_API_KEY and not self.OPENROUTER_API_KEY:
-            raise ValueError(
-                "At least one provider API key is required "
-                "(GOOGLE_API_KEY or OPENROUTER_API_KEY)"
-            )
+        """Check provider API key configuration (soft validation).
+
+        Note: This no longer raises an error to allow the app to start
+        without API keys configured. The health endpoint will report
+        providers as unavailable instead.
+        """
+        # Soft validation - just track if any providers are available
+        # The app will start but providers will be marked as unavailable
+        self._has_any_provider = bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY)
         return self
+
+    @property
+    def has_any_provider(self) -> bool:
+        """Check if any provider API key is configured."""
+        return bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY)
 
     @property
     def is_production(self) -> bool:
