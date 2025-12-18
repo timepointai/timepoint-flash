@@ -4,7 +4,7 @@
 #
 # Features tested:
 #   - Health, models, providers endpoints
-#   - All quality presets (HD, Balanced, Hyper)
+#   - All quality presets (HD, Balanced, Hyper, Gemini3)
 #   - Free model selection (best/fastest)
 #   - Timepoint CRUD operations
 #   - Parallel pipeline execution (graph|moment|camera steps)
@@ -71,7 +71,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --quick, -q       Skip slow tests (generation)"
             echo "  --bulk, -b        Run full generation tests for all presets"
-            echo "  --preset, -p NAME Test specific preset (hd, balanced, hyper)"
+            echo "  --preset, -p NAME Test specific preset (hd, balanced, hyper, gemini3)"
             echo "  --verbose, -v     Verbose output"
             echo "  --help, -h        Show this help"
             echo ""
@@ -226,6 +226,12 @@ run_test "Hyper preset accepted" \
         -d '{\"query\": \"test\", \"preset\": \"hyper\"}' -o /dev/null -w '%{http_code}' | grep -q '200'" \
     $TIMEOUT_FAST
 
+run_test "Gemini 3 preset accepted" \
+    "curl -sf -X POST '$API_BASE/api/v1/timepoints/generate/stream' \
+        -H 'Content-Type: application/json' \
+        -d '{\"query\": \"test\", \"preset\": \"gemini3\"}' -o /dev/null -w '%{http_code}' | grep -q '200'" \
+    $TIMEOUT_FAST
+
 # ============================================================
 # OpenRouter Availability (catches demo.sh template bug)
 # ============================================================
@@ -349,7 +355,7 @@ if [ -n "$SPECIFIC_PRESET" ]; then
     test_preset_generation "$SPECIFIC_PRESET"
 elif [ "$BULK_MODE" = true ]; then
     # Test all presets in bulk mode
-    for preset in hyper balanced hd; do
+    for preset in hyper balanced hd gemini3; do
         echo ""
         echo "--- Testing $preset preset ---"
         test_preset_generation "$preset"

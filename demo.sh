@@ -23,6 +23,7 @@ declare -a TIMEPOINT_IDS=()
 PRESET_HD="hd"
 PRESET_HYPER="hyper"
 PRESET_BALANCED="balanced"
+PRESET_GEMINI3="gemini3"
 CURRENT_PRESET=""
 
 # Provider availability cache
@@ -39,6 +40,7 @@ USE_CUSTOM_MODELS="false"
 TIMING_HD=(4 6)       # HD: highest quality with parallel steps
 TIMING_BALANCED=(2 4) # Balanced: good middle ground
 TIMING_HYPER=(1 2)    # Hyper: fastest (parallel steps)
+TIMING_GEMINI3=(2 3)  # Gemini 3: thinking model via OpenRouter
 
 # Cross-platform millisecond timestamp (macOS doesn't support date +%N)
 get_ms() {
@@ -63,6 +65,13 @@ get_timing_estimate() {
                 echo "~${TIMING_HYPER[1]} min"
             else
                 echo "~${TIMING_HYPER[0]} min"
+            fi
+            ;;
+        "$PRESET_GEMINI3")
+            if [ "$with_image" = "true" ]; then
+                echo "~${TIMING_GEMINI3[1]} min"
+            else
+                echo "~${TIMING_GEMINI3[0]} min"
             fi
             ;;
         *)
@@ -104,9 +113,12 @@ select_preset() {
         echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
         echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
         echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
+        echo -e "  ${MAGENTA}7)${NC} ${BOLD}Gemini 3 Flash${NC} - Latest thinking model (via OpenRouter)"
+        echo -e "     ${DIM}Agentic workflows, reasoning | ~${TIMING_GEMINI3[0]}-${TIMING_GEMINI3[1]} min${NC}"
     else
         echo -e "  ${DIM}5) Free (Best) - (unavailable - OpenRouter API key issue)${NC}"
         echo -e "  ${DIM}6) Free (Fastest) - (unavailable - OpenRouter API key issue)${NC}"
+        echo -e "  ${DIM}7) Gemini 3 Flash - (unavailable - OpenRouter API key issue)${NC}"
     fi
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
@@ -148,6 +160,16 @@ select_preset() {
                 select_free_model "fastest"
             else
                 echo -e "${YELLOW}Free models unavailable (OpenRouter API key issue)${NC}"
+                echo -e "${GREEN}Falling back to Balanced preset${NC}"
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
+            ;;
+        7)
+            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+                CURRENT_PRESET="$PRESET_GEMINI3"
+                echo -e "${MAGENTA}Using Gemini 3 Flash preset (~${TIMING_GEMINI3[0]}-${TIMING_GEMINI3[1]} min)${NC}"
+            else
+                echo -e "${YELLOW}Gemini 3 Flash unavailable (OpenRouter API key issue)${NC}"
                 echo -e "${GREEN}Falling back to Balanced preset${NC}"
                 CURRENT_PRESET="$PRESET_BALANCED"
             fi

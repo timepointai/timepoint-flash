@@ -51,13 +51,15 @@ class QualityPreset(str, Enum):
     """Quality preset for generation pipeline.
 
     - HD: Highest quality with Gemini 3 Pro + Google image generation
-    - HYPER: Fastest speed with Llama 8B + fast image generation
+    - HYPER: Fastest speed with Gemini 2.0 Flash via OpenRouter
     - BALANCED: Default balance of quality and speed
+    - GEMINI3: Latest Gemini 3 Flash Preview via OpenRouter (thinking model)
     """
 
     HD = "hd"
     HYPER = "hyper"
     BALANCED = "balanced"
+    GEMINI3 = "gemini3"
 
 
 class Environment(str, Enum):
@@ -101,6 +103,7 @@ class VerifiedModels:
     OPENROUTER_TEXT = [
         "google/gemini-2.0-flash-001",        # Fast, handles JSON well
         "google/gemini-2.0-flash-001:free",   # Free tier (rate limited)
+        "google/gemini-3-flash-preview",      # Latest thinking model, agentic workflows
     ]
 
     # Fallback chains - ordered by preference
@@ -181,6 +184,19 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "max_tokens": 2048,
         "thinking_level": "medium",
     },
+    QualityPreset.GEMINI3: {
+        "name": "Gemini 3 Flash",
+        "description": "Latest Gemini 3 Flash Preview - thinking model via OpenRouter",
+        # Uses latest Gemini 3 Flash Preview for text, Google native for images
+        "text_model": "google/gemini-3-flash-preview",  # VerifiedModels.OPENROUTER_TEXT[2]
+        "judge_model": "google/gemini-3-flash-preview", # VerifiedModels.OPENROUTER_TEXT[2]
+        "image_model": "gemini-2.5-flash-image",        # VerifiedModels.GOOGLE_IMAGE[0]
+        "image_provider": ProviderType.GOOGLE,
+        "text_provider": ProviderType.OPENROUTER,
+        "max_tokens": 4096,
+        "thinking_level": "medium",  # Gemini 3 supports configurable thinking
+        "image_supported": True,
+    },
 }
 
 
@@ -190,6 +206,7 @@ PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
     QualityPreset.HD: ParallelismMode.NORMAL,       # Quality focus, standard parallelism
     QualityPreset.BALANCED: ParallelismMode.NORMAL, # Default behavior
     QualityPreset.HYPER: ParallelismMode.MAX,       # Speed focus, maximum parallelism
+    QualityPreset.GEMINI3: ParallelismMode.AGGRESSIVE,  # Thinking model, moderate parallelism
 }
 
 # Provider rate limits (requests per minute and safe concurrent calls)

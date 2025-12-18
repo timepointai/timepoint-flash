@@ -181,6 +181,7 @@ Preset dials:
 | **Hyper** | ~50s | OpenRouter | Quick scans, prototyping |
 | **Balanced** | ~90s | Google Native | Solid builds |
 | **HD** | ~2 min | Google Native | Max fidelity (extended thinking) |
+| **Gemini3** | ~45s | OpenRouter | Latest thinking model, agentic workflows |
 
 ---
 

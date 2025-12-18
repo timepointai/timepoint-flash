@@ -40,6 +40,7 @@ Control the speed/quality tradeoff with presets:
 | **hyper** | ~50s | Good | `google/gemini-2.0-flash-001` | OpenRouter |
 | **balanced** | ~90s | Better | `gemini-2.5-flash` | Google Native |
 | **hd** | ~120s | Best | `gemini-2.5-flash` (extended thinking) | Google Native |
+| **gemini3** | ~45s | Excellent | `google/gemini-3-flash-preview` | OpenRouter |
 
 **Usage:**
 ```json
@@ -97,7 +98,7 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 |-------|------|----------|-------------|
 | query | string | Yes | Historical moment (3-500 chars) |
 | generate_image | boolean | No | Generate AI image (default: false) |
-| preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default) |
+| preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default), `gemini3` |
 | text_model | string | No | Override text model (ignores preset) |
 | image_model | string | No | Override image model (ignores preset) |
 
@@ -421,4 +422,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2025-12-17*
+*Last updated: 2025-12-18*
