@@ -850,7 +850,12 @@ generate_stream() {
                     echo -e "${GREEN}[${bar}${empty}] ${progress}%${NC} ${elapsed_str} - Completed: $step"
                     ;;
                 "step_error")
-                    echo -e "${RED}[ERROR]${NC} ${elapsed_str} - Step failed: $step"
+                    # Image generation failures are non-fatal (user still gets all text content)
+                    if [ "$step" = "image_generation" ]; then
+                        echo -e "${YELLOW}[WARNING]${NC} ${elapsed_str} - Image generation failed (rate limit?) - content still saved"
+                    else
+                        echo -e "${RED}[ERROR]${NC} ${elapsed_str} - Step failed: $step"
+                    fi
                     ;;
                 "done")
                     echo ""
