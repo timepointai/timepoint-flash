@@ -32,6 +32,10 @@ __all__ = [
     "ModelCapability",
     "ProviderConfig",
     "ProviderType",
+    "ProviderError",
+    "RateLimitError",
+    "QuotaExhaustedError",
+    "AuthenticationError",
 ]
 
 
@@ -319,7 +323,7 @@ class ProviderError(Exception):
 
 
 class RateLimitError(ProviderError):
-    """Rate limit exceeded error."""
+    """Rate limit exceeded error (temporary, retrying may help)."""
 
     def __init__(self, provider: ProviderType, retry_after: int | None = None) -> None:
         """Initialize rate limit error.
@@ -333,6 +337,30 @@ class RateLimitError(ProviderError):
             message += f", retry after {retry_after}s"
         super().__init__(message, provider, status_code=429, retryable=True)
         self.retry_after = retry_after
+
+
+class QuotaExhaustedError(ProviderError):
+    """Daily quota exhausted error (retrying won't help until quota resets).
+
+    This is different from RateLimitError - quota exhaustion means the daily
+    limit has been reached (e.g., limit: 0), and retrying is pointless.
+    The caller should immediately fall back to an alternative provider.
+    """
+
+    def __init__(self, provider: ProviderType, message: str | None = None) -> None:
+        """Initialize quota exhausted error.
+
+        Args:
+            provider: Provider that raised the error.
+            message: Optional custom message with details.
+        """
+        default_message = "Daily quota exhausted - fallback to alternative provider"
+        super().__init__(
+            message or default_message,
+            provider,
+            status_code=429,
+            retryable=False,  # Key difference: NOT retryable
+        )
 
 
 class AuthenticationError(ProviderError):

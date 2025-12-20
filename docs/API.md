@@ -393,6 +393,37 @@ Check which providers (Google, OpenRouter) are configured.
 
 ---
 
+## Provider Resilience
+
+TIMEPOINT Flash uses a dual-provider architecture with automatic failover:
+
+**Primary:** Google Gemini (native API)
+**Fallback:** OpenRouter (300+ models)
+
+### Automatic Fallback
+
+When Google API quota is exhausted or rate-limited:
+1. **Quota exhaustion** (daily limit = 0) - Immediate fallback, no retries
+2. **Rate limiting** (temporary) - Retry with exponential backoff, then fallback
+
+### Error Types
+
+| Error | Retries | Action |
+|-------|---------|--------|
+| `QuotaExhaustedError` | 0 | Instant fallback to OpenRouter |
+| `RateLimitError` | Up to 3 | Exponential backoff, then fallback |
+| `AuthenticationError` | 0 | Fail with 401 |
+| `ProviderError` | Up to 3 | Retry, then fallback |
+
+### Image Generation
+
+Image generation is gracefully degraded:
+- Tries primary provider first
+- Falls back to OpenRouter via `/chat/completions` with `modalities: ["image", "text"]`
+- If both fail, scene completes without image (non-fatal)
+
+---
+
 ## Errors
 
 All errors return:
@@ -405,7 +436,7 @@ All errors return:
 | 400 | Invalid request state |
 | 404 | Not found |
 | 422 | Validation error |
-| 429 | Rate limit exceeded |
+| 429 | Rate limit exceeded (triggers fallback internally) |
 | 500 | Server error |
 
 Rate limit: 60 requests/minute per IP.
@@ -422,4 +453,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2025-12-18*
+*Last updated: 2025-12-20*
