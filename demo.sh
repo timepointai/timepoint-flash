@@ -96,6 +96,7 @@ select_preset() {
 
     echo -e "${BOLD}Select Quality Preset:${NC}"
     echo ""
+    echo -e "  ${CYAN}--- Presets ---${NC}"
     echo -e "  ${MAGENTA}1)${NC} ${BOLD}HD${NC} - Best quality (Gemini 2.5 Flash + extended thinking)"
     echo -e "     ${DIM}Deeper analysis, high detail | ~${TIMING_HD[0]}-${TIMING_HD[1]} min${NC}"
     echo -e "  ${GREEN}2)${NC} ${BOLD}Balanced${NC} - Good balance (Gemini 2.5 Flash)"
@@ -103,22 +104,23 @@ select_preset() {
     if [ "$OPENROUTER_VERIFIED" = "true" ]; then
         echo -e "  ${CYAN}3)${NC} ${BOLD}Hyper${NC} - Maximum speed (Gemini 2.0 Flash via OpenRouter)"
         echo -e "     ${DIM}Fastest generation | ~${TIMING_HYPER[0]}-${TIMING_HYPER[1]} min${NC}"
-    else
-        echo -e "  ${DIM}3) Hyper - (unavailable - OpenRouter API key issue)${NC}"
-    fi
-    echo -e "  ${YELLOW}4)${NC} ${BOLD}Browse models...${NC} - Choose your own"
-    echo -e "     ${DIM}Interactive model selection from available providers${NC}"
-    if [ "$OPENROUTER_VERIFIED" = "true" ]; then
-        echo -e "  ${GREEN}5)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
-        echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
-        echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
-        echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
-        echo -e "  ${MAGENTA}7)${NC} ${BOLD}Gemini 3 Flash${NC} - Latest thinking model (via OpenRouter)"
+        echo -e "  ${MAGENTA}4)${NC} ${BOLD}Gemini 3 Flash${NC} - Latest thinking model (via OpenRouter)"
         echo -e "     ${DIM}Agentic workflows, reasoning | ~${TIMING_GEMINI3[0]}-${TIMING_GEMINI3[1]} min${NC}"
     else
-        echo -e "  ${DIM}5) Free (Best) - (unavailable - OpenRouter API key issue)${NC}"
-        echo -e "  ${DIM}6) Free (Fastest) - (unavailable - OpenRouter API key issue)${NC}"
-        echo -e "  ${DIM}7) Gemini 3 Flash - (unavailable - OpenRouter API key issue)${NC}"
+        echo -e "  ${DIM}3) Hyper - (unavailable - OpenRouter API key issue)${NC}"
+        echo -e "  ${DIM}4) Gemini 3 Flash - (unavailable - OpenRouter API key issue)${NC}"
+    fi
+    echo -e "  ${CYAN}--- Custom ---${NC}"
+    echo -e "  ${YELLOW}5)${NC} ${BOLD}Browse models...${NC} - Choose your own"
+    echo -e "     ${DIM}Interactive model selection from available providers${NC}"
+    if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+        echo -e "  ${GREEN}6)${NC} ${BOLD}Free (Best)${NC} - Best free model available"
+        echo -e "     ${DIM}Uses highest-capability free model from OpenRouter${NC}"
+        echo -e "  ${GREEN}7)${NC} ${BOLD}Free (Fastest)${NC} - Fastest free model"
+        echo -e "     ${DIM}Uses smallest/quickest free model from OpenRouter${NC}"
+    else
+        echo -e "  ${DIM}6) Free (Best) - (unavailable - OpenRouter API key issue)${NC}"
+        echo -e "  ${DIM}7) Free (Fastest) - (unavailable - OpenRouter API key issue)${NC}"
     fi
     echo ""
     echo -e "${YELLOW}> ${NC}\c"
@@ -144,9 +146,19 @@ select_preset() {
             fi
             ;;
         4)
-            browse_models
+            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
+                CURRENT_PRESET="$PRESET_GEMINI3"
+                echo -e "${MAGENTA}Using Gemini 3 Flash preset (~${TIMING_GEMINI3[0]}-${TIMING_GEMINI3[1]} min)${NC}"
+            else
+                echo -e "${YELLOW}Gemini 3 Flash unavailable (OpenRouter API key issue)${NC}"
+                echo -e "${GREEN}Falling back to Balanced preset${NC}"
+                CURRENT_PRESET="$PRESET_BALANCED"
+            fi
             ;;
         5)
+            browse_models
+            ;;
+        6)
             if [ "$OPENROUTER_VERIFIED" = "true" ]; then
                 select_free_model "best"
             else
@@ -155,21 +167,11 @@ select_preset() {
                 CURRENT_PRESET="$PRESET_BALANCED"
             fi
             ;;
-        6)
+        7)
             if [ "$OPENROUTER_VERIFIED" = "true" ]; then
                 select_free_model "fastest"
             else
                 echo -e "${YELLOW}Free models unavailable (OpenRouter API key issue)${NC}"
-                echo -e "${GREEN}Falling back to Balanced preset${NC}"
-                CURRENT_PRESET="$PRESET_BALANCED"
-            fi
-            ;;
-        7)
-            if [ "$OPENROUTER_VERIFIED" = "true" ]; then
-                CURRENT_PRESET="$PRESET_GEMINI3"
-                echo -e "${MAGENTA}Using Gemini 3 Flash preset (~${TIMING_GEMINI3[0]}-${TIMING_GEMINI3[1]} min)${NC}"
-            else
-                echo -e "${YELLOW}Gemini 3 Flash unavailable (OpenRouter API key issue)${NC}"
                 echo -e "${GREEN}Falling back to Balanced preset${NC}"
                 CURRENT_PRESET="$PRESET_BALANCED"
             fi
@@ -536,7 +538,7 @@ print_menu() {
     echo -e "  ${GREEN}1)${NC} Generate timepoint (sync) - Wait for full result"
     echo -e "  ${GREEN}2)${NC} Generate timepoint (streaming) - See live progress"
     echo -e "  ${GREEN}3)${NC} Generate from template"
-    echo -e "  ${CYAN}4)${NC} ${BOLD}RAPID TEST${NC} - One-click Gemini 3 + image (streaming)"
+    echo -e "  ${CYAN}4)${NC} ${BOLD}SMART TEST${NC} - One-click Gemini 3 thinking + image (streaming)"
     echo -e "  ${GREEN}5)${NC} ${BOLD}RAPID TEST FREE${NC} - One-click fastest free model + image"
     echo -e "  ${GREEN}6)${NC} Browse timepoints"
     echo -e "  ${GREEN}7)${NC} Health check"
@@ -985,11 +987,11 @@ generate_from_template() {
     fi
 }
 
-# Rapid test - one-click Gemini 3 + image streaming
-rapid_test() {
-    echo -e "${BOLD}=== RAPID TEST ===${NC}"
+# Smart test - one-click Gemini 3 thinking model + image streaming
+smart_test() {
+    echo -e "${BOLD}=== SMART TEST ===${NC}"
     echo ""
-    echo -e "${MAGENTA}One-click Gemini 3 Flash test with image generation${NC}"
+    echo -e "${MAGENTA}One-click Gemini 3 Flash (thinking model) test with image generation${NC}"
     echo ""
 
     # Check OpenRouter availability for Gemini 3 preset
@@ -2401,7 +2403,7 @@ main() {
             1) generate_sync; wait_for_key ;;
             2) generate_stream; wait_for_key ;;
             3) generate_from_template; wait_for_key ;;
-            4) rapid_test; wait_for_key ;;
+            4) smart_test; wait_for_key ;;
             5) rapid_test_free; wait_for_key ;;
             6) list_timepoints; wait_for_key ;;
             7) health_check; wait_for_key ;;

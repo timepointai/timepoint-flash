@@ -12,6 +12,7 @@ from app.core.providers.base import (
     ProviderConfig,
     ProviderError,
     ProviderType,
+    QuotaExhaustedError,
     RateLimitError,
 )
 
@@ -28,6 +29,7 @@ __all__ = [
     "ProviderConfig",
     "ProviderError",
     "ProviderType",
+    "QuotaExhaustedError",
     "RateLimitError",
     # Implementations
     "GoogleProvider",

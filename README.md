@@ -72,7 +72,7 @@ Demo dashboard dials you in:
   1) Generate timepoint (sync) - Wait for full result
   2) Generate timepoint (streaming) - See live progress
   3) Generate from template
-  4) RAPID TEST - One-click hyper + image (streaming)
+  4) SMART TEST - One-click Gemini 3 thinking + image (streaming)
   5) RAPID TEST FREE - One-click fastest free model + image
   6) Browse timepoints
   7) Health check
@@ -87,7 +87,7 @@ Demo dashboard dials you in:
 ```
 
 **Power moves:**
-- **RAPID TEST**: Random template, max speed, instant image – test the flux.
+- **SMART TEST**: Random template, Gemini 3 thinking model, instant image – deep reasoning on the fly.
 - **Dial presets**: HD for pixel-perfect (~2 min), Balanced for flow (~90s), Hyper for velocity (~50s via OpenRouter).
 - **Model selector**: Filter providers, hunt specifics, lock your weapon.
 - **Free tier ops**: Tap OpenRouter's no-pay zone via `/api/v1/models/free` – quality king or speed demon.

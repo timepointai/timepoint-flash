@@ -357,15 +357,16 @@ class OpenRouterProvider(LLMProvider):
     ) -> LLMResponse[str]:
         """Generate an image from a prompt.
 
-        Uses OpenRouter's image generation models (e.g., Nano Banana Pro).
+        Uses OpenRouter's /chat/completions endpoint with modalities parameter.
+        OpenRouter does NOT have a /images/generations endpoint.
 
         Args:
             prompt: The image generation prompt.
-            model: Model ID (e.g., "google/gemini-3-pro-image-preview").
+            model: Model ID (e.g., "google/gemini-2.0-flash-exp:free").
             **kwargs: Additional parameters.
 
         Returns:
-            LLMResponse containing base64-encoded image or URL.
+            LLMResponse containing base64-encoded image.
 
         Raises:
             ProviderError: If the API call fails.
@@ -373,16 +374,22 @@ class OpenRouterProvider(LLMProvider):
         Examples:
             >>> response = await provider.generate_image(
             ...     prompt="A sunset over mountains",
-            ...     model="google/gemini-3-pro-image-preview"
+            ...     model="google/gemini-2.0-flash-exp:free"
             ... )
         """
+        import re
         start_time = time.perf_counter()
 
-        # OpenRouter uses chat completions for image models too
-        # The response includes an image URL or base64
+        # OpenRouter uses /chat/completions with modalities for image generation
         payload: dict[str, Any] = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"Generate an image: {prompt}",
+                }
+            ],
+            "modalities": ["image", "text"],  # Request image output
         }
 
         try:
@@ -394,15 +401,52 @@ class OpenRouterProvider(LLMProvider):
             data = response.json()
             latency_ms = int((time.perf_counter() - start_time) * 1000)
 
-            # Extract image from response
-            # Note: Different models return images differently
-            content = data["choices"][0]["message"]["content"]
+            # Extract image from response - OpenRouter returns images in content
+            message = data.get("choices", [{}])[0].get("message", {})
+            content_parts = message.get("content", [])
 
-            # If content is a URL, return it; otherwise assume base64
-            # This may need adjustment based on specific model responses
+            # Content can be a string or list of parts
+            image_b64 = None
+
+            if isinstance(content_parts, str):
+                # Check if it's a data URL
+                match = re.match(r"data:image/[^;]+;base64,(.+)", content_parts)
+                if match:
+                    image_b64 = match.group(1)
+                else:
+                    # Might be raw base64
+                    image_b64 = content_parts
+            elif isinstance(content_parts, list):
+                # Look for image part in multimodal response
+                for part in content_parts:
+                    if isinstance(part, dict):
+                        # Check for inline_data format (Gemini style)
+                        if "inline_data" in part:
+                            image_b64 = part["inline_data"].get("data")
+                            break
+                        # Check for image_url format
+                        if part.get("type") == "image_url":
+                            url = part.get("image_url", {}).get("url", "")
+                            match = re.match(r"data:image/[^;]+;base64,(.+)", url)
+                            if match:
+                                image_b64 = match.group(1)
+                                break
+                        # Check for image type directly
+                        if part.get("type") == "image":
+                            image_b64 = part.get("data") or part.get("image")
+                            break
+
+            if not image_b64:
+                # Log what we got for debugging
+                logger.error(f"OpenRouter image response format unexpected: {data}")
+                raise ProviderError(
+                    message=f"No image found in OpenRouter response. Got: {str(data)[:500]}",
+                    provider=ProviderType.OPENROUTER,
+                    retryable=False,
+                )
 
             return LLMResponse(
-                content=content,
+                content=image_b64,
                 model=model,
                 provider=self.provider_type,
                 latency_ms=latency_ms,

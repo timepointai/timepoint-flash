@@ -34,6 +34,7 @@ from app.core.providers.base import (
     LLMProvider,
     LLMResponse,
     ProviderError,
+    QuotaExhaustedError,
     RateLimitError,
 )
 from app.core.model_capabilities import (
@@ -136,15 +137,33 @@ class GoogleProvider(LLMProvider):
 
         Raises:
             AuthenticationError: For 401 errors.
-            RateLimitError: For 429 errors.
+            QuotaExhaustedError: For quota exhaustion (daily limit at 0).
+            RateLimitError: For temporary rate limits (retrying may help).
             ProviderError: For other errors.
         """
         error_str = str(error).lower()
 
         if "401" in error_str or "invalid api key" in error_str:
             raise AuthenticationError(ProviderType.GOOGLE) from error
-        elif "429" in error_str or "rate limit" in error_str:
-            raise RateLimitError(ProviderType.GOOGLE) from error
+        elif "429" in error_str or "rate limit" in error_str or "resource exhausted" in error_str:
+            # Distinguish quota exhaustion from temporary rate limits
+            # Quota exhaustion patterns:
+            # - "quota" or "resource exhausted" = daily quota depleted
+            # - "limit: 0" or "exceeded" with "quota" = daily limit reached
+            is_quota_exhausted = (
+                "quota" in error_str
+                or "resource exhausted" in error_str
+                or "exceeded" in error_str and "daily" in error_str
+            )
+            if is_quota_exhausted:
+                logger.warning(f"Google quota exhausted: {error}")
+                raise QuotaExhaustedError(
+                    ProviderType.GOOGLE,
+                    message=f"Google API quota exhausted: {error}",
+                ) from error
+            else:
+                # Temporary rate limit - retrying may help
+                raise RateLimitError(ProviderType.GOOGLE) from error
         elif isinstance(error, asyncio.TimeoutError):
             raise ProviderError(
                 message=f"Request timed out after {self.timeout}s",
@@ -269,8 +288,10 @@ class GoogleProvider(LLMProvider):
         """Generate an image from a prompt with model-adaptive handling.
 
         Automatically selects the appropriate API based on model type from
-        the model capabilities registry. Supports fallback to alternative
-        models on failure.
+        the model capabilities registry.
+
+        Note: Fallback logic is handled by LLMRouter, not here.
+        This method attempts the requested model only and lets errors propagate.
 
         Args:
             prompt: The image generation prompt.
@@ -287,7 +308,9 @@ class GoogleProvider(LLMProvider):
             LLMResponse containing base64-encoded image.
 
         Raises:
-            ProviderError: If the API call fails after all attempts.
+            QuotaExhaustedError: If daily quota is exhausted (caller should fallback).
+            RateLimitError: If temporary rate limit hit (caller can retry).
+            ProviderError: If the API call fails for other reasons.
 
         Examples:
             >>> response = await provider.generate_image(
@@ -302,44 +325,12 @@ class GoogleProvider(LLMProvider):
             f"max_res={model_config.max_resolution}px"
         )
 
-        # Try primary model
-        try:
-            if is_imagen_model(model):
-                return await self._generate_image_imagen(prompt, model, **kwargs)
-            else:
-                return await self._generate_image_gemini(prompt, model, **kwargs)
-        except ProviderError as e:
-            # Log the error and try fallback models
-            logger.warning(f"Primary model {model} failed: {e}")
-
-            fallback_models = get_fallback_models(model)
-            if not fallback_models:
-                raise
-
-            # Try fallback models
-            for fallback_model in fallback_models:
-                try:
-                    logger.info(f"Trying fallback model: {fallback_model}")
-                    # Remove image_size for fallback if not supported
-                    fallback_config = get_image_model_config(fallback_model)
-                    fallback_kwargs = kwargs.copy()
-                    if not fallback_config.supports_image_size:
-                        fallback_kwargs.pop("image_size", None)
-
-                    if is_imagen_model(fallback_model):
-                        return await self._generate_image_imagen(
-                            prompt, fallback_model, **fallback_kwargs
-                        )
-                    else:
-                        return await self._generate_image_gemini(
-                            prompt, fallback_model, **fallback_kwargs
-                        )
-                except ProviderError as fallback_error:
-                    logger.warning(f"Fallback model {fallback_model} failed: {fallback_error}")
-                    continue
-
-            # All fallbacks failed, re-raise original error
-            raise
+        # Route to appropriate API based on model type
+        # Errors propagate up - LLMRouter handles fallback to OpenRouter
+        if is_imagen_model(model):
+            return await self._generate_image_imagen(prompt, model, **kwargs)
+        else:
+            return await self._generate_image_gemini(prompt, model, **kwargs)
 
     async def _generate_image_gemini(
         self,

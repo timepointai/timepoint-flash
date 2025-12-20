@@ -53,6 +53,7 @@ from app.core.providers import (
     ModelCapability,
     ProviderConfig,
     ProviderError,
+    QuotaExhaustedError,
     RateLimitError,
 )
 from app.core.providers.google import GoogleProvider
@@ -66,6 +67,10 @@ T = TypeVar("T", bound=BaseModel)
 # Default fallback model for when free models hit rate limits
 # Uses VerifiedModels to ensure we always fall back to a working model
 PAID_FALLBACK_MODEL = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+
+# OpenRouter fallback image model when Google quota is exhausted
+# Uses Flux Schnell for fast, quality image generation
+OPENROUTER_IMAGE_FALLBACK = "black-forest-labs/flux-schnell"
 
 # Rate limit retry settings
 MAX_RETRIES = 5
@@ -755,11 +760,12 @@ class LLMRouter:
         prompt: str,
         **kwargs: Any,
     ) -> LLMResponse[str]:
-        """Call image generation with proactive rate limiting and exponential backoff retry.
+        """Call image generation with smart retry logic.
 
-        Handles rate limits gracefully with:
-        1. Proactive rate limiting (token bucket) to prevent 429s
-        2. Reactive retry with exponential backoff if 429s still occur
+        Handles different error types appropriately:
+        - QuotaExhaustedError: NO retries - immediately re-raise for fallback
+        - RateLimitError: Limited retries with backoff (may be temporary)
+        - ProviderError: Retry only if marked retryable
 
         Args:
             provider: The LLM provider to use
@@ -771,46 +777,54 @@ class LLMRouter:
             LLMResponse from the provider
 
         Raises:
+            QuotaExhaustedError: If quota is exhausted (caller should fallback)
+            RateLimitError: If rate limit persists after retries
             ProviderError: If all retries fail
         """
         last_error = None
         backoff = INITIAL_BACKOFF
-        # Use more retries for image generation since it's expensive to fail
-        image_max_retries = MAX_RETRIES + 2  # 7 retries total
+        # Reduced retries - 3 attempts for rate limits (was 7)
+        # Quota exhaustion skips retries entirely
+        image_max_retries = 3
 
         for attempt in range(1, image_max_retries + 1):
             try:
                 # Proactive rate limiting: wait for token before making call
-                # Image generation uses native tier (Google API)
-                tier = "native"
-                acquired = await acquire_rate_limit(model, timeout=60.0)  # Longer timeout for images
+                acquired = await acquire_rate_limit(model, timeout=30.0)
                 if not acquired:
                     logger.warning(
-                        f"Rate limit token not acquired for image model {model} (tier={tier}), "
-                        "proceeding anyway with risk of 429"
+                        f"Rate limit token not acquired for image model {model}, "
+                        "proceeding anyway"
                     )
 
                 return await provider.generate_image(prompt, model, **kwargs)
+
+            except QuotaExhaustedError:
+                # Quota exhaustion = daily limit reached
+                # Do NOT retry - immediately propagate for fallback to OpenRouter
+                logger.warning(
+                    f"Quota exhausted on {model} - skipping retries, will fallback"
+                )
+                raise
+
             except RateLimitError as e:
                 last_error = e
-
-                # Get retry-after from headers if available, otherwise use longer backoff for images
+                # Only retry rate limits a couple times - might be temporary
                 wait_time = e.retry_after if e.retry_after else backoff
-                # For image generation, use longer max backoff
-                image_max_backoff = MAX_BACKOFF * 2  # 4 minutes max for images
-                wait_time = min(wait_time, image_max_backoff)
+                wait_time = min(wait_time, MAX_BACKOFF)
 
                 if attempt < image_max_retries:
                     logger.warning(
-                        f"Image rate limit hit on {model} (attempt {attempt}/{image_max_retries}). "
-                        f"Waiting {wait_time:.1f}s before retry..."
+                        f"Image rate limit on {model} (attempt {attempt}/{image_max_retries}). "
+                        f"Waiting {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
-                    backoff = min(backoff * BACKOFF_MULTIPLIER, image_max_backoff)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
                 else:
                     logger.warning(
-                        f"Image rate limit persists after {image_max_retries} attempts on {model}"
+                        f"Rate limit persists after {image_max_retries} attempts on {model}"
                     )
+
             except ProviderError as e:
                 # Retry on transient server errors (500, 502, 503, 504)
                 if e.retryable and attempt < image_max_retries:
@@ -818,7 +832,7 @@ class LLMRouter:
                     wait_time = min(backoff, MAX_BACKOFF)
                     logger.warning(
                         f"Image server error on {model} (attempt {attempt}/{image_max_retries}): {e}. "
-                        f"Waiting {wait_time:.1f}s before retry..."
+                        f"Waiting {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
                     backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
@@ -846,6 +860,7 @@ class LLMRouter:
         - Hyper: OpenRouter fast image model
 
         Includes automatic retry with exponential backoff for rate limits.
+        Falls back to OpenRouter if Google quota is exhausted.
 
         Args:
             prompt: The image generation prompt.
@@ -855,7 +870,7 @@ class LLMRouter:
             LLMResponse containing base64-encoded image.
 
         Raises:
-            ProviderError: If image generation fails after all retries.
+            ProviderError: If image generation fails after all retries and fallbacks.
         """
         # Determine provider for image generation
         # Prefer preset's image_provider, then Google native, then fallback
@@ -881,7 +896,52 @@ class LLMRouter:
 
         logger.debug(f"Image generation: using {image_provider.value} with model {model}")
 
-        return await self._generate_image_with_retry(provider, model, prompt, **image_kwargs)
+        try:
+            return await self._generate_image_with_retry(provider, model, prompt, **image_kwargs)
+        except (QuotaExhaustedError, RateLimitError, ProviderError) as e:
+            # Determine if we should fallback to OpenRouter
+            should_fallback = (
+                image_provider != ProviderType.OPENROUTER
+                and ProviderType.OPENROUTER in self.providers
+            )
+
+            if not should_fallback:
+                # No fallback available, re-raise
+                raise
+
+            # Log appropriately based on error type
+            if isinstance(e, QuotaExhaustedError):
+                logger.warning(
+                    f"Google quota exhausted - immediately falling back to OpenRouter "
+                    f"with {OPENROUTER_IMAGE_FALLBACK}"
+                )
+            else:
+                logger.warning(
+                    f"Image generation failed on {image_provider.value}: {e}. "
+                    f"Falling back to OpenRouter with {OPENROUTER_IMAGE_FALLBACK}"
+                )
+
+            try:
+                fallback_provider = self._get_provider(ProviderType.OPENROUTER)
+                # Remove Google-specific params that may not work with Flux
+                fallback_kwargs = {
+                    k: v for k, v in image_kwargs.items()
+                    if k not in ("image_size",)  # Flux uses different params
+                }
+                return await self._generate_image_with_retry(
+                    fallback_provider,
+                    OPENROUTER_IMAGE_FALLBACK,
+                    prompt,
+                    **fallback_kwargs,
+                )
+            except (RateLimitError, ProviderError) as e2:
+                logger.error(f"OpenRouter image fallback also failed: {e2}")
+                # Re-raise with combined error message
+                raise ProviderError(
+                    message=f"All image providers failed. Primary: {e}, OpenRouter: {e2}",
+                    provider=image_provider,
+                    retryable=False,
+                ) from e
 
     async def analyze_image(
         self,
