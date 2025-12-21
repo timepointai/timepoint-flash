@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Demo Test Suite v2.2.1
+# TIMEPOINT Flash Demo Test Suite v2.2.2
 # Comprehensive tests for all demo.sh menu items with emoji output
 #
 # Features tested:
@@ -146,7 +146,7 @@ skip_test() {
 
 echo ""
 echo "========================================"
-echo "  TIMEPOINT Flash Demo Test Suite v2.2.1"
+echo "  TIMEPOINT Flash Demo Test Suite v2.2.2"
 echo "========================================"
 echo ""
 echo "Mode: $([ "$QUICK_MODE" = true ] && echo "Quick" || ([ "$BULK_MODE" = true ] && echo "Bulk" || echo "Standard"))"
