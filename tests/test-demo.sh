@@ -574,20 +574,35 @@ run_test "Chat stream SSE uses token/done events" \
 
 # Test with real timepoint if one exists (requires completed timepoint with characters)
 if [ "$QUICK_MODE" != true ]; then
-    # Get a completed timepoint with characters
+    # Get a completed timepoint ID first, then fetch with full=true to check for characters
     COMPLETED_TP=$(curl -s "$API_BASE/api/v1/timepoints?page_size=1&status=completed" | \
         python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     items = data.get('items', [])
-    for tp in items:
-        if tp.get('characters') and tp['characters'].get('characters'):
-            print(tp['id'])
-            break
+    if items:
+        print(items[0]['id'])
 except:
     pass
 " 2>/dev/null)
+
+    # If we have a completed timepoint, verify it has characters by fetching with full=true
+    if [ -n "$COMPLETED_TP" ]; then
+        HAS_CHARS=$(curl -s "$API_BASE/api/v1/timepoints/$COMPLETED_TP?full=true" | \
+            python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    chars = data.get('characters', {}).get('characters', [])
+    print('yes' if chars else 'no')
+except:
+    print('no')
+" 2>/dev/null)
+        if [ "$HAS_CHARS" != "yes" ]; then
+            COMPLETED_TP=""
+        fi
+    fi
 
     if [ -n "$COMPLETED_TP" ]; then
         echo ""
