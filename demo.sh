@@ -527,8 +527,8 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\  | | |   |  _| | |___ / ___ \ ___) |  _  |"
     echo "   |_| |___|_|  |_|_____|_|    \___/___|_| \_| |_|   |_|   |_____/_/   \_\____/|_| |_|"
     echo -e "${NC}"
-    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.2.0${NC}"
-    echo -e "${DIM}Parallel Pipeline | Google Nano Banana | OpenRouter${NC}"
+    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.2.1${NC}"
+    echo -e "${DIM}Parallel Pipeline | Image Fallback: Google → OpenRouter → Pollinations.ai${NC}"
     echo ""
 }
 

@@ -183,6 +183,14 @@ Preset dials:
 | **HD** | ~2 min | Google Native | Max fidelity (extended thinking) |
 | **Gemini3** | ~45s | OpenRouter | Latest thinking model, agentic workflows |
 
+Image generation never fails – 3-tier fallback:
+
+| Priority | Provider | Status |
+|----------|----------|--------|
+| 1 | Google Imagen | Highest quality |
+| 2 | OpenRouter Flux | Fast alternative |
+| 3 | Pollinations.ai | Free, always works |
+
 ---
 
 ## Dive Deeper

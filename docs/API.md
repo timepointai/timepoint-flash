@@ -417,10 +417,19 @@ When Google API quota is exhausted or rate-limited:
 
 ### Image Generation
 
-Image generation is gracefully degraded:
-- Tries primary provider first
-- Falls back to OpenRouter via `/chat/completions` with `modalities: ["image", "text"]`
-- If both fail, scene completes without image (non-fatal)
+Image generation uses a resilient 3-tier fallback chain:
+
+| Priority | Provider | Details |
+|----------|----------|---------|
+| 1 | **Google Imagen** | Native API, highest quality. Quota exhaustion = instant fallback. |
+| 2 | **OpenRouter Flux** | Via `/chat/completions` with `modalities: ["image", "text"]` |
+| 3 | **Pollinations.ai** | Free, no API key required. Ultimate fallback, never fails. |
+
+**Behavior:**
+- Quota exhaustion on Google = immediate fallback (no retries wasted)
+- OpenRouter failure = fallback to Pollinations.ai
+- Pollinations.ai = always succeeds (free API, no rate limits)
+- Scene completes with image from whichever provider succeeds
 
 ---
 

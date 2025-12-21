@@ -41,7 +41,7 @@ Your Query: "signing of the declaration of independence"
 | **Dialog** | What are they saying? | 7 period-appropriate lines |
 | **Camera** | How should we frame this? | composition, focal point |
 | **ImagePrompt** | Describe the image in detail | ~11,000 character prompt |
-| **ImageGen** | Create the image | photorealistic scene |
+| **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google → OpenRouter → Pollinations.ai) |
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
 
