@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "TIMEPOINT Flash Demo Test Suite v2.2.1"
+            echo "TIMEPOINT Flash Demo Test Suite v2.2.2"
             echo ""
             echo "Usage: ./test-demo.sh [OPTIONS]"
             echo ""

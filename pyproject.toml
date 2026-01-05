@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "timepoint-flash"
-version = "2.2.0"
+version = "2.2.1"
 description = "AI-powered temporal simulation system"
 readme = "README.md"
 license = "Apache-2.0"

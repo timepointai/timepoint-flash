@@ -193,6 +193,26 @@ Image generation never fails – 3-tier fallback:
 
 ---
 
+## Testing
+
+Run the comprehensive test suite:
+
+```bash
+./tests/test-demo.sh          # Standard mode (57 tests)
+./tests/test-demo.sh --quick  # Fast validation only
+./tests/test-demo.sh --bulk   # Full generation tests for all presets
+```
+
+Test suite v2.2.2 covers:
+- Health and model endpoints
+- All quality presets (HD, Balanced, Hyper, Gemini3)
+- Generation (sync/streaming)
+- Character interactions (chat, dialog, survey)
+- Temporal navigation
+- Image generation with fallback chain
+
+---
+
 ## Dive Deeper
 
 - [API Reference](docs/API.md) – Endpoint blueprints.

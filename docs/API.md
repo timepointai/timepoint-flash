@@ -382,7 +382,7 @@ Check which providers (Google, OpenRouter) are configured.
 ```json
 {
   "status": "healthy",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "database": true,
   "providers": {
     "google": true,
@@ -462,4 +462,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2025-12-20*
+*Last updated: 2026-01-05*

@@ -21,7 +21,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 usage() {
-    echo "TIMEPOINT Flash Multi-Model Evaluation v2.2.0"
+    echo "TIMEPOINT Flash Multi-Model Evaluation v2.2.1"
     echo ""
     echo "Usage: ./eval.sh [query] [options]"
     echo ""
@@ -55,7 +55,7 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\\  | | |  "
     echo "   |_| |___|_|  |_|_____|_|    \\___/___|_| \\_| |_|  "
     echo -e "${NC}"
-    echo -e "${BOLD}Multi-Model Evaluation v2.2.0${NC}"
+    echo -e "${BOLD}Multi-Model Evaluation v2.2.1${NC}"
     echo ""
 }
 

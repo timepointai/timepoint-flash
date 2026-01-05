@@ -4,7 +4,7 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
-## Current State (v2.2.0)
+## Current State (v2.2.1)
 
 - Multi-model latency comparison (`/api/v1/eval/compare`)
 - Presets: verified, google_native, openrouter, all
@@ -53,7 +53,7 @@ evals/
 │   ├── ground_truth.json      # Expected facts
 │   └── edge_cases.json        # BCE dates, obscure events
 └── baselines/
-    └── v2.2.0_results.json
+    └── v2.2.1_results.json
 ```
 
 **CLI**: `./eval.sh --regression`
@@ -197,4 +197,4 @@ Issues discovered during testing that affect functionality:
 
 ---
 
-*Last updated: 2025-12-17*
+*Last updated: 2026-01-05*
