@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.base import AgentResult, BaseAgent
+from app.agents.grounding import GroundedContext
 from app.core.llm_router import LLMRouter
 from app.prompts import scene as scene_prompts
 from app.schemas import SceneData, TimelineData
@@ -41,6 +42,7 @@ class SceneInput:
         time_of_day: Time of day description
         location: Geographic location
         context: Historical context
+        grounded_context: Verified facts from Google Search (optional)
     """
 
     query: str
@@ -50,26 +52,44 @@ class SceneInput:
     time_of_day: str | None = None
     location: str = ""
     context: str | None = None
+    grounded_context: GroundedContext | None = None  # Verified venue/setting details
 
     @classmethod
-    def from_timeline(cls, query: str, timeline: TimelineData) -> "SceneInput":
-        """Create SceneInput from TimelineData.
+    def from_timeline(
+        cls,
+        query: str,
+        timeline: TimelineData,
+        grounded_context: GroundedContext | None = None,
+    ) -> "SceneInput":
+        """Create SceneInput from TimelineData and optional grounded context.
 
         Args:
             query: Original/cleaned query
             timeline: TimelineData from Timeline Agent
+            grounded_context: Optional verified facts from Google Search
 
         Returns:
-            SceneInput populated with timeline data
+            SceneInput populated with timeline data and grounded context
         """
+        # Use grounded location if available (more accurate)
+        location = timeline.location
+        context = timeline.historical_context
+
+        if grounded_context:
+            # Override with verified data - includes venue description
+            location = grounded_context.verified_location
+            # Enhance context with verified setting details
+            context = f"{grounded_context.setting_details} {grounded_context.historical_context}"
+
         return cls(
             query=query,
             year=timeline.year,
             era=timeline.era,
             season=timeline.season,
             time_of_day=timeline.time_of_day,
-            location=timeline.location,
-            context=timeline.historical_context,
+            location=location,
+            context=context,
+            grounded_context=grounded_context,
         )
 
 

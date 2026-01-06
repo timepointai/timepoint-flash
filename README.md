@@ -127,18 +127,42 @@ Cassius: "That the spirit of our Republic will be extinguished, replaced by the 
 
 ## Under the Hood
 
-15 specialized agents sync up like a well-oiled synthesizer:
+16 specialized agents sync up like a well-oiled synthesizer:
 
 1. **Lock query** – Validate for historical lock-on and precision.
 2. **Pin coordinates** – Date, location, temporal pulse.
-3. **Map the field** – Who's in play, what's charging the air.
-4. **Build profiles** – 8 wired characters with full specs.
-5. **Grid connections** – Allies, rivals, live wires.
-6. **Script the exchange** – Era-coded dialog that hits hard.
-7. **Frame the shot** – Composition dialed for impact.
-8. **Render visual** – Photoreal lock, no artifacts.
+3. **Ground facts** – Google Search verification for historical accuracy.
+4. **Map the field** – Who's in play, what's charging the air.
+5. **Build profiles** – 8 wired characters with full specs.
+6. **Grid connections** – Allies, rivals, live wires.
+7. **Script the exchange** – Era-coded dialog that hits hard.
+8. **Frame the shot** – Composition dialed for impact.
+9. **Render visual** – Photoreal lock, no artifacts.
 
 Streams hit your feed in real-time. Cycle time: 1-4 minutes, preset-dependent.
+
+---
+
+## Historical Accuracy
+
+**Google Search Grounding** – Every historical query is verified against real sources:
+- Exact venues and locations (not just "a room" but "35th floor of the Equitable Center, Manhattan")
+- Verified dates and participants
+- Period-accurate technology (CRT monitors in 1997, not flat screens)
+- Physical presence detection (who was *actually* visible in photographs)
+
+**Anachronism Prevention** – The system actively prevents:
+- Wrong-era clothing (Roman togas vs French Revolutionary dress)
+- Technology anachronisms (smartphones before 2007)
+- Confused historical periods (WWI vs WWII equipment)
+- Missing human operators (Deep Blue → IBM operator at the chess board)
+
+**Entity Representation** – Non-human entities (computers, AI, organizations) are shown through their human representatives:
+```
+Deep Blue → IBM operator sitting across from Kasparov, making moves
+The Government → The official who signed the document
+HAL 9000 → Red camera lens on the wall
+```
 
 ---
 
@@ -203,13 +227,14 @@ Run the comprehensive test suite:
 ./tests/test-demo.sh --bulk   # Full generation tests for all presets
 ```
 
-Test suite v2.2.2 covers:
+Test suite v2.3.0 covers:
 - Health and model endpoints
 - All quality presets (HD, Balanced, Hyper, Gemini3)
 - Generation (sync/streaming)
 - Character interactions (chat, dialog, survey)
 - Temporal navigation
-- Image generation with fallback chain
+- Image generation with 3-tier fallback (Google → OpenRouter → Pollinations.ai)
+- Historical grounding and accuracy verification
 
 ---
 

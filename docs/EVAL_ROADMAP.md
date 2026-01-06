@@ -4,13 +4,16 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
-## Current State (v2.2.1)
+## Current State (v2.3.0)
 
 - Multi-model latency comparison (`/api/v1/eval/compare`)
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
 - 35+ unit tests
+- Google Search grounding for historical accuracy
+- 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
+- Physical presence detection for accurate image generation
 
 **Gap**: Measures speed only, not quality.
 
@@ -197,4 +200,4 @@ Issues discovered during testing that affect functionality:
 
 ---
 
-*Last updated: 2026-01-05*
+*Last updated: 2026-01-06*

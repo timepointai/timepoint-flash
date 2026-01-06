@@ -126,3 +126,7 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 3. **Keep chains short** - 5-10 linked scenes work better than 100
 
 4. **Check completion first** - You can only time-travel from a completed scene
+
+---
+
+*Last updated: 2026-01-06*

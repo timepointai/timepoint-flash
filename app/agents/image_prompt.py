@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from typing import TYPE_CHECKING
+
 from app.agents.base import AgentResult, BaseAgent
 from app.core.historical_validation import validate_historical_scene
 from app.core.llm_router import LLMRouter
@@ -32,6 +34,9 @@ from app.schemas import (
     TimelineData,
 )
 from app.schemas.graph import GraphData
+
+if TYPE_CHECKING:
+    from app.agents.grounding import GroundedContext
 
 
 @dataclass
@@ -57,7 +62,7 @@ class ImagePromptInput:
     focal_point: str | None = None
     character_descriptions: list[str] = field(default_factory=list)
     dialog_context: str | None = None
-    # NEW: Additional context from other agents
+    # Additional context from other agents
     relationship_context: str | None = None  # From Graph Agent
     tension_arc: str | None = None  # From Moment Agent
     plot_beat: str | None = None  # From Moment Agent
@@ -65,6 +70,13 @@ class ImagePromptInput:
     camera_angle: str | None = None  # From Camera Agent
     camera_movement: str | None = None  # From Camera Agent
     composition: str | None = None  # From Camera Agent
+    # Grounded context for historical accuracy
+    event_mechanics: str | None = None  # How the event physically worked
+    visible_technology: str | None = None  # Period-accurate technology description
+    photographic_reality: str | None = None  # What a photograph would actually show
+    # Physical presence for image generation (critical for showing correct people)
+    physical_participants: list[str] = field(default_factory=list)  # People physically visible with positions
+    entity_representations: list[str] = field(default_factory=list)  # How to represent non-human entities (format: "Entity: representation")
 
     @classmethod
     def from_data(
@@ -77,6 +89,7 @@ class ImagePromptInput:
         graph: GraphData | None = None,
         moment: MomentData | None = None,
         camera: CameraData | None = None,
+        grounded_context: "GroundedContext | None" = None,
     ) -> "ImagePromptInput":
         """Create ImagePromptInput from ALL previous agent data.
 
@@ -89,6 +102,7 @@ class ImagePromptInput:
             graph: GraphData from Graph Agent (relationships)
             moment: MomentData from Moment Agent (plot/tension)
             camera: CameraData from Camera Agent (composition)
+            grounded_context: GroundedContext from Grounding Agent (historical accuracy)
 
         Returns:
             ImagePromptInput with all context assembled
@@ -128,6 +142,20 @@ class ImagePromptInput:
             camera_movement = camera.movement
             composition = camera.composition_rule
 
+        # Extract grounded context (critical for historical accuracy)
+        event_mechanics = None
+        visible_technology = None
+        photographic_reality = None
+        physical_participants: list[str] = []
+        entity_representations: list[str] = []
+        if grounded_context:
+            event_mechanics = grounded_context.event_mechanics if grounded_context.event_mechanics else None
+            visible_technology = grounded_context.visible_technology if grounded_context.visible_technology else None
+            photographic_reality = grounded_context.photographic_reality if grounded_context.photographic_reality else None
+            # Critical for showing correct people in the image
+            physical_participants = grounded_context.physical_participants if grounded_context.physical_participants else []
+            entity_representations = grounded_context.entity_representations if grounded_context.entity_representations else {}
+
         return cls(
             query=query,
             year=timeline.year,
@@ -152,6 +180,11 @@ class ImagePromptInput:
             camera_angle=camera_angle,
             camera_movement=camera_movement,
             composition=composition,
+            event_mechanics=event_mechanics,
+            visible_technology=visible_technology,
+            photographic_reality=photographic_reality,
+            physical_participants=physical_participants,
+            entity_representations=entity_representations,
         )
 
 
@@ -215,6 +248,11 @@ class ImagePromptAgent(BaseAgent[ImagePromptInput, ImagePromptData]):
             focal_point=input_data.focal_point,
             character_descriptions=input_data.character_descriptions,
             dialog_context=input_data.dialog_context,
+            event_mechanics=input_data.event_mechanics,
+            visible_technology=input_data.visible_technology,
+            photographic_reality=input_data.photographic_reality,
+            physical_participants=input_data.physical_participants,
+            entity_representations=input_data.entity_representations,
         )
 
     async def run(self, input_data: ImagePromptInput) -> AgentResult[ImagePromptData]:

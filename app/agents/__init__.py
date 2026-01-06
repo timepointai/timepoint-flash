@@ -38,6 +38,16 @@ from app.agents.camera import CameraAgent
 from app.agents.graph import GraphAgent
 from app.agents.image_prompt import ImagePromptAgent
 from app.agents.image_gen import ImageGenAgent
+from app.agents.image_prompt_optimizer import (
+    ImagePromptOptimizerAgent,
+    ImagePromptOptimizerInput,
+    ImagePromptOptimizerOutput,
+)
+from app.agents.grounding import (
+    GroundingAgent,
+    GroundingInput,
+    GroundedContext,
+)
 from app.agents.character_chat import (
     CharacterChatAgent,
     ChatInput,
@@ -68,6 +78,14 @@ __all__ = [
     "GraphAgent",
     "ImagePromptAgent",
     "ImageGenAgent",
+    # Image Prompt Optimizer
+    "ImagePromptOptimizerAgent",
+    "ImagePromptOptimizerInput",
+    "ImagePromptOptimizerOutput",
+    # Grounding
+    "GroundingAgent",
+    "GroundingInput",
+    "GroundedContext",
     # Character Interaction
     "CharacterChatAgent",
     "ChatInput",
