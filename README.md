@@ -44,25 +44,30 @@ This is your rapid prototype deck for synthetic time travel – part of Timepoin
 
 ---
 
-## Gear Up and Launch (5 Minutes Flat)
+## Gear Up and Launch (3 Minutes Flat)
 
 ```bash
 # 1. Clone the rig
 git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
 
-# 2. Lock in dependencies
-pip install -e .
+# 2. One-command setup (checks prereqs, installs deps, creates .env)
+./setup.sh
 
-# 3. Wire your API key
-cp .env.example .env
-# Edit .env → plug in GOOGLE_API_KEY (grab one at https://aistudio.google.com) or OPENROUTER_API_KEY for model flexibility
+# 3. Add your API key
+# Edit .env → plug in GOOGLE_API_KEY (grab one at https://aistudio.google.com)
 
-# 4. Fire up the server
-./run.sh -r
+# 4. See it in action (starts server + generates a demo)
+./quickstart.sh
+```
 
-# 5. In a fresh terminal, ignite the demo
-./demo.sh
+**Or the manual way:**
+
+```bash
+pip install -e .              # Install dependencies
+cp .env.example .env          # Create config (add your API key)
+./run.sh -r                   # Start server
+./demo.sh                     # Interactive demo
 ```
 
 Demo dashboard dials you in:
