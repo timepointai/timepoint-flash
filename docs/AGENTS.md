@@ -1,6 +1,6 @@
 # How TIMEPOINT Flash Works
 
-TIMEPOINT generates scenes using 15 specialized AI agents that each handle one part of the process
+TIMEPOINT generates scenes using 16 specialized AI agents that each handle one part of the process
 in parallel.
 
 ## The Pipeline
@@ -8,42 +8,95 @@ in parallel.
 ```
 Your Query: "signing of the declaration of independence"
                            ↓
-┌──────────────────────────────────────────────────────────┐
-│  Judge → Timeline → Scene ──┬── Characters ── Graph      │
-│                             │        ↓                   │
-│                             ├── Moment                   │
-│                             │        ↓                   │
-│                             └── Dialog → Camera          │
-│                                          ↓               │
-│                                   ImagePrompt → Image    │
-└──────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  Judge → Timeline → Grounding → Scene ──┬── Characters ─ Graph │
+│              ↓                          │        ↓             │
+│    (Google Search                       ├── Moment             │
+│     verification)                       │        ↓             │
+│                                         └── Dialog → Camera    │
+│                                                      ↓         │
+│                                               ImagePrompt      │
+│                                                      ↓         │
+│                                                   Image        │
+└────────────────────────────────────────────────────────────────┘
                            ↓
-    Complete scene with 8 characters, dialog, relationships, image
+    Complete scene with 8 characters, dialog, relationships, grounded facts, image
 ```
 
-**Why 15 agents instead of one big prompt?**
+**Why 16 agents instead of one big prompt?**
 
 1. **Speed** - Independent agents run in parallel, cutting time by ~40%
 2. **Quality** - Each agent has a focused prompt optimized for one task
-3. **Reliability** - If image generation fails, you still get the scene
-4. **Visibility** - You see progress as each step completes
+3. **Accuracy** - Grounding agent verifies facts via Google Search before generation
+4. **Reliability** - If image generation fails, you still get the scene
+5. **Visibility** - You see progress as each step completes
 
 ## What Each Agent Does
 
 | Agent | Job | Output |
 |-------|-----|--------|
-| **Judge** | Is this a valid historical query? | yes/no, confidence |
+| **Judge** | Is this a valid historical query? | yes/no, confidence, detected figures |
 | **Timeline** | When exactly? | year, month, day, time of day |
+| **Grounding** | Verify facts via Google Search | verified location, date, participants, physical presence |
 | **Scene** | Where and what's the atmosphere? | location, weather, mood |
 | **Characters** | Who's there? | 8 people with names, roles, bios |
 | **Graph** | How do they relate? | alliances, tensions, history |
 | **Moment** | What's the dramatic tension? | stakes, conflict, emotion |
 | **Dialog** | What are they saying? | 7 period-appropriate lines |
 | **Camera** | How should we frame this? | composition, focal point |
-| **ImagePrompt** | Describe the image in detail | ~11,000 character prompt |
+| **ImagePrompt** | Describe the image in detail | ~11,000 character prompt with grounded facts |
 | **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google → OpenRouter → Pollinations.ai) |
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
+
+## The Grounding Agent (Technical Details)
+
+The Grounding agent uses Google Search to verify historical facts before generation. This prevents hallucinations like putting Kasparov in "an IBM server room" when the match was actually held in a theater.
+
+**When Grounding is Triggered:**
+- Query type is HISTORICAL (not fictional/hypothetical)
+- Judge detected specific historical figures (not generic scenes)
+
+**What Gets Verified:**
+```python
+class GroundedContext:
+    # Location verification
+    verified_location: str       # "Equitable Center, 35th floor, Manhattan"
+    venue_description: str       # "Theater-style room with raised seating"
+
+    # Date verification
+    verified_date: str           # "May 11, 1997"
+    verified_year: int           # 1997
+
+    # Participant verification
+    verified_participants: list[str]  # ["Garry Kasparov", "Feng-hsiung Hsu", ...]
+
+    # Physical presence (critical for image generation)
+    physical_participants: list[str]  # ["Kasparov sitting at chess board", "IBM operator across from him"]
+    entity_representations: list[str] # ["Deep Blue: IBM operator relaying moves"]
+
+    # Event mechanics
+    event_mechanics: str         # How the event physically worked
+    visible_technology: str      # Period-accurate equipment descriptions
+    photographic_reality: str    # What a photograph would actually show
+
+    # Context
+    historical_context: str      # Significance of the event
+    source_citations: list[str]  # URLs from Google Search
+    grounding_confidence: float  # 0.0-1.0
+```
+
+**Why Physical Presence Matters:**
+
+Non-human entities (computers, AI, organizations) can't appear in images. The grounding agent discovers WHO represented them:
+
+| Entity | Physical Representation |
+|--------|------------------------|
+| Deep Blue | IBM operator sitting across from Kasparov |
+| "The Government" | The official who signed the document |
+| HAL 9000 | Red camera lens on the wall |
+
+This ensures images show *people* where people were present, not empty chairs or abstract representations.
 
 ## The Graph Agent (Technical Details)
 
@@ -130,14 +183,15 @@ class YourAgent:
 app/agents/
 ├── judge.py           # Query validation
 ├── timeline.py        # Date extraction
+├── grounding.py       # Google Search fact verification
 ├── scene.py           # Environment
 ├── characters.py      # Character generation
 ├── graph.py           # Relationships
 ├── moment.py          # Dramatic tension
 ├── dialog.py          # Period dialog
 ├── camera.py          # Visual composition
-├── image_prompt.py    # Prompt assembly
-├── image_gen.py       # Image generation
+├── image_prompt.py    # Prompt assembly (with grounded facts)
+├── image_gen.py       # Image generation (3-tier fallback)
 ├── character_chat.py  # Chat interactions
 ├── dialog_extension.py
 └── survey.py

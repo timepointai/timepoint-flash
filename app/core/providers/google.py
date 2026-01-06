@@ -279,6 +279,119 @@ class GoogleProvider(LLMProvider):
             self._handle_error(e)
             raise  # Should not reach here due to _handle_error raising
 
+    async def call_text_grounded(
+        self,
+        prompt: str,
+        model: str,
+        **kwargs: Any,
+    ) -> LLMResponse[str]:
+        """Generate text with Google Search grounding for factual accuracy.
+
+        Uses Gemini with Google Search tool to ground responses in real-world
+        information. Essential for historical accuracy when generating content
+        about real events, people, and places.
+
+        IMPORTANT: Google Search grounding is incompatible with structured output
+        (response_schema). This method always returns raw text. If you need
+        structured output, parse the raw_response in a second LLM call.
+
+        Args:
+            prompt: The input prompt.
+            model: Model ID (e.g., "gemini-2.5-flash").
+            **kwargs: Additional parameters:
+                - temperature: Sampling temperature (0.0-2.0)
+                - max_tokens: Maximum output tokens
+
+        Returns:
+            LLMResponse containing grounded text (always string).
+            The metadata includes grounding sources with URLs.
+
+        Raises:
+            ProviderError: If the API call fails.
+
+        Examples:
+            >>> response = await provider.call_text_grounded(
+            ...     prompt="Where was the 1997 Deep Blue vs Kasparov match held?",
+            ...     model="gemini-2.5-flash"
+            ... )
+            >>> # Response will be grounded in Google Search results
+            >>> print(response.content)  # Raw text with verified facts
+            >>> print(response.metadata["grounding"])  # Source URLs
+        """
+        start_time = time.perf_counter()
+
+        try:
+            from google.genai import types
+
+            # Build config with Google Search grounding tool
+            # NOTE: Cannot use response_schema with grounding - they're incompatible
+            config_params: dict[str, Any] = {
+                "tools": [types.Tool(google_search=types.GoogleSearch())],
+            }
+
+            if "temperature" in kwargs:
+                config_params["temperature"] = kwargs["temperature"]
+            if "max_tokens" in kwargs:
+                config_params["max_output_tokens"] = kwargs["max_tokens"]
+
+            config = types.GenerateContentConfig(**config_params)
+
+            # Make API call with timeout
+            logger.debug(f"Calling Google API with grounding: model={model}, timeout={self.timeout}s")
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=self.timeout,
+            )
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Always return raw text (grounding doesn't support structured output)
+            content = response.text or ""
+
+            # Extract usage
+            usage: dict[str, int] = {}
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                usage = {
+                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
+                }
+
+            # Extract grounding metadata if available
+            grounding_metadata = None
+            if response.candidates and response.candidates[0].grounding_metadata:
+                gm = response.candidates[0].grounding_metadata
+                grounding_metadata = {
+                    "grounding_chunks": [
+                        {"web": {"uri": chunk.web.uri, "title": chunk.web.title}}
+                        for chunk in (gm.grounding_chunks or [])
+                        if hasattr(chunk, "web") and chunk.web
+                    ],
+                    "search_entry_point": getattr(gm, "search_entry_point", None),
+                }
+
+            logger.info(f"Grounded response generated in {latency_ms}ms")
+            if grounding_metadata and grounding_metadata["grounding_chunks"]:
+                logger.debug(f"Grounding sources: {len(grounding_metadata['grounding_chunks'])} chunks")
+
+            return LLMResponse(
+                content=content,
+                raw_response=response.text,
+                model=model,
+                provider=self.provider_type,
+                usage=usage,
+                latency_ms=latency_ms,
+                metadata={"grounding": grounding_metadata} if grounding_metadata else {},
+            )
+
+        except Exception as e:
+            logger.error(f"Google grounded API error: {e}")
+            self._handle_error(e)
+            raise
+
     async def generate_image(
         self,
         prompt: str,
@@ -398,11 +511,14 @@ class GoogleProvider(LLMProvider):
 
             # Extract image from response parts
             image_b64 = None
+            image_mime_type = None
             if response.candidates and response.candidates[0].content:
                 for part in response.candidates[0].content.parts:
                     if hasattr(part, "inline_data") and part.inline_data:
                         image_data = part.inline_data.data
                         image_b64 = base64.b64encode(image_data).decode("utf-8")
+                        # Capture mime type from response (e.g., "image/jpeg", "image/png")
+                        image_mime_type = getattr(part.inline_data, "mime_type", None)
                         break
 
             if not image_b64:
@@ -416,12 +532,13 @@ class GoogleProvider(LLMProvider):
                     provider=ProviderType.GOOGLE,
                 )
 
-            logger.info(f"Image generated successfully with {model} in {latency_ms}ms")
+            logger.info(f"Image generated successfully with {model} in {latency_ms}ms, mime_type={image_mime_type}")
             return LLMResponse(
                 content=image_b64,
                 model=model,
                 provider=self.provider_type,
                 latency_ms=latency_ms,
+                metadata={"mime_type": image_mime_type} if image_mime_type else {},
             )
 
         except Exception as e:

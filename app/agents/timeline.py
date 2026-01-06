@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.base import AgentResult, BaseAgent
+from app.agents.grounding import GroundedContext
 from app.core.llm_router import LLMRouter
 from app.prompts import timeline as timeline_prompts
 from app.schemas import JudgeResult, TimelineData
@@ -40,29 +41,47 @@ class TimelineInput:
         query_type: Type classification (historical, fictional, etc.)
         detected_year: Year hint from Judge (optional)
         detected_location: Location hint from Judge (optional)
+        grounded_context: Verified facts from Google Search (optional)
     """
 
     query: str
     query_type: str = "historical"
     detected_year: int | None = None
     detected_location: str | None = None
+    grounded_context: GroundedContext | None = None  # Verified historical facts
 
     @classmethod
-    def from_judge_result(cls, query: str, judge: JudgeResult) -> "TimelineInput":
-        """Create TimelineInput from JudgeResult.
+    def from_judge_result(
+        cls,
+        query: str,
+        judge: JudgeResult,
+        grounded_context: GroundedContext | None = None,
+    ) -> "TimelineInput":
+        """Create TimelineInput from JudgeResult and optional grounded context.
 
         Args:
             query: Original query
             judge: JudgeResult from Judge Agent
+            grounded_context: Optional verified facts from Google Search
 
         Returns:
-            TimelineInput populated with Judge data
+            TimelineInput populated with Judge data and grounded context
         """
+        # If we have grounded context, use verified data
+        detected_year = judge.detected_year
+        detected_location = judge.detected_location
+
+        if grounded_context:
+            # Override with verified data from grounding
+            detected_year = grounded_context.verified_year
+            detected_location = grounded_context.verified_location
+
         return cls(
             query=judge.cleaned_query or query,
             query_type=judge.query_type.value,
-            detected_year=judge.detected_year,
-            detected_location=judge.detected_location,
+            detected_year=detected_year,
+            detected_location=detected_location,
+            grounded_context=grounded_context,
         )
 
 

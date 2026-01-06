@@ -33,7 +33,7 @@ class ImageGenResult:
 
     Attributes:
         image_base64: Base64-encoded image data
-        format: Image format (png, jpeg, etc.)
+        format: Image format (jpeg, png, etc.) - detected from provider response
         width: Image width in pixels
         height: Image height in pixels
         prompt_used: The prompt that was used
@@ -41,7 +41,7 @@ class ImageGenResult:
     """
 
     image_base64: str
-    format: str = "png"
+    format: str = "jpeg"  # Default to jpeg - Google native models return JPEG
     width: int = 1024
     height: int = 1024
     prompt_used: str = ""
@@ -142,9 +142,19 @@ class ImageGenAgent(BaseAgent[ImageGenInput, ImageGenResult]):
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
+            # Determine image format from mime_type (default to jpeg as most common)
+            image_format = "jpeg"  # Default - Google native models typically return JPEG
+            if response.metadata and "mime_type" in response.metadata:
+                mime_type = response.metadata["mime_type"]
+                if mime_type:
+                    # Convert mime type to extension: "image/jpeg" -> "jpeg", "image/png" -> "png"
+                    image_format = mime_type.split("/")[-1] if "/" in mime_type else mime_type
+                    logger.debug(f"Image format from mime_type: {image_format}")
+
             # Create result
             result_data = ImageGenResult(
                 image_base64=response.content,
+                format=image_format,
                 prompt_used=prompt,
                 model_used=response.model,
             )

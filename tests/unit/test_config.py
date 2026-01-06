@@ -69,13 +69,18 @@ class TestSettings:
         assert settings.GOOGLE_API_KEY == "test-google-key"
         assert settings.OPENROUTER_API_KEY == "test-openrouter-key"
 
-    def test_settings_requires_at_least_one_key(self):
-        """Test settings validation requires at least one API key."""
-        with pytest.raises(ValueError, match="At least one provider API key"):
-            Settings(
-                GOOGLE_API_KEY=None,
-                OPENROUTER_API_KEY=None,
-            )
+    def test_settings_without_keys_uses_soft_validation(self):
+        """Test settings with no API keys uses soft validation (no error).
+
+        The validation was changed to allow the app to start without API keys.
+        The health endpoint will report providers as unavailable instead.
+        """
+        settings = Settings(
+            GOOGLE_API_KEY=None,
+            OPENROUTER_API_KEY=None,
+        )
+        # Soft validation - no error raised, but has_any_provider returns False
+        assert settings.has_any_provider is False
 
     def test_settings_default_values(self, test_settings):
         """Test settings default values."""

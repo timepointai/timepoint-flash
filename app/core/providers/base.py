@@ -167,6 +167,10 @@ class LLMResponse(BaseModel, Generic[T]):
         ge=0,
         description="Response latency in milliseconds",
     )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata (e.g., grounding sources)",
+    )
 
 
 class LLMProvider(ABC):

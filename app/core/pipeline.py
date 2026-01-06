@@ -49,6 +49,15 @@ from app.agents.dialog import DialogInput
 from app.agents.graph import GraphInput
 from app.agents.image_gen import ImageGenInput
 from app.agents.image_prompt import ImagePromptInput
+from app.agents.image_prompt_optimizer import (
+    ImagePromptOptimizerAgent,
+    ImagePromptOptimizerInput,
+)
+from app.agents.grounding import (
+    GroundingAgent,
+    GroundingInput,
+    GroundedContext,
+)
 from app.agents.scene import SceneInput
 from app.agents.timeline import TimelineInput
 from app.config import ParallelismMode, QualityPreset, get_preset_parallelism
@@ -77,18 +86,20 @@ class PipelineStep(str, Enum):
 
     Order is important for data flow:
     1. Judge - Validate query
-    2. Timeline - Temporal coordinates
-    3. Scene - Environment
-    4. Characters - Who's there
-    5. Graph - Character relationships (needed for dialog!)
-    6. Moment - Plot/tension arc
-    7. Dialog - Informed by relationships & tension
-    8. Camera - Composition
-    9. ImagePrompt - Uses ALL data (graph, moment, camera)
-    10. ImageGeneration - Final image
+    2. Grounding - Verify facts via Google Search (for historical events/figures)
+    3. Timeline - Temporal coordinates
+    4. Scene - Environment
+    5. Characters - Who's there
+    6. Graph - Character relationships (needed for dialog!)
+    7. Moment - Plot/tension arc
+    8. Dialog - Informed by relationships & tension
+    9. Camera - Composition
+    10. ImagePrompt - Uses ALL data (graph, moment, camera)
+    11. ImageGeneration - Final image
     """
 
     JUDGE = "judge"
+    GROUNDING = "grounding"  # After judge, verifies historical facts
     TIMELINE = "timeline"
     SCENE = "scene"
     CHARACTERS = "characters"
@@ -97,6 +108,7 @@ class PipelineStep(str, Enum):
     DIALOG = "dialog"
     CAMERA = "camera"
     IMAGE_PROMPT = "image_prompt"
+    IMAGE_PROMPT_OPTIMIZE = "image_prompt_optimize"
     IMAGE_GENERATION = "image_generation"
 
 
@@ -128,6 +140,7 @@ class PipelineState:
     Attributes:
         query: Original query
         judge_result: Result from judge step
+        grounded_context: Verified facts from Google Search (for historical events)
         timeline_data: Temporal coordinates
         scene_data: Scene environment
         character_data: Characters
@@ -143,6 +156,7 @@ class PipelineState:
 
     query: str
     judge_result: JudgeResult | None = None
+    grounded_context: GroundedContext | None = None  # Verified historical facts
     timeline_data: TimelineData | None = None
     scene_data: SceneData | None = None
     character_data: CharacterData | None = None
@@ -151,6 +165,7 @@ class PipelineState:
     camera_data: CameraData | None = None
     graph_data: GraphData | None = None
     image_prompt_data: ImagePromptData | None = None
+    optimized_prompt: str | None = None  # Compressed prompt for image gen
     image_base64: str | None = None
     step_results: list[StepResult] = field(default_factory=list)
     timepoint_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -174,13 +189,15 @@ class PipelineState:
 
     @property
     def has_critical_errors(self) -> bool:
-        """Check if any critical (non-image) step failed.
+        """Check if any critical step failed.
 
-        Image generation failures are non-critical because the user
-        still gets all the valuable text content (characters, dialog, etc).
+        Non-critical steps (failures don't block the pipeline):
+        - IMAGE_GENERATION: User still gets all valuable text content
+        - GROUNDING: Pipeline continues without verified facts (falls back to LLM knowledge)
         """
+        non_critical_steps = {PipelineStep.IMAGE_GENERATION, PipelineStep.GROUNDING}
         return any(
-            not r.success and r.step != PipelineStep.IMAGE_GENERATION
+            not r.success and r.step not in non_critical_steps
             for r in self.step_results
         )
 
@@ -269,6 +286,7 @@ class GenerationPipeline:
 
         # Agents (lazy initialization)
         self._judge_agent: JudgeAgent | None = None
+        self._grounding_agent: GroundingAgent | None = None
         self._timeline_agent: TimelineAgent | None = None
         self._scene_agent: SceneAgent | None = None
         self._characters_agent: CharactersAgent | None = None
@@ -279,6 +297,7 @@ class GenerationPipeline:
         self._camera_agent: CameraAgent | None = None
         self._graph_agent: GraphAgent | None = None
         self._image_prompt_agent: ImagePromptAgent | None = None
+        self._image_prompt_optimizer_agent: ImagePromptOptimizerAgent | None = None
         self._image_gen_agent: ImageGenAgent | None = None
 
     @property
@@ -299,6 +318,7 @@ class GenerationPipeline:
 
         router = self.router
         self._judge_agent = JudgeAgent(router=router)
+        self._grounding_agent = GroundingAgent(router=router)
         self._timeline_agent = TimelineAgent(router=router)
         self._scene_agent = SceneAgent(router=router)
         self._characters_agent = CharactersAgent(router=router)
@@ -309,6 +329,7 @@ class GenerationPipeline:
         self._camera_agent = CameraAgent(router=router)
         self._graph_agent = GraphAgent(router=router)
         self._image_prompt_agent = ImagePromptAgent(router=router)
+        self._image_prompt_optimizer_agent = ImagePromptOptimizerAgent(router=router)
         self._image_gen_agent = ImageGenAgent(router=router)
         self._agents_initialized = True
 
@@ -391,7 +412,9 @@ class GenerationPipeline:
         """
         return self.parallelism_mode in (ParallelismMode.AGGRESSIVE, ParallelismMode.MAX)
 
-    async def run(self, query: str, generate_image: bool = False) -> PipelineState:
+    async def run(
+        self, query: str, generate_image: bool = False, optimize_prompt: bool = True
+    ) -> PipelineState:
         """Run the full generation pipeline with mode-aware parallel execution.
 
         Execution flow depends on parallelism mode:
@@ -410,6 +433,7 @@ class GenerationPipeline:
         Args:
             query: The user's temporal query
             generate_image: Whether to generate the image
+            optimize_prompt: Whether to optimize the image prompt before generation (default: True)
 
         Returns:
             PipelineState with all accumulated data
@@ -433,7 +457,11 @@ class GenerationPipeline:
             logger.warning(f"Query invalid: {state.judge_result.reason}")
             return state
 
-        # Step 2: Timeline
+        # Step 2: Grounding (optional - only for historical events/figures)
+        state = await self._step_grounding(state)
+        # Grounding failures are non-fatal - we continue with or without grounded context
+
+        # Step 3: Timeline
         state = await self._step_timeline(state)
         if state.has_errors:
             return state
@@ -466,6 +494,11 @@ class GenerationPipeline:
             logger.warning("Image prompt step had errors")
             if generate_image:
                 return state
+
+        # Step 9b: Optimize Image Prompt (optional, default on)
+        if generate_image and optimize_prompt:
+            state = await self._step_image_prompt_optimize(state)
+            # Continue even if optimization fails - we'll use the original prompt
 
         # Step 10: Image Generation (optional)
         if generate_image:
@@ -912,11 +945,91 @@ class GenerationPipeline:
         logger.debug(f"Judge: valid={state.judge_result.is_valid}")
         return state
 
+    async def _step_grounding(self, state: PipelineState) -> PipelineState:
+        """Execute grounding step for historical accuracy verification.
+
+        Uses Google Search grounding via Gemini to verify factual information
+        about historical events and figures. This prevents hallucinations like
+        placing the Deep Blue chess match in an "IBM server room" instead of
+        the actual Equitable Center theater.
+
+        Grounding is only triggered for:
+        - HISTORICAL_EVENT queries (specific known events)
+        - HISTORICAL_FIGURE queries (real people in specific contexts)
+
+        Generic period queries (e.g., "Roman gladiator") skip grounding since
+        they don't require verification of specific facts.
+        """
+        step = PipelineStep.GROUNDING
+
+        if not state.judge_result:
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=False,
+                    error="Judge result required for grounding",
+                )
+            )
+            return state
+
+        # Build grounding input to check if grounding is needed
+        grounding_input = GroundingInput(
+            query=state.judge_result.cleaned_query or state.query,
+            detected_figures=state.judge_result.detected_figures or [],
+            query_type=state.judge_result.query_type,
+            year_hint=state.judge_result.detected_year,  # Use detected_year as hint
+        )
+
+        # Check if grounding is needed (HISTORICAL + detected figures)
+        if not grounding_input.needs_grounding():
+            reason = "no historical figures detected" if state.judge_result.query_type.value == "historical" else f"query type: {state.judge_result.query_type.value}"
+            logger.info(f"Skipping grounding: {reason}")
+            # Record that we skipped (not a failure, just not applicable)
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=True,  # Skipping is a valid outcome
+                    data={"skipped": True, "reason": reason},
+                    latency_ms=0,
+                )
+            )
+            return state
+
+        result = await self._grounding_agent.run(grounding_input)
+
+        if result.success and result.content:
+            state.grounded_context = result.content
+            logger.info(
+                f"Grounding: verified location='{result.content.verified_location}', "
+                f"date='{result.content.verified_date}'"
+            )
+        else:
+            # Grounding failure is non-fatal - log warning and continue
+            logger.warning(f"Grounding failed: {result.error}")
+
+        state.step_results.append(
+            StepResult(
+                step=step,
+                success=result.success,
+                data=state.grounded_context.model_dump() if state.grounded_context else None,
+                error=result.error,
+                latency_ms=result.latency_ms,
+                model_used=result.model_used,
+            )
+        )
+
+        return state
+
     async def _step_timeline(self, state: PipelineState) -> PipelineState:
         """Execute the timeline step using TimelineAgent."""
         step = PipelineStep.TIMELINE
 
-        input_data = TimelineInput.from_judge_result(state.query, state.judge_result)
+        # Pass grounded context if available for verified dates/locations
+        input_data = TimelineInput.from_judge_result(
+            state.query,
+            state.judge_result,
+            grounded_context=state.grounded_context,
+        )
         result = await self._timeline_agent.run(input_data)
 
         if result.success:
@@ -951,9 +1064,11 @@ class GenerationPipeline:
             )
             return state
 
+        # Pass grounded context if available for verified venue/setting details
         input_data = SceneInput.from_timeline(
             state.judge_result.cleaned_query or state.query,
             state.timeline_data,
+            grounded_context=state.grounded_context,
         )
         result = await self._scene_agent.run(input_data)
 
@@ -1354,6 +1469,7 @@ class GenerationPipeline:
             graph=state.graph_data,    # Relationships
             moment=state.moment_data,  # Plot/tension
             camera=state.camera_data,  # Composition
+            grounded_context=state.grounded_context,  # Historical accuracy
         )
         result = await self._image_prompt_agent.run(input_data)
 
@@ -1375,8 +1491,66 @@ class GenerationPipeline:
             logger.debug(f"Image prompt: {state.image_prompt_data.prompt_length} chars")
         return state
 
+    async def _step_image_prompt_optimize(self, state: PipelineState) -> PipelineState:
+        """Optimize the image prompt for better generation quality.
+
+        This step compresses verbose prompts (300+ words) to optimal length (50-150 words)
+        while detecting and fixing anachronisms, hallucinations, and prompt overload.
+
+        The optimized prompt is stored in state.optimized_prompt and used by image generation.
+        """
+        step = PipelineStep.IMAGE_PROMPT_OPTIMIZE
+
+        if not state.image_prompt_data or not state.timeline_data:
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=False,
+                    error="Image prompt and timeline data required for optimization",
+                )
+            )
+            return state
+
+        input_data = ImagePromptOptimizerInput(
+            full_prompt=state.image_prompt_data.full_prompt,
+            year=state.timeline_data.year,
+            query=state.judge_result.cleaned_query or state.query,
+            style=state.image_prompt_data.style or "photorealistic",
+            max_words=120,
+        )
+        result = await self._image_prompt_optimizer_agent.run(input_data)
+
+        if result.success and result.content:
+            state.optimized_prompt = result.content.optimized_prompt
+            logger.info(
+                f"Prompt optimized: {len(state.image_prompt_data.full_prompt.split())} -> "
+                f"{result.content.word_count} words, quality={result.content.quality_score}/10"
+            )
+
+        state.step_results.append(
+            StepResult(
+                step=step,
+                success=result.success,
+                data={
+                    "optimized": result.success,
+                    "original_words": len(state.image_prompt_data.full_prompt.split()),
+                    "optimized_words": result.content.word_count if result.content else 0,
+                    "quality_score": result.content.quality_score if result.content else 0,
+                    "issues_found": len(result.content.issues_found) if result.content else 0,
+                } if result.success else None,
+                error=result.error,
+                latency_ms=result.latency_ms,
+                model_used=result.model_used,
+            )
+        )
+
+        return state
+
     async def _step_image_generation(self, state: PipelineState) -> PipelineState:
-        """Execute image generation using ImageGenAgent."""
+        """Execute image generation using ImageGenAgent.
+
+        Uses the optimized prompt if available, otherwise falls back to full prompt.
+        """
         step = PipelineStep.IMAGE_GENERATION
 
         if not state.image_prompt_data:
@@ -1389,8 +1563,15 @@ class GenerationPipeline:
             )
             return state
 
+        # Use optimized prompt if available, otherwise use full prompt
+        prompt_to_use = state.optimized_prompt or state.image_prompt_data.full_prompt
+        if state.optimized_prompt:
+            logger.debug(f"Using optimized prompt ({len(state.optimized_prompt.split())} words)")
+        else:
+            logger.debug(f"Using full prompt ({len(state.image_prompt_data.full_prompt.split())} words)")
+
         input_data = ImageGenInput(
-            prompt=state.image_prompt_data.full_prompt,
+            prompt=prompt_to_use,
             style=state.image_prompt_data.style,
             aspect_ratio=state.image_prompt_data.aspect_ratio,
         )
@@ -1490,9 +1671,18 @@ class GenerationPipeline:
                 line.model_dump() for line in state.dialog_data.lines
             ]
 
-        # Add image prompt
+        # Add image prompt (use optimized version if available)
         if state.image_prompt_data:
-            timepoint.image_prompt = state.image_prompt_data.full_prompt
+            # Store the prompt that was actually used for image generation
+            timepoint.image_prompt = state.optimized_prompt or state.image_prompt_data.full_prompt
+
+            # Store both prompts in metadata for debugging/comparison
+            if state.optimized_prompt and "timeline" in (timepoint.metadata_json or {}):
+                timepoint.metadata_json["prompt_optimization"] = {
+                    "original_words": len(state.image_prompt_data.full_prompt.split()),
+                    "optimized_words": len(state.optimized_prompt.split()),
+                    "full_prompt": state.image_prompt_data.full_prompt,
+                }
 
         # Add image data
         if state.image_base64:
