@@ -129,4 +129,4 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 
 ---
 
-*Last updated: 2026-01-06*
+*Last updated: 2026-01-07*
