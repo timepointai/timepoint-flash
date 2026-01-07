@@ -46,6 +46,8 @@ This is your rapid prototype deck for synthetic time travel – part of Timepoin
 
 ## Gear Up and Launch (3 Minutes Flat)
 
+**Prerequisites:** Python 3.10+ and a Google API key (free at [AI Studio](https://aistudio.google.com))
+
 ```bash
 # 1. Clone the rig
 git clone https://github.com/timepoint-ai/timepoint-flash.git
@@ -132,13 +134,13 @@ Cassius: "That the spirit of our Republic will be extinguished, replaced by the 
 
 ## Under the Hood
 
-16 specialized agents sync up like a well-oiled synthesizer:
+10+ specialized agents sync up like a well-oiled synthesizer:
 
 1. **Lock query** – Validate for historical lock-on and precision.
 2. **Pin coordinates** – Date, location, temporal pulse.
 3. **Ground facts** – Google Search verification for historical accuracy.
 4. **Map the field** – Who's in play, what's charging the air.
-5. **Build profiles** – 8 wired characters with full specs.
+5. **Build profiles** – Up to 8 characters with full specs.
 6. **Grid connections** – Allies, rivals, live wires.
 7. **Script the exchange** – Era-coded dialog that hits hard.
 8. **Frame the shot** – Composition dialed for impact.

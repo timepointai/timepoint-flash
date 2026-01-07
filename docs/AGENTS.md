@@ -196,3 +196,7 @@ app/agents/
 ├── dialog_extension.py
 └── survey.py
 ```
+
+---
+
+*Last updated: 2026-01-07*
