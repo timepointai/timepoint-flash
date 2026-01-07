@@ -20,6 +20,20 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Detect Python version (prefer 3.10, fall back to 3.11, 3.12, or generic python3)
+detect_python() {
+    if command -v python3.10 &> /dev/null; then
+        echo "python3.10"
+    elif command -v python3.11 &> /dev/null; then
+        echo "python3.11"
+    elif command -v python3.12 &> /dev/null; then
+        echo "python3.12"
+    else
+        echo "python3"
+    fi
+}
+PYTHON_CMD=$(detect_python)
+
 # Check if a port is in use
 port_in_use() {
     lsof -i:"$1" >/dev/null 2>&1
@@ -168,7 +182,7 @@ elif port_in_use "$PORT"; then
 fi
 
 # Build command
-CMD="python3.10 -m uvicorn app.main:app --host $HOST --port $PORT --log-level $LOG_LEVEL"
+CMD="$PYTHON_CMD -m uvicorn app.main:app --host $HOST --port $PORT --log-level $LOG_LEVEL"
 
 if [ -n "$RELOAD" ]; then
     CMD="$CMD $RELOAD"
