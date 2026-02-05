@@ -62,6 +62,7 @@ from app.agents.scene import SceneInput
 from app.agents.timeline import TimelineInput
 from app.config import ParallelismMode, QualityPreset, get_preset_parallelism
 from app.core.llm_router import LLMRouter, ModelTier, TIER_PARALLELISM
+from app.core.providers.base import ModelCapability
 from app.models import GenerationLog, Timepoint, TimepointStatus, generate_slug
 from app.schemas import (
     CameraData,
@@ -1687,6 +1688,25 @@ class GenerationPipeline:
         # Add image data
         if state.image_base64:
             timepoint.image_base64 = state.image_base64
+            # Generate data URI for image_url if not already set
+            if not timepoint.image_url:
+                # Detect format from base64 header or default to jpeg
+                image_format = "jpeg"
+                if state.image_base64.startswith("iVBOR"):
+                    image_format = "png"
+                elif state.image_base64.startswith("R0lGOD"):
+                    image_format = "gif"
+                timepoint.image_url = f"data:image/{image_format};base64,{state.image_base64}"
+
+        # Track which models were used
+        try:
+            timepoint.text_model_used = self.router.config.get_model(ModelCapability.TEXT)
+        except Exception:
+            pass
+        try:
+            timepoint.image_model_used = self.router.config.get_model(ModelCapability.IMAGE)
+        except Exception:
+            pass
 
         # Add error if failed
         if status == TimepointStatus.FAILED:

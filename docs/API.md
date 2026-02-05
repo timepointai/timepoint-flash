@@ -37,10 +37,10 @@ Control the speed/quality tradeoff with presets:
 
 | Preset | Speed | Quality | Text Model | Provider |
 |--------|-------|---------|------------|----------|
-| **hyper** | ~50s | Good | `google/gemini-2.0-flash-001` | OpenRouter |
-| **balanced** | ~90s | Better | `gemini-2.5-flash` | Google Native |
-| **hd** | ~120s | Best | `gemini-2.5-flash` (extended thinking) | Google Native |
-| **gemini3** | ~45s | Excellent | `google/gemini-3-flash-preview` | OpenRouter |
+| **hyper** | ~55s | Good | `google/gemini-2.0-flash-001` | OpenRouter |
+| **balanced** | ~90-110s | Better | `gemini-2.5-flash` | Google Native |
+| **hd** | ~120-150s | Best | `gemini-2.5-flash` (extended thinking) | Google Native |
+| **gemini3** | ~60s | Excellent | `google/gemini-3-flash-preview` | OpenRouter |
 
 **Usage:**
 ```json
@@ -114,8 +114,11 @@ data: {"event": "step_complete", "step": "moment", "progress": 65}
 data: {"event": "step_complete", "step": "camera", "progress": 65}
 data: {"event": "step_complete", "step": "dialog", "progress": 80}
 data: {"event": "step_complete", "step": "image_prompt", "progress": 90}
+data: {"event": "step_complete", "step": "image_generation", "progress": 100}
 data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123", "slug": "...", "status": "completed"}}
 ```
+
+Note: The `image_generation` step only appears when `generate_image: true`. Without it, `done` follows `image_prompt` directly.
 
 ---
 
@@ -170,6 +173,10 @@ Get a completed scene.
   "season": "summer",
   "time_of_day": "afternoon",
   "location": "Independence Hall, Philadelphia",
+  "has_image": true,
+  "image_url": "data:image/jpeg;base64,...",
+  "text_model_used": "gemini-2.5-flash",
+  "image_model_used": "gemini-2.5-flash-image",
   "characters": {
     "characters": [
       {"name": "John Hancock", "role": "primary", "description": "..."},
@@ -305,23 +312,50 @@ Generate a scene at a later point in time, preserving characters and context.
 | units | int | 1 | 1-365 |
 | unit | string | "day" | second, minute, hour, day, week, month, year |
 
+**Response:**
+```json
+{
+  "source_id": "550e8400-...",
+  "target_id": "661f9511-...",
+  "source_year": 1969,
+  "target_year": 1969,
+  "direction": "next",
+  "units": 1,
+  "unit": "hour",
+  "message": "Generated moment 1 hour(s) forward"
+}
+```
+
+Use `GET /api/v1/timepoints/{target_id}?full=true` to retrieve the generated scene.
+
 ---
 
 ### POST /api/v1/temporal/{id}/prior
 
-Same as above, but backward in time.
+Same as above, but backward in time. Response has `"direction": "prior"`.
 
 ---
 
 ### GET /api/v1/temporal/{id}/sequence
 
-Get all linked scenes (prior and next).
+Get all linked scenes (prior and next). When a timepoint has multiple children from separate time-jumps, the most recently created child is followed.
 
 **Query Params:**
 | Name | Default | Options |
 |------|---------|---------|
 | direction | "both" | prior, next, both |
 | limit | 10 | 1-50 |
+
+**Response:**
+```json
+{
+  "center": {"id": "...", "year": 1776, "slug": "declaration-signing-abc123"},
+  "prior": [],
+  "next": [
+    {"id": "...", "year": 1776, "slug": "one-hour-after-declaration-def456"}
+  ]
+}
+```
 
 ---
 
@@ -339,37 +373,53 @@ List available AI models.
 
 ### GET /api/v1/models/free
 
-Get available free models from OpenRouter.
+Get available free models from OpenRouter. The `best` and `fastest` picks are auto-selected.
 
 **Response:**
 ```json
 {
   "best": {
-    "id": "google/gemini-2.0-flash-exp:free",
-    "name": "Google: Gemini 2.0 Flash Experimental (free)",
-    "context_length": 1048576,
+    "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+    "name": "Qwen3 Next 80B (free)",
+    "context_length": 40960,
     "is_free": true
   },
   "fastest": {
-    "id": "google/gemini-2.0-flash-exp:free",
-    "name": "Google: Gemini 2.0 Flash Experimental (free)",
-    "context_length": 1048576,
+    "id": "liquid/lfm-2.5-1.2b-thinking:free",
+    "name": "LFM 2.5 1.2B Thinking (free)",
+    "context_length": 32768,
     "is_free": true
   },
   "all_free": [...],
-  "total": 15
+  "total": 30
 }
 ```
 
+Note: Free model availability changes frequently on OpenRouter. The `best`/`fastest` picks are determined dynamically.
+
 ### GET /api/v1/models/providers
 
-Check which providers (Google, OpenRouter) are configured.
+Check which providers (Google, OpenRouter) are configured and their model counts.
 
 **Response:**
 ```json
 {
-  "google": true,
-  "openrouter": true
+  "providers": [
+    {
+      "provider": "google",
+      "available": true,
+      "models_count": 3,
+      "default_text_model": "gemini-2.5-flash",
+      "default_image_model": "gemini-2.5-flash-image"
+    },
+    {
+      "provider": "openrouter",
+      "available": true,
+      "models_count": 300,
+      "default_text_model": "anthropic/claude-3.5-sonnet",
+      "default_image_model": "gemini-2.5-flash-image"
+    }
+  ]
 }
 ```
 
@@ -462,4 +512,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-01-07*
+*Last updated: 2026-02-05*

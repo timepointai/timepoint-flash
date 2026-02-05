@@ -4,16 +4,18 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
-## Current State (v2.3.0)
+## Current State (v2.3.1)
 
 - Multi-model latency comparison (`/api/v1/eval/compare`)
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
-- 35+ unit tests
+- 402 unit tests + 81 integration tests (483 total)
 - Google Search grounding for historical accuracy
 - 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
 - Physical presence detection for accurate image generation
+- Model tracking (`text_model_used`, `image_model_used` in responses)
+- Image URL populated as data URI when image generation succeeds
 
 **Gap**: Measures speed only, not quality.
 
@@ -36,7 +38,7 @@ Score outputs on domain-specific dimensions:
 
 ### B. Pipeline Evaluation
 
-Test full 10-agent pipeline, not just raw text:
+Test full 14-agent pipeline, not just raw text:
 - Step-by-step timing
 - Schema validation per step
 - Error rate tracking
@@ -92,13 +94,13 @@ Domain-specific validation:
 
 ## Architecture Comparison Eval
 
-**Core question**: Can one frontier model one-shot what 10 specialized agents produce?
+**Core question**: Can one frontier model one-shot what 14 specialized agents produce?
 
 ### The Matchup
 
 | Mode | Description |
 |------|-------------|
-| **Pipeline** | 10 agents (Flash/2.0), parallel execution, specialized prompts |
+| **Pipeline** | 14 agents (Flash/2.0), parallel execution, specialized prompts |
 | **Monolith** | 1 frontier model (Opus 4.5, GPT-4o), single mega-prompt |
 
 ### Comparison Dimensions
@@ -200,4 +202,18 @@ Issues discovered during testing that affect functionality:
 
 ---
 
-*Last updated: 2026-01-07*
+### Fixed Issues (v2.3.1)
+
+The following issues were discovered and fixed during comprehensive testing:
+
+1. **Temporal sequence endpoint crash** - `GET /temporal/{id}/sequence` returned 500 error ("Multiple rows found") when a timepoint had multiple children. Fixed by selecting the most recent child with `ORDER BY created_at DESC LIMIT 1`.
+
+2. **SQLAlchemy cartesian product warning** - Pagination count query in `list_timepoints` produced cartesian product warnings. Fixed by using `func.count()` with proper `select_from(subquery)`.
+
+3. **Model tracking** - `text_model_used` and `image_model_used` were not tracked in responses. Added fields to the Timepoint model and populated them from the pipeline's router config.
+
+4. **image_url not populated** - `image_url` was always null even after successful image generation. Fixed by generating a data URI from `image_base64` in the pipeline.
+
+---
+
+*Last updated: 2026-02-05*

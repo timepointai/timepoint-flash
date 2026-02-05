@@ -1,29 +1,31 @@
 # How TIMEPOINT Flash Works
 
-TIMEPOINT generates scenes using 16 specialized AI agents that each handle one part of the process
-in parallel.
+TIMEPOINT generates scenes using 14 specialized AI agents that each handle one part of the process,
+with parallelism where possible.
 
 ## The Pipeline
 
 ```
 Your Query: "signing of the declaration of independence"
                            ↓
-┌────────────────────────────────────────────────────────────────┐
-│  Judge → Timeline → Grounding → Scene ──┬── Characters ─ Graph │
-│              ↓                          │        ↓             │
-│    (Google Search                       ├── Moment             │
-│     verification)                       │        ↓             │
-│                                         └── Dialog → Camera    │
-│                                                      ↓         │
-│                                               ImagePrompt      │
-│                                                      ↓         │
-│                                                   Image        │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  Judge → Timeline → Grounding → Scene ──┬── Characters ─ Graph      │
+│              ↓                          │        ↓                   │
+│    (Google Search                       ├── Moment                   │
+│     verification)                       │        ↓                   │
+│                                         └── Dialog → Camera          │
+│                                                      ↓               │
+│                                               ImagePrompt            │
+│                                                      ↓               │
+│                                            ImagePromptOptimizer      │
+│                                                      ↓               │
+│                                                   ImageGen           │
+└──────────────────────────────────────────────────────────────────────┘
                            ↓
-    Complete scene with 8 characters, dialog, relationships, grounded facts, image
+    Complete scene with up to 8 characters, dialog, relationships, grounded facts, image
 ```
 
-**Why 16 agents instead of one big prompt?**
+**Why multiple agents instead of one big prompt?**
 
 1. **Speed** - Independent agents run in parallel, cutting time by ~40%
 2. **Quality** - Each agent has a focused prompt optimized for one task
@@ -44,10 +46,13 @@ Your Query: "signing of the declaration of independence"
 | **Moment** | What's the dramatic tension? | stakes, conflict, emotion |
 | **Dialog** | What are they saying? | 7 period-appropriate lines |
 | **Camera** | How should we frame this? | composition, focal point |
-| **ImagePrompt** | Describe the image in detail | ~11,000 character prompt with grounded facts |
+| **ImagePrompt** | Describe the image in detail | ~5,000-11,000 character prompt with grounded facts |
+| **ImagePromptOptimizer** | Compress prompt for image gen limits | Shortened prompt preserving key visual details |
 | **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google → OpenRouter → Pollinations.ai) |
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
+
+Note: The Characters step internally uses 3 sub-agents: **CharacterIdentification** (detect who's present), **Graph** (extract relationships), and **CharacterBio** (generate detailed bios for each character).
 
 ## The Grounding Agent (Technical Details)
 
@@ -181,22 +186,25 @@ class YourAgent:
 
 ```
 app/agents/
-├── judge.py           # Query validation
-├── timeline.py        # Date extraction
-├── grounding.py       # Google Search fact verification
-├── scene.py           # Environment
-├── characters.py      # Character generation
-├── graph.py           # Relationships
-├── moment.py          # Dramatic tension
-├── dialog.py          # Period dialog
-├── camera.py          # Visual composition
-├── image_prompt.py    # Prompt assembly (with grounded facts)
-├── image_gen.py       # Image generation (3-tier fallback)
-├── character_chat.py  # Chat interactions
-├── dialog_extension.py
-└── survey.py
+├── judge.py                  # Query validation
+├── timeline.py               # Date extraction
+├── grounding.py              # Google Search fact verification
+├── scene.py                  # Environment
+├── character_identification.py  # Detect who's present
+├── character_bio.py          # Generate detailed character bios
+├── characters.py             # Character generation (orchestrator)
+├── graph.py                  # Relationships
+├── moment.py                 # Dramatic tension
+├── dialog.py                 # Period dialog
+├── camera.py                 # Visual composition
+├── image_prompt.py           # Prompt assembly (with grounded facts)
+├── image_prompt_optimizer.py # Compress prompt for image gen limits
+├── image_gen.py              # Image generation (3-tier fallback)
+├── character_chat.py         # Chat interactions
+├── dialog_extension.py       # Extended dialog generation
+└── survey.py                 # Multi-character survey
 ```
 
 ---
 
-*Last updated: 2026-01-07*
+*Last updated: 2026-02-05*

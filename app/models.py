@@ -186,6 +186,10 @@ class Timepoint(Base):
     image_url: Mapped[str | None] = mapped_column(Text, default=None)
     image_base64: Mapped[str | None] = mapped_column(Text, default=None)
 
+    # Model tracking
+    text_model_used: Mapped[str | None] = mapped_column(String(200), default=None)
+    image_model_used: Mapped[str | None] = mapped_column(String(200), default=None)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
