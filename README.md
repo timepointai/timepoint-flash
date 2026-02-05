@@ -95,12 +95,13 @@ Demo dashboard dials you in:
 
 **Power moves:**
 - **SMART TEST**: Random template, Gemini 3 thinking model, instant image – deep reasoning on the fly.
-- **Dial presets**: HD for pixel-perfect (~2 min), Balanced for flow (~90s), Hyper for velocity (~50s via OpenRouter).
+- **Dial presets**: HD for pixel-perfect (~2-2.5 min), Balanced for flow (~90-110s), Hyper for velocity (~55s via OpenRouter), Gemini3 for latest thinking (~60s).
 - **Model selector**: Filter providers, hunt specifics, lock your weapon.
 - **Free tier ops**: Tap OpenRouter's no-pay zone via `/api/v1/models/free` – quality king or speed demon.
 - **10 locked templates**: Caesar takedown, Moon touchdown, Independence ink, Thermopylae stand, Berlin Wall breach, etc.
 - **Player probes**: Chat deep, extend lines, survey perspectives.
 - **Streaming API**: Use `/generate/stream` for real-time progress updates (recommended).
+- **Model Eval**: Compare latency across providers and models via `POST /api/v1/eval/compare/report` or `./eval.sh`.
 
 ---
 
@@ -256,6 +257,7 @@ Test coverage:
 - [API Reference](docs/API.md) – Endpoint blueprints.
 - [Temporal Shifts](docs/TEMPORAL.md) – Navigate the continuum.
 - [Agent Architecture](docs/AGENTS.md) – Pipeline breakdown.
+- [Eval Roadmap](docs/EVAL_ROADMAP.md) – Model comparison system and future enhancements.
 
 Join the lab: Contribute mods, fork for your stack, or reach out [@seanmcdonaldxyz](https://x.com/seanmcdonaldxyz) for enterprise support and hosted inference.
 
