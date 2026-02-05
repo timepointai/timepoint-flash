@@ -349,7 +349,10 @@ async def get_temporal_sequence(
         current_id = center_tp.id
         for _ in range(limit):
             result = await session.execute(
-                select(Timepoint).where(Timepoint.parent_id == current_id)
+                select(Timepoint)
+                .where(Timepoint.parent_id == current_id)
+                .order_by(Timepoint.created_at.desc())
+                .limit(1)
             )
             child = result.scalar_one_or_none()
             if child:

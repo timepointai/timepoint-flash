@@ -40,6 +40,22 @@ curl -X POST http://localhost:8000/api/v1/temporal/{id}/next \
   -d '{"units": 1, "unit": "year"}'
 ```
 
+**Response:**
+```json
+{
+  "source_id": "550e8400-...",
+  "target_id": "661f9511-...",
+  "source_year": 1776,
+  "target_year": 1777,
+  "direction": "next",
+  "units": 1,
+  "unit": "year",
+  "message": "Generated moment 1 year(s) forward"
+}
+```
+
+Then fetch the full scene: `GET /api/v1/timepoints/{target_id}?full=true`
+
 **Jump backward:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/temporal/{id}/prior \
@@ -84,16 +100,17 @@ curl "http://localhost:8000/api/v1/temporal/{id}/sequence?direction=both"
 
 ```json
 {
-  "center": {"year": 1776, "slug": "declaration-signing"},
+  "center": {"id": "...", "year": 1776, "slug": "declaration-signing-abc123"},
   "prior": [
-    {"year": 1775, "slug": "continental-congress"}
+    {"id": "...", "year": 1775, "slug": "continental-congress-def456"}
   ],
   "next": [
-    {"year": 1777, "slug": "valley-forge"},
-    {"year": 1783, "slug": "treaty-of-paris"}
+    {"id": "...", "year": 1777, "slug": "valley-forge-ghi789"}
   ]
 }
 ```
+
+Note: Each entry includes `id`, `year`, and `slug`. When a timepoint has multiple children (from separate time-jumps), the sequence follows the most recently created child.
 
 ---
 
@@ -129,4 +146,4 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 
 ---
 
-*Last updated: 2026-01-07*
+*Last updated: 2026-02-05*

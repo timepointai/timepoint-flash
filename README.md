@@ -134,7 +134,7 @@ Cassius: "That the spirit of our Republic will be extinguished, replaced by the 
 
 ## Under the Hood
 
-10+ specialized agents sync up like a well-oiled synthesizer:
+14 specialized agents sync up like a well-oiled synthesizer:
 
 1. **Lock query** – Validate for historical lock-on and precision.
 2. **Pin coordinates** – Date, location, temporal pulse.
@@ -142,9 +142,11 @@ Cassius: "That the spirit of our Republic will be extinguished, replaced by the 
 4. **Map the field** – Who's in play, what's charging the air.
 5. **Build profiles** – Up to 8 characters with full specs.
 6. **Grid connections** – Allies, rivals, live wires.
-7. **Script the exchange** – Era-coded dialog that hits hard.
-8. **Frame the shot** – Composition dialed for impact.
-9. **Render visual** – Photoreal lock, no artifacts.
+7. **Capture the moment** – Stakes, conflict, emotional charge.
+8. **Script the exchange** – Era-coded dialog that hits hard.
+9. **Frame the shot** – Composition dialed for impact.
+10. **Assemble image prompt** – Detailed visual description with grounded facts.
+11. **Render visual** – Photoreal lock, no artifacts (3-tier fallback).
 
 Streams hit your feed in real-time. Cycle time: 1-4 minutes, preset-dependent.
 
@@ -189,7 +191,7 @@ curl -X POST http://localhost:8000/api/v1/interactions/{id}/chat \
   -d '{"character": "Benjamin Franklin", "message": "What do you think of this document?"}'
 ```
 
-Swagger docs live at `http://localhost:8000/docs`.
+Swagger docs live at `http://localhost:8000/docs` (port may vary if 8000 is taken – `run.sh` uses adaptive port selection).
 
 Deep dive: [docs/API.md](docs/API.md)
 
@@ -209,10 +211,10 @@ Preset dials:
 
 | Preset | Cycle Time | Provider | Lock For |
 |--------|------------|----------|----------|
-| **Hyper** | ~50s | OpenRouter | Quick scans, prototyping |
-| **Balanced** | ~90s | Google Native | Solid builds |
-| **HD** | ~2 min | Google Native | Max fidelity (extended thinking) |
-| **Gemini3** | ~45s | OpenRouter | Latest thinking model, agentic workflows |
+| **Hyper** | ~55s | OpenRouter | Quick scans, prototyping |
+| **Balanced** | ~90-110s | Google Native | Solid builds |
+| **HD** | ~2-2.5 min | Google Native | Max fidelity (extended thinking) |
+| **Gemini3** | ~60s | OpenRouter | Latest thinking model, agentic workflows |
 
 Image generation never fails – 3-tier fallback:
 
@@ -226,22 +228,26 @@ Image generation never fails – 3-tier fallback:
 
 ## Testing
 
-Run the comprehensive test suite:
-
 ```bash
-./tests/test-demo.sh          # Standard mode (57 tests)
+# Python test suite (483 tests: 402 unit + 81 integration)
+python3.10 -m pytest tests/unit/ -v        # Unit tests (~12s)
+python3.10 -m pytest tests/integration/ -v # Integration tests (~30s)
+
+# Bash test suite (against live server)
+./tests/test-demo.sh          # Standard mode
 ./tests/test-demo.sh --quick  # Fast validation only
 ./tests/test-demo.sh --bulk   # Full generation tests for all presets
 ```
 
-Test suite v2.3.0 covers:
+Test coverage:
 - Health and model endpoints
 - All quality presets (HD, Balanced, Hyper, Gemini3)
 - Generation (sync/streaming)
 - Character interactions (chat, dialog, survey)
-- Temporal navigation
+- Temporal navigation (forward, backward, sequences)
 - Image generation with 3-tier fallback (Google → OpenRouter → Pollinations.ai)
 - Historical grounding and accuracy verification
+- Schema validation, rate limiting, provider failover
 
 ---
 
