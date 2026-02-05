@@ -76,6 +76,9 @@ Override preset models for custom configurations:
 | **Time Travel** | `POST /api/v1/temporal/{id}/next` | Jump forward |
 | **Time Travel** | `POST /api/v1/temporal/{id}/prior` | Jump backward |
 | **Models** | `GET /api/v1/models/free` | List free OpenRouter models |
+| **Eval** | `POST /api/v1/eval/compare` | Compare model latencies |
+| **Eval** | `POST /api/v1/eval/compare/report` | Compare with formatted report |
+| **Eval** | `GET /api/v1/eval/models` | List eval models and presets |
 
 ---
 
@@ -418,6 +421,120 @@ Check which providers (Google, OpenRouter) are configured and their model counts
       "models_count": 300,
       "default_text_model": "anthropic/claude-3.5-sonnet",
       "default_image_model": "gemini-2.5-flash-image"
+    }
+  ]
+}
+```
+
+---
+
+## Evaluation
+
+Compare model latency and performance across providers.
+
+### POST /api/v1/eval/compare
+
+Run the same prompt across multiple models in parallel. Returns raw JSON results.
+
+**Request:**
+```json
+{
+  "query": "battle of thermopylae 480 BCE",
+  "preset": "verified"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| query | string | Yes | Prompt to send to all models |
+| preset | string | No | Model set: `verified` (default), `google_native`, `openrouter`, `all` |
+| models | array | No | Specific model configs (alternative to preset) |
+| prompt_type | string | No | Prompt type label (default: `text`) |
+| timeout_seconds | int | No | Max time per model, 10-600 (default: 120) |
+
+**Response:**
+```json
+{
+  "query": "battle of thermopylae 480 BCE",
+  "prompt_type": "text",
+  "timestamp": "2026-02-05T10:47:29Z",
+  "total_duration_ms": 16045,
+  "models_tested": 4,
+  "fastest_model": "google/gemini-3-flash-preview",
+  "slowest_model": "gemini-2.5-flash",
+  "success_count": 4,
+  "failure_count": 0,
+  "success_rate": 100.0,
+  "latency_stats": {
+    "min_ms": 6453,
+    "max_ms": 15890,
+    "avg_ms": 10150,
+    "median_ms": 9240,
+    "range_ms": 9437
+  },
+  "ranking": [
+    "google/gemini-3-flash-preview",
+    "google/gemini-2.0-flash-001",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-thinking"
+  ],
+  "results": [
+    {
+      "model_id": "google/gemini-3-flash-preview",
+      "provider": "openrouter",
+      "label": "Gemini 3 Flash Preview",
+      "success": true,
+      "latency_ms": 6453,
+      "output_length": 2847,
+      "output_preview": "This is a valid historical query..."
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/v1/eval/compare/report
+
+Same as `/compare`, but returns both JSON data and a formatted ASCII report.
+
+**Request:** Same as `/compare`.
+
+**Response:**
+```json
+{
+  "comparison": { ... },
+  "report": "╔══════════════════════════════════════╗\n║   MODEL COMPARISON RESULTS          ║\n..."
+}
+```
+
+The `report` field contains a human-readable table with rankings, latencies, and success/failure indicators. Useful for CLI display or logging.
+
+---
+
+### GET /api/v1/eval/models
+
+List available models and presets for evaluation.
+
+**Response:**
+```json
+{
+  "presets": {
+    "verified": 4,
+    "google_native": 2,
+    "openrouter": 2,
+    "all": 4
+  },
+  "models": [
+    {
+      "model_id": "gemini-2.5-flash",
+      "provider": "google",
+      "label": "Gemini 2.5 Flash"
+    },
+    {
+      "model_id": "google/gemini-3-flash-preview",
+      "provider": "openrouter",
+      "label": "Gemini 3 Flash Preview"
     }
   ]
 }
