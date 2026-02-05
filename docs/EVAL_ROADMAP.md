@@ -21,6 +21,46 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
+## Observed Benchmark Data
+
+Results from live eval runs against the `verified` preset (4 models):
+
+### Run 1: "battle of thermopylae 480 BCE"
+
+| Model | Provider | Latency | Status |
+|-------|----------|---------|--------|
+| `google/gemini-3-flash-preview` | OpenRouter | ~6.5s | Fastest |
+| `google/gemini-2.0-flash-001` | OpenRouter | ~8.3s | OK |
+| `gemini-2.5-flash` | Google | ~12.9s | OK |
+| `gemini-2.5-flash` (thinking) | Google | ~15.9s | OK |
+
+- **4/4 successful**, total wall time: ~16s
+- Fastest: `gemini-3-flash-preview`
+- Slowest: `gemini-2.5-flash` (thinking mode)
+
+### Run 2: "the moment Oppenheimer witnessed the first nuclear detonation"
+
+| Model | Provider | Latency | Status |
+|-------|----------|---------|--------|
+| `google/gemini-3-flash-preview` | OpenRouter | ~6.9s | Fastest |
+| `google/gemini-2.0-flash-001` | OpenRouter | ~8.1s | OK |
+| `gemini-2.5-flash` | Google | ~23.3s | OK |
+| `gemini-2.5-flash` (thinking) | Google | N/A | 429 RESOURCE_EXHAUSTED |
+
+- **3/4 successful**, total wall time: ~23s
+- Google quota exhaustion caused one failure (immediate, no retries wasted)
+- OpenRouter models unaffected by Google quota
+
+### Key Findings
+
+1. **`gemini-3-flash-preview` is consistently the fastest model** (~6-7s), outperforming even `gemini-2.0-flash` by 20-30%
+2. **Google native API models are slower** than the same models through OpenRouter (~13-23s vs ~6-8s)
+3. **Google quota exhaustion is intermittent** – one run may succeed while the next hits 429 errors
+4. **OpenRouter provides more reliable throughput** – unaffected by Google API quota limits
+5. **Thinking mode adds significant latency** – `gemini-2.5-flash` thinking is 2-3x slower than standard
+
+---
+
 ## Enhancement Pathways
 
 ### A. Quality Scoring (LLM-as-Judge)
