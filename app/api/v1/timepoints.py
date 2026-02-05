@@ -37,7 +37,7 @@ from typing import Any, AsyncGenerator
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import QualityPreset
@@ -197,6 +197,8 @@ class TimepointResponse(BaseModel):
     has_image: bool = False  # Always included - indicates if image exists
     image_url: str | None = None
     image_base64: str | None = None  # Only included if include_image=true
+    text_model_used: str | None = None
+    image_model_used: str | None = None
     created_at: str | None = None
     error: str | None = None
 
@@ -256,6 +258,8 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         has_image=tp.has_image,  # Always include whether image exists
         image_url=tp.image_url,
         image_base64=tp.image_base64 if include_image else None,
+        text_model_used=tp.text_model_used,
+        image_model_used=tp.image_model_used,
         created_at=tp.created_at.isoformat() if tp.created_at else None,
         error=tp.error_message,
     )
@@ -806,10 +810,11 @@ async def list_timepoints(
             pass  # Invalid status, ignore filter
 
     # Get total count
+    count_subquery = query.subquery()
     count_result = await session.execute(
-        select(Timepoint.id).select_from(query.subquery())
+        select(func.count()).select_from(count_subquery)
     )
-    total = len(count_result.all())
+    total = count_result.scalar() or 0
 
     # Apply pagination
     offset = (page - 1) * page_size
