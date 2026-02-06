@@ -2,39 +2,71 @@
 
 Generate historically grounded, AI-illustrated scenes from any moment in history. Type a query, get back a complete scene: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
 
+---
+
+### Example: AlphaGo Plays Move 37
+
 ```bash
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
-  -d '{"query": "AlphaGo plays Move 37 against Lee Sedol, Seoul March 2016", "generate_image": true}'
+  -d '{"query": "AlphaGo plays Move 37 against Lee Sedol in Game 2, Four Seasons Hotel Seoul March 10 2016", "generate_image": true}'
 ```
 
-**What comes back:**
+**Generated image:**
+
+![AlphaGo vs Lee Sedol — Move 37, Four Seasons Hotel Seoul, March 10 2016](docs/images/alphago-move37.jpeg)
+
+**Scene:**
 
 ```
-Location:   Four Seasons Hotel, Seoul, South Korea
-Date:       2016-03-10, afternoon
-Tension:    high
+Location:    Four Seasons Hotel, Seoul, South Korea
+Date:        March 10, 2016 — afternoon, spring
+Tension:     high
 
-Characters:
-  Lee Sedol [primary] — short, halting fragments, stunned understatement
-  Commentator 1 [secondary] — chatty, analytical, comfortable on-air cadence
-  AlphaGo [primary, silent] — represented by monitor (non-human entity)
+Setting:     A brightly lit, modern conference room arranged for a Go tournament.
+             Central Go board on a low, polished wooden table. Lee Sedol sits
+             opposite the AlphaGo system, represented by a monitor displaying its
+             moves. Journalists, AI researchers, and Go enthusiasts seated in rows
+             behind a low barrier. Cables snake across the floor.
 
-Dialog:
-  Lee Sedol: "...Huh. That's... certainly a move."
-  Commentator: "It's either genius or madness, and I honestly can't tell which."
-  Lee Sedol: "It's... unexpected, to say the least."
-
-+ AI-generated photorealistic image of the scene
+Atmosphere:  Intense concentration and quiet anticipation. The audience is hushed.
+             A palpable sense of history being made, mixed with disbelief at
+             AlphaGo's unconventional moves.
 ```
 
-Then interrogate the characters:
+**Characters:**
+
+| Name | Role | Voice |
+|------|------|-------|
+| **Lee Sedol** | primary | Short, halting fragments — stunned understatement |
+| **AlphaGo** | primary, silent | Represented by monitor (non-human entity resolved by grounding agent) |
+| **Commentator 1** | secondary | Chatty, analytical, comfortable on-air cadence |
+| **Commentator 2** | secondary | More measured, technical observations |
+| **Tournament Official** | secondary | Formal, procedural |
+
+**Dialog:**
+
+> **Lee Sedol:** "...Huh. That's... certainly a move."
+>
+> **Commentator 1:** "Well, that's one way to put it. I'm not sure I've ever seen a professional play quite like that before."
+>
+> **Lee Sedol:** "It's... unexpected, to say the least. Maybe it's a bluff?"
+>
+> **Commentator 1:** "A bluff? Against AlphaGo? Now that's a thought."
+>
+> **Commentator 2:** "It's a bold one, if so. I'm not sure even a human could read that."
+>
+> **Commentator 1:** "It's either genius or madness, and I honestly can't tell which right now."
+>
+> **Lee Sedol:** "Perhaps both, a little? It's making things... interesting."
+
+**Then interrogate the characters:**
 
 ```
 > You: "Lee Sedol, what went through your mind when you saw Move 37?"
 ```
 
-Or jump forward in time:
+**Or jump forward in time:**
 
 ```bash
 POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
