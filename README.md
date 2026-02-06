@@ -1,265 +1,201 @@
 # TIMEPOINT Flash
 
-Dial into any moment in history. Twist the knobs to remix reality. Get a locked-in, photoreal scene ready to probe, prototype, or push boundaries.
+Generate historically grounded, AI-illustrated scenes from any moment in history. Type a query, get back a complete scene: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
 
-```
-> "assassination of julius caesar"
-```
-
-**Lock and load in under 2 minutes:**
-
-```
-March 15, 44 BCE - The Ides of March
-Theatre of Pompey, Rome – Tension crackling like static in the air
-
-CORE ELEMENTS:
-- Julius Caesar: Dictator locked in the crosshairs, 55, purple-trimmed toga masking the storm
-- Marcus Brutus: Senator flipping the script, 41, honor clashing with betrayal
-- Gaius Cassius: Plot architect, 42, eyes like cold steel
-- Mark Antony: Loyal wildcard, 39, one wrong move from unleashing hell
-- Decimus Brutus: Inner-circle defector, 43, trust shattered
-...plus 3 more shadows in the mix
-
-DIALOG PULSE:
-Caesar: "What is this? Why do you press upon me so?"
-Casca: "Speak, hands, for me!" *strikes first*
-Brutus: "Et tu, Brute?"
-Caesar: *crumples* "Then fall, Caesar..."
-
-RELATIONSHIP GRID:
-- Brutus ↔ Caesar: Father-son bond wired for detonation
-- Cassius → Brutus: Master manipulator hacking into ideals
-- Antony → Caesar: Unbreakable alliance, primed for payback
+```bash
+curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "AlphaGo plays Move 37 against Lee Sedol, Seoul March 2016", "generate_image": true}'
 ```
 
-Plus a hyper-real AI-rendered visual locked on the chaos. Now **interrogate the players**:
+**What comes back:**
 
 ```
-> You: "Brutus, do you regret what you've done?"
+Location:   Four Seasons Hotel, Seoul, South Korea
+Date:       2016-03-10, afternoon
+Tension:    high
 
-Brutus: "Regret, you ask? One does not regret performing a necessary duty for the Republic, however grievous the cost to one's own soul. My heart aches for the friend I lost, but my conscience stands firm for the liberty of Rome."
+Characters:
+  Lee Sedol [primary] — short, halting fragments, stunned understatement
+  Commentator 1 [secondary] — chatty, analytical, comfortable on-air cadence
+  AlphaGo [primary, silent] — represented by monitor (non-human entity)
+
+Dialog:
+  Lee Sedol: "...Huh. That's... certainly a move."
+  Commentator: "It's either genius or madness, and I honestly can't tell which."
+  Lee Sedol: "It's... unexpected, to say the least."
+
++ AI-generated photorealistic image of the scene
 ```
 
-This is your rapid prototype deck for synthetic time travel – part of Timepoint AI's modular lab. Flash spins up scenes for web/app devs to test, tweak, and deploy. Pair it with Daedalus for heavy simulations or Clockchain for oracle-proof predictions.
+Then interrogate the characters:
+
+```
+> You: "Lee Sedol, what went through your mind when you saw Move 37?"
+```
+
+Or jump forward in time:
+
+```bash
+POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
+# → One hour later: Lee Sedol has left the room. The commentators are still trying to explain it.
+```
 
 ---
 
-## Gear Up and Launch (3 Minutes Flat)
+## Quick Start
 
-**Prerequisites:** Python 3.10+ and a Google API key (free at [AI Studio](https://aistudio.google.com))
+**Prerequisites:** Python 3.10+ and a Google API key ([free at AI Studio](https://aistudio.google.com))
 
 ```bash
-# 1. Clone the rig
 git clone https://github.com/timepoint-ai/timepoint-flash.git
 cd timepoint-flash
-
-# 2. One-command setup (checks prereqs, installs deps, creates .env)
-./setup.sh
-
-# 3. Add your API key
-# Edit .env → plug in GOOGLE_API_KEY (grab one at https://aistudio.google.com)
-
-# 4. See it in action (starts server + generates a demo)
-./quickstart.sh
+./setup.sh            # Checks prereqs, installs deps, creates .env
+# Edit .env → add your GOOGLE_API_KEY
+./quickstart.sh       # Starts server + generates a demo scene
 ```
 
-**Or the manual way:**
+Or manually:
 
 ```bash
-pip install -e .              # Install dependencies
-cp .env.example .env          # Create config (add your API key)
-./run.sh -r                   # Start server
-./demo.sh                     # Interactive demo
+pip install -e .
+cp .env.example .env  # Add your API key
+./run.sh -r           # Start server
+./demo.sh             # Interactive demo with 10 templates
 ```
 
-Demo dashboard dials you in:
-
-```
-=== Main Menu ===
-  1) Generate timepoint (sync) - Wait for full result
-  2) Generate timepoint (streaming) - See live progress
-  3) Generate from template
-  4) SMART TEST - One-click Gemini 3 thinking + image (streaming)
-  5) RAPID TEST FREE - One-click fastest free model + image
-  6) Browse timepoints
-  7) Health check
-  8) API documentation
-  9) Test endpoints
-  10) Model Eval - Compare model performance
-  --- Character Interactions ---
-  11) Chat with character
-  12) Extend dialog
-  13) Survey characters
-  q) Quit
-```
-
-**Power moves:**
-- **SMART TEST**: Random template, Gemini 3 thinking model, instant image – deep reasoning on the fly.
-- **Dial presets**: HD for pixel-perfect (~2-2.5 min), Balanced for flow (~90-110s), Hyper for velocity (~55s via OpenRouter), Gemini3 for latest thinking (~60s).
-- **Model selector**: Filter providers, hunt specifics, lock your weapon.
-- **Free tier ops**: Tap OpenRouter's no-pay zone via `/api/v1/models/free` – quality king or speed demon.
-- **10 locked templates**: Caesar takedown, Moon touchdown, Independence ink, Thermopylae stand, Berlin Wall breach, etc.
-- **Player probes**: Chat deep, extend lines, survey perspectives.
-- **Streaming API**: Use `/generate/stream` for real-time progress updates (recommended).
-- **Model Eval**: Compare latency across providers and models via `POST /api/v1/eval/compare/report` or `./eval.sh`.
+Swagger docs at `http://localhost:8000/docs`
 
 ---
 
-## What's Your Play?
+## How It Works
 
-**Prototype scenes** from raw input:
-- `"moon landing 1969"` – Touchdown vibes, zero gravity.
-- `"last supper"` – Table tension, shadows shifting.
-- `"cleopatra meets caesar"` – Empire remix in progress.
-- `"boston tea party"` – Rebellion brewing hot.
-- `"beethoven's final concert"` – Symphony hits peak distortion.
+15 specialized agents run a pipeline with parallel execution, Google Search grounding, and a critique-retry loop:
 
-**Probe characters** – Grill them on motives, futures, what-ifs. They stay in-code with era-locked intel.
-
-**Shift timelines** – Crank forward or rewind:
-```bash
-# One hour post-Caesar reset...
-POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
+```
+Judge → Timeline → Grounding (Google Search) → Scene
+                                                  ↓
+                          Characters (grounded) + Moment + Camera  [parallel]
+                                                  ↓
+                                    Dialog → Critique (auto-retry if issues)
+                                                  ↓
+                                   ImagePrompt → Optimizer → ImageGen
 ```
 
-**Scan the grid** – Hit every player with the same query, map their vectors:
-```
-"What do you fear most right now?"
+**Key capabilities:**
 
-Caesar: "My greatest concern is not for myself, but for the stability of Rome, and the treacherous hearts that might seek to unravel the peace I have forged."
-Brutus: "That our Republic, forged by the spirit of liberty, becomes merely a name, subservient to the will of one man."
-Cassius: "That the spirit of our Republic will be extinguished, replaced by the shadow of one man's boundless ambition."
-```
+- **Google Search grounding** — Verified locations, dates, participants. Not "a room in New York" but "35th floor of the Equitable Center, Manhattan."
+- **Critique loop** — Dialog is reviewed for anachronisms, cultural errors (Greek vs Roman deities), modern idioms, and voice distinctiveness. Auto-retries with corrections if critical issues found.
+- **Voice differentiation** — Each character gets a social register (elite/educated/common/servant/child) that constrains sentence structure, vocabulary, and verbal tics. Characters must be identifiable by voice alone.
+- **Emotional transfer** — The image prompt optimizer translates narrative tension into physicalized body language instead of discarding it. "Climactic tension" becomes "wide eyes, dropped objects, body recoiling."
+- **Entity representation** — Non-human entities (Deep Blue, AlphaGo, HAL 9000) are shown through their physical representatives (IBM operator, monitor display, red camera lens).
+- **Anachronism prevention** — Era-specific exclusion lists, mutual exclusion rules (Roman toga + tricorn hat), famous painting drift detection.
+- **3-tier image fallback** — Google Imagen → OpenRouter Flux → Pollinations.ai. Image generation never fails.
 
 ---
 
-## Under the Hood
+## Example Scenes
 
-14 specialized agents sync up like a well-oiled synthesizer:
+**Vesuvius erupts as seen from a Pompeii bakery, 79 AD:**
 
-1. **Lock query** – Validate for historical lock-on and precision.
-2. **Pin coordinates** – Date, location, temporal pulse.
-3. **Ground facts** – Google Search verification for historical accuracy.
-4. **Map the field** – Who's in play, what's charging the air.
-5. **Build profiles** – Up to 8 characters with full specs.
-6. **Grid connections** – Allies, rivals, live wires.
-7. **Capture the moment** – Stakes, conflict, emotional charge.
-8. **Script the exchange** – Era-coded dialog that hits hard.
-9. **Frame the shot** – Composition dialed for impact.
-10. **Assemble image prompt** – Detailed visual description with grounded facts.
-11. **Render visual** – Photoreal lock, no artifacts (3-tier fallback).
+```
+Location: Pompeii, Italy - bakery near the Vesuvius gate
+Characters: Marcus (baker), Lucius, Fortunata, Slave Boy
+Dialog:
+  Marcus: "By Jupiter, what was that sound? Is that...ash falling from the sky?"
+```
 
-Streams hit your feed in real-time. Cycle time: 1-4 minutes, preset-dependent.
+**Mission Control, the moment Eagle lands on the Moon:**
+
+```
+Location: Mission Control, Johnson Space Center, Houston, Texas
+Characters: Charlie Duke (CAPCOM), Gene Kranz (Flight Director)
+Dialog:
+  Charlie Duke: "Roger, Tranquility Base here, the Eagle has landed."
+  Gene Kranz: "Okay, Tranquility Base. We copy you down. Houston is a go."
+```
+
+**Gavrilo Princip at Schiller's Deli, Sarajevo 1914:**
+
+```
+Location: Moritz Schiller's Delicatessen near the Latin Bridge over the Miljacka River
+Characters: Gavrilo Princip, Archduke Franz Ferdinand, Sophie Chotek
+Tension: high — the car took a wrong turn and stopped right in front of him
+```
+
+Each scene includes full character bios, relationship graphs, scene metadata, camera composition, and a generated image.
 
 ---
 
-## Historical Accuracy
+## Quality Presets
 
-**Google Search Grounding** – Every historical query is verified against real sources:
-- Exact venues and locations (not just "a room" but "35th floor of the Equitable Center, Manhattan")
-- Verified dates and participants
-- Period-accurate technology (CRT monitors in 1997, not flat screens)
-- Physical presence detection (who was *actually* visible in photographs)
-
-**Anachronism Prevention** – The system actively prevents:
-- Wrong-era clothing (Roman togas vs French Revolutionary dress)
-- Technology anachronisms (smartphones before 2007)
-- Confused historical periods (WWI vs WWII equipment)
-- Missing human operators (Deep Blue → IBM operator at the chess board)
-
-**Entity Representation** – Non-human entities (computers, AI, organizations) are shown through their human representatives:
-```
-Deep Blue → IBM operator sitting across from Kasparov, making moves
-The Government → The official who signed the document
-HAL 9000 → Red camera lens on the wall
-```
-
----
-
-## API Lock-In
-
-Full control via REST – no fluff:
+| Preset | Speed | Provider | Best For |
+|--------|-------|----------|----------|
+| **hyper** | ~55s | OpenRouter | Fast iteration, prototyping |
+| **balanced** | ~90-110s | Google Native | Production quality |
+| **hd** | ~2-2.5 min | Google Native | Maximum fidelity (extended thinking) |
+| **gemini3** | ~60s | OpenRouter | Latest model, agentic workflows |
 
 ```bash
-# Generate and stream a scene
-curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
-  -H "Content-Type: application/json" \
-  -d '{"query": "signing of the declaration of independence", "generate_image": true}'
+# Hyper for speed
+curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
+  -d '{"query": "moon landing 1969", "preset": "hyper", "generate_image": true}'
 
-# Interrogate a player
-curl -X POST http://localhost:8000/api/v1/interactions/{id}/chat \
-  -H "Content-Type: application/json" \
-  -d '{"character": "Benjamin Franklin", "message": "What do you think of this document?"}'
+# HD for quality
+curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
+  -d '{"query": "moon landing 1969", "preset": "hd", "generate_image": true}'
 ```
-
-Swagger docs live at `http://localhost:8000/docs` (port may vary if 8000 is taken – `run.sh` uses adaptive port selection).
-
-Deep dive: [docs/API.md](docs/API.md)
 
 ---
 
-## Configure Your Rig
+## API
 
-Snag a free key from [Google AI Studio](https://aistudio.google.com) or [OpenRouter](https://openrouter.ai).
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/timepoints/generate/stream` | Generate scene with SSE progress (recommended) |
+| `POST /api/v1/timepoints/generate/sync` | Generate scene, block until complete |
+| `POST /api/v1/timepoints/generate` | Background generation, poll for result |
+| `GET /api/v1/timepoints/{id}` | Retrieve a completed scene |
+| `POST /api/v1/interactions/{id}/chat` | Chat with a character |
+| `POST /api/v1/temporal/{id}/next` | Jump forward in time |
+| `POST /api/v1/temporal/{id}/prior` | Jump backward in time |
+| `GET /api/v1/temporal/{id}/sequence` | Get linked timeline |
+| `POST /api/v1/eval/compare` | Compare model latencies |
+| `GET /api/v1/models/free` | List free OpenRouter models |
+
+Full reference: [docs/API.md](docs/API.md)
+
+---
+
+## Configuration
 
 ```bash
 # .env
-GOOGLE_API_KEY=your-key        # Core thrust (or OPENROUTER_API_KEY for alternatives)
-DATABASE_URL=sqlite+aiosqlite:///./timepoint.db  # Plug-and-play storage
+GOOGLE_API_KEY=your-key                              # Required (free at aistudio.google.com)
+OPENROUTER_API_KEY=your-key                          # Optional (for hyper/gemini3 presets)
+DATABASE_URL=sqlite+aiosqlite:///./timepoint.db      # Default storage
 ```
-
-Preset dials:
-
-| Preset | Cycle Time | Provider | Lock For |
-|--------|------------|----------|----------|
-| **Hyper** | ~55s | OpenRouter | Quick scans, prototyping |
-| **Balanced** | ~90-110s | Google Native | Solid builds |
-| **HD** | ~2-2.5 min | Google Native | Max fidelity (extended thinking) |
-| **Gemini3** | ~60s | OpenRouter | Latest thinking model, agentic workflows |
-
-Image generation never fails – 3-tier fallback:
-
-| Priority | Provider | Status |
-|----------|----------|--------|
-| 1 | Google Imagen | Highest quality |
-| 2 | OpenRouter Flux | Fast alternative |
-| 3 | Pollinations.ai | Free, always works |
 
 ---
 
 ## Testing
 
 ```bash
-# Python test suite (483 tests: 402 unit + 81 integration)
-python3.10 -m pytest tests/unit/ -v        # Unit tests (~12s)
-python3.10 -m pytest tests/integration/ -v # Integration tests (~30s)
-
-# Bash test suite (against live server)
-./tests/test-demo.sh          # Standard mode
-./tests/test-demo.sh --quick  # Fast validation only
-./tests/test-demo.sh --bulk   # Full generation tests for all presets
+python3.10 -m pytest tests/unit/ -v         # 402 unit tests
+python3.10 -m pytest tests/integration/ -v  # 81 integration tests
+python3.10 -m pytest tests/e2e/ -v          # 13 end-to-end tests
 ```
 
-Test coverage:
-- Health and model endpoints
-- All quality presets (HD, Balanced, Hyper, Gemini3)
-- Generation (sync/streaming)
-- Character interactions (chat, dialog, survey)
-- Temporal navigation (forward, backward, sequences)
-- Image generation with 3-tier fallback (Google → OpenRouter → Pollinations.ai)
-- Historical grounding and accuracy verification
-- Schema validation, rate limiting, provider failover
+496 tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, and provider failover.
 
 ---
 
-## Dive Deeper
+## Documentation
 
-- [API Reference](docs/API.md) – Endpoint blueprints.
-- [Temporal Shifts](docs/TEMPORAL.md) – Navigate the continuum.
-- [Agent Architecture](docs/AGENTS.md) – Pipeline breakdown.
-- [Eval Roadmap](docs/EVAL_ROADMAP.md) – Model comparison system and future enhancements.
-
-Join the lab: Contribute mods, fork for your stack, or reach out [@seanmcdonaldxyz](https://x.com/seanmcdonaldxyz) for enterprise support and hosted inference.
+- [API Reference](docs/API.md) — Full endpoint documentation
+- [Agent Architecture](docs/AGENTS.md) — Pipeline breakdown with example output
+- [Temporal Navigation](docs/TEMPORAL.md) — Time travel mechanics
+- [Eval Roadmap](docs/EVAL_ROADMAP.md) — Quality scoring and benchmark plans
 
 ---
 
@@ -269,4 +205,4 @@ Apache 2.0
 
 ---
 
-**Wired with** Python, FastAPI, Google Gemini – Part of Timepoint AI's synthetic time travel ecosystem.
+Built with Python, FastAPI, and Google Gemini. Part of [Timepoint AI](https://x.com/seanmcdonaldxyz).
