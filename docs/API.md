@@ -141,7 +141,7 @@ Start background generation. Returns immediately with timepoint ID.
 
 **Note:** Poll `GET /api/v1/timepoints/{id}` for completion status.
 
-**Request:** Same as streaming endpoint (preset support limited - see Known Issues).
+**Request:** Same as streaming endpoint.
 
 **Response:**
 ```json
@@ -621,12 +621,10 @@ Rate limit: 60 requests/minute per IP.
 
 ## Known Issues
 
-1. **`POST /generate` ignores preset parameter** - The background generation endpoint does not pass the preset to the pipeline. Use `/generate/stream` or `/generate/sync` instead.
-
-2. **No API `preset: "free"` option** - The API does not have a built-in "free" preset. However, free models ARE fully supported:
+1. **No API `preset: "free"` option** - The API does not have a built-in "free" preset. However, free models ARE fully supported:
    - **CLI**: `demo.sh` has built-in free model selection (preset options 5/6) and "RAPID TEST FREE" menu option
    - **API**: Use `text_model` override with free model IDs from `/api/v1/models/free` (e.g., `google/gemini-2.0-flash-001:free`)
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-06*

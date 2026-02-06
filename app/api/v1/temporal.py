@@ -126,7 +126,7 @@ async def generate_moment_from_context(
 
     # Run pipeline
     pipeline = GenerationPipeline()
-    state = await pipeline.run(query)
+    state = await pipeline.run(query, generate_image=True)
 
     # Create timepoint
     new_tp = pipeline.state_to_timepoint(state)
