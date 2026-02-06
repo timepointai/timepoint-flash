@@ -437,6 +437,10 @@ async def run_generation_task(
     timepoint_id: str,
     query: str,
     session_factory,
+    generate_image: bool = False,
+    preset: str | None = None,
+    text_model: str | None = None,
+    image_model: str | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -444,15 +448,31 @@ async def run_generation_task(
         timepoint_id: ID of the timepoint to update
         query: The query to generate
         session_factory: Database session factory
+        generate_image: Whether to generate an image
+        preset: Quality preset name
+        text_model: Custom text model override
+        image_model: Custom image model override
     """
     from app.database import get_session
 
     logger.info(f"Starting background generation for {timepoint_id}")
 
     try:
+        # Parse preset
+        parsed_preset = None
+        if preset:
+            try:
+                parsed_preset = QualityPreset(preset.lower())
+            except ValueError:
+                logger.warning(f"Invalid preset '{preset}', using default")
+
         # Run pipeline
-        pipeline = GenerationPipeline()
-        state = await pipeline.run(query)
+        pipeline = GenerationPipeline(
+            preset=parsed_preset,
+            text_model=text_model,
+            image_model=image_model,
+        )
+        state = await pipeline.run(query, generate_image)
 
         # Convert to timepoint
         generated_tp = pipeline.state_to_timepoint(state)
@@ -468,6 +488,7 @@ async def run_generation_task(
             if tp:
                 # Update fields
                 tp.status = generated_tp.status
+                tp.slug = generated_tp.slug
                 tp.year = generated_tp.year
                 tp.month = generated_tp.month
                 tp.day = generated_tp.day
@@ -480,6 +501,8 @@ async def run_generation_task(
                 tp.scene_data_json = generated_tp.scene_data_json
                 tp.dialog_json = generated_tp.dialog_json
                 tp.image_prompt = generated_tp.image_prompt
+                tp.image_base64 = generated_tp.image_base64
+                tp.image_model_used = generated_tp.image_model_used
                 tp.error_message = generated_tp.error_message
 
                 await session.commit()
@@ -542,6 +565,10 @@ async def generate_timepoint(
         timepoint.id,
         request.query,
         None,  # session_factory not needed with get_session()
+        generate_image=request.generate_image,
+        preset=request.preset,
+        text_model=request.text_model,
+        image_model=request.image_model,
     )
 
     return GenerateResponse(

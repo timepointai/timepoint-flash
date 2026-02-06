@@ -210,19 +210,7 @@ VERDICT: Pipeline wins on quality (8.9 vs 8.6)
 
 Issues discovered during testing that affect functionality:
 
-### 1. Background Generation Ignores Preset (Bug)
-
-**Location:** `app/api/v1/timepoints.py` - `run_generation_task()`
-
-**Issue:** The `POST /api/v1/timepoints/generate` endpoint accepts a `preset` parameter but doesn't pass it to the `GenerationPipeline()`. The pipeline always uses default settings.
-
-**Workaround:** Use `/generate/stream` or `/generate/sync` endpoints instead.
-
-**Fix:** Pass preset, text_model, and image_model to pipeline in background task.
-
----
-
-### 2. No API `preset: "free"` Option
+### 1. No API `preset: "free"` Option
 
 **Issue:** The API does not have a built-in `preset: "free"` parameter option.
 
@@ -234,7 +222,7 @@ Issues discovered during testing that affect functionality:
 
 ---
 
-### 3. Fallback Direction
+### 2. Fallback Direction
 
 **Issue:** The fallback logic goes free → paid models, but not paid → free. When paid models fail (e.g., rate limits), the system doesn't try free alternatives.
 
@@ -254,6 +242,12 @@ The following issues were discovered and fixed during comprehensive testing:
 
 4. **image_url not populated** - `image_url` was always null even after successful image generation. Fixed by generating a data URI from `image_base64` in the pipeline.
 
+5. **Async `/generate` endpoint ignored request parameters** - `run_generation_task()` didn't pass `generate_image`, `preset`, `text_model`, or `image_model` to the pipeline — it always ran with defaults. Fixed by threading request params through `run_generation_task()`.
+
+6. **Async `/generate` background task didn't persist image data** - `image_base64`, `image_model_used`, and `slug` were not copied to the DB after background generation — generated images were silently discarded. Fixed by adding missing field assignments in the DB update loop.
+
+7. **Temporal navigation never generated images** - `generate_moment_from_context()` called `pipeline.run()` without `generate_image=True`, so `/temporal/{id}/next` and `/prior` never produced images. Fixed.
+
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-06*
