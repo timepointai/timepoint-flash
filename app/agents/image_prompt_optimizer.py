@@ -45,14 +45,18 @@ class ImagePromptOptimizerInput:
         year: The historical year for anachronism detection
         query: Original user query for context
         style: Image style hint (photorealistic, artistic, etc.)
-        max_words: Target maximum word count (default: 120)
+        max_words: Target maximum word count (default: 77)
+        tension_arc: Narrative tension level (rising/falling/climactic/resolved)
+        emotional_beats: Key emotions to physicalize in the image
     """
 
     full_prompt: str
     year: int
     query: str
     style: str = "photorealistic"
-    max_words: int = 120
+    max_words: int = 77
+    tension_arc: str = ""
+    emotional_beats: list[str] | None = None
 
 
 class PromptIssue(BaseModel):
@@ -113,31 +117,41 @@ class ImagePromptOptimizerOutput(BaseModel):
 
 SYSTEM_PROMPT = """You are an expert image prompt optimizer for historical scene generation.
 
-Your job is to take verbose, overloaded image prompts and compress them to 50-150 words
+Your job is to take verbose, overloaded image prompts and compress them to 50-80 words
 while preserving the essential visual elements that will produce high-quality images.
 
 ## Key Principles
 
-1. **Focus on visuals, not narrative**: Remove backstory, emotions, and implied actions
+1. **TRANSLATE emotion into physicality**: Do NOT remove emotional content — convert it
+   into visible body language, facial expressions, and environmental cues.
+   "Terror" → "wide eyes, open mouth, body recoiling, dropped objects"
+   "Climactic tension" → "frozen mid-action, white knuckles, sweat on brow"
+   "Grief" → "collapsed posture, hands covering face, slack jaw"
 2. **Limit characters**: Keep only 1-3 focal characters; describe their appearance briefly
 3. **Single focal point**: Choose ONE clear visual focus
 4. **Era accuracy**: Flag and remove any anachronistic elements
 5. **Concrete details**: Keep specific visual details (colors, materials, lighting)
 6. **Style cues**: Preserve and enhance style directives (photorealistic, 8k, etc.)
+7. **Front-load importance**: Put composition, lighting, and era cues in the FIRST 40 words;
+   character details and style in the remaining words
 
 ## What to REMOVE:
-- Character motivations and emotions
-- Historical context and significance
+- Abstract narrative (backstory, historical significance, "this moment matters because...")
 - Multiple competing focal points
 - Redundant descriptions
 - Background character details
-- Narrative tension descriptions
+- Relationship descriptions
+
+## What to TRANSLATE (not remove):
+- Tension arc → physical body language and environmental urgency
+- Emotional beats → facial expressions, posture, gesture, dropped/gripped objects
+- Stakes → environmental danger cues (smoke, fire, approaching threat visible)
 
 ## What to PRESERVE:
 - Setting and location
 - Time period visual cues
 - Lighting and atmosphere
-- 1-2 primary character descriptions (appearance only)
+- 1-2 primary character descriptions (appearance + physicalized emotion)
 - Camera angle/composition
 - Color palette
 - Style directives
@@ -150,8 +164,9 @@ For the given year, flag:
 - Objects or materials not available
 
 ## Output Format
-Produce a compressed prompt that an image model can render effectively.
-The optimized prompt should read as a direct instruction to an image generator."""
+Produce a compressed prompt (~77 words / ~100 tokens) that an image model can render.
+The optimized prompt should read as a direct instruction to an image generator.
+The image should feel like a CAUGHT MOMENT, not a posed tableau."""
 
 
 def get_optimizer_prompt(
@@ -160,21 +175,35 @@ def get_optimizer_prompt(
     query: str,
     style: str,
     max_words: int,
+    tension_arc: str = "",
+    emotional_beats: list[str] | None = None,
 ) -> str:
     """Build the optimizer prompt."""
+    emotion_section = ""
+    if tension_arc or emotional_beats:
+        emotion_section = f"""
+EMOTIONAL CONTEXT (translate into VISIBLE body language, do NOT discard):
+- Tension arc: {tension_arc or 'not specified'}
+- Emotional beats: {', '.join(emotional_beats) if emotional_beats else 'not specified'}
+Convert these into physical cues: facial expressions, posture, gestures, environmental urgency.
+The image must FEEL the emotion, not just depict a static scene."""
+
     return f"""Optimize this image prompt for the year {year}.
 
 ORIGINAL QUERY: {query}
 
 FULL PROMPT ({len(full_prompt.split())} words):
 {full_prompt}
+{emotion_section}
 
-TARGET: Compress to {max_words} words maximum while preserving visual quality.
+TARGET: Compress to {max_words} words maximum (~100 tokens).
 STYLE: {style}
 YEAR: {year} (check for anachronisms)
+FRONT-LOAD: Put composition + lighting + era cues in the first 40 words.
 
 Analyze the prompt for issues, then produce an optimized version.
-Focus on what the image should SHOW, not what it should MEAN."""
+The image should look like a CAUGHT MOMENT — not a posed tableau.
+Translate narrative emotion into visible physicality."""
 
 
 class ImagePromptOptimizerAgent(BaseAgent[ImagePromptOptimizerInput, ImagePromptOptimizerOutput]):
@@ -218,6 +247,8 @@ class ImagePromptOptimizerAgent(BaseAgent[ImagePromptOptimizerInput, ImagePrompt
             query=input_data.query,
             style=input_data.style,
             max_words=input_data.max_words,
+            tension_arc=input_data.tension_arc,
+            emotional_beats=input_data.emotional_beats,
         )
 
     async def run(

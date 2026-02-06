@@ -23,22 +23,31 @@ Use these profiles to ROLEPLAY each character authentically:
 - Incorporate voice notes (accent hints, verbal quirks)
 - Reflect their emotional state in this scene
 
+VOICE DIFFERENTIATION (most important rule):
+Each character MUST sound like a different person. Vary these by social class:
+- Elite: complex sentences, abstract reasoning, rhetorical questions
+- Educated: clear statements, practical metaphors, moderate vocabulary
+- Common: short sentences, concrete nouns, trade jargon, exclamations
+- Servant/slave: fragments, hedging ("perhaps...", "if it please..."), indirect
+- Child: simple words, questions, incomplete thoughts, non-sequiturs
+
+If you read the lines WITHOUT speaker names and can't tell who said what,
+the dialog has FAILED. Every line must be identifiable by voice alone.
+
+CULTURAL ACCURACY:
+- Roman setting: invoke Jupiter, Pluto, Dis Pater, the Lares — NOT Greek gods
+- Avoid ALL modern English idioms ("six feet under", "beat around the bush", etc.)
+- Don't compress timelines for drama — if the historical event unfolded over hours,
+  characters should NOT react as if everything is happening right now
+
 GUIDELINES:
-1. Use language authentic to the time period and location
-2. Each character should sound DISTINCTIVE based on their profile
-3. Dialog should capture the dramatic tension
-4. Include non-verbal cues (whispers, shouts, etc.)
-5. Background characters may have brief lines
-6. Consider what would actually be said in this moment
-7. A witty character's lines should be clever; a formal character's lines should be proper
-8. Let personality drive word choice and sentence structure
-
-EXAMPLES of period language:
-- 18th century formal: "Gentlemen, I submit that we must act with dispatch."
-- Medieval: "By my faith, the hour grows late."
-- Ancient Rome: "The Senate awaits your words, consul."
-
-IMPORTANT: Maximum 7 lines for visual coherence.
+1. Use language authentic to the time period, location, AND social class
+2. Dialog should capture the dramatic tension through character-specific reactions
+3. Include non-verbal cues (whispers, shouts, etc.)
+4. Silent characters should NOT be given throwaway lines — leave them silent
+5. Consider what THIS specific person would actually say in this moment
+6. Let social class and education drive sentence structure and vocabulary
+7. Maximum 7 lines for visual coherence
 
 Respond with a JSON object matching the DialogData schema."""
 
@@ -159,8 +168,11 @@ The moment: {query}
 
 {scene_context}
 
-What do you say? Give ONLY your spoken words (1-2 sentences).
-Do NOT include your name, quotation marks, or stage directions."""
+What do you say — in YOUR voice, which reflects your social class, education,
+and personality? Your words must sound like no one else in this scene.
+Give ONLY your spoken words (1-2 sentences).
+Do NOT include your name, quotation marks, or stage directions.
+Do NOT use modern idioms. Use culturally accurate references for this time and place."""
 
 SEQUENTIAL_USER_RESPONSE = """The conversation so far:
 
@@ -168,8 +180,11 @@ SEQUENTIAL_USER_RESPONSE = """The conversation so far:
 
 {other_character} just said: "{last_line}"
 
-What do you say in response? Give ONLY your spoken words (1-2 sentences).
-Do NOT include your name, quotation marks, or stage directions."""
+What do you say in response — in YOUR distinct voice? Your sentence structure,
+vocabulary, and directness should reflect who YOU are, not mirror how they spoke.
+Give ONLY your spoken words (1-2 sentences).
+Do NOT include your name, quotation marks, or stage directions.
+Do NOT use modern idioms. Stay in the cultural context of this time and place."""
 
 
 def get_sequential_first_turn_prompt(

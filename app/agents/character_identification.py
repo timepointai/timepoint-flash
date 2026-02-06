@@ -37,6 +37,8 @@ class CharacterIdentificationInput:
         atmosphere: Scene atmosphere
         tension_level: Dramatic tension
         detected_figures: Historical figures from Judge
+        verified_participants: Verified participants from Grounding Agent
+        grounding_notes: Additional historical context from grounding
     """
 
     query: str
@@ -47,6 +49,8 @@ class CharacterIdentificationInput:
     atmosphere: str = ""
     tension_level: str = "medium"
     detected_figures: list[str] = field(default_factory=list)
+    verified_participants: str = ""
+    grounding_notes: str = ""
 
     @classmethod
     def from_data(
@@ -55,6 +59,7 @@ class CharacterIdentificationInput:
         timeline: TimelineData,
         scene: SceneData,
         detected_figures: list[str] | None = None,
+        grounded_context: object | None = None,
     ) -> "CharacterIdentificationInput":
         """Create input from previous agent data.
 
@@ -63,10 +68,19 @@ class CharacterIdentificationInput:
             timeline: TimelineData from Timeline Agent
             scene: SceneData from Scene Agent
             detected_figures: Figures detected by Judge
+            grounded_context: GroundedContext from Grounding Agent (optional)
 
         Returns:
             CharacterIdentificationInput populated with context
         """
+        verified = ""
+        notes = ""
+        if grounded_context is not None:
+            if hasattr(grounded_context, "physical_participants") and grounded_context.physical_participants:
+                verified = grounded_context.physical_participants
+            if hasattr(grounded_context, "setting_details") and grounded_context.setting_details:
+                notes = grounded_context.setting_details
+
         return cls(
             query=query,
             year=timeline.year,
@@ -76,6 +90,8 @@ class CharacterIdentificationInput:
             atmosphere=scene.atmosphere,
             tension_level=scene.tension_level,
             detected_figures=detected_figures or [],
+            verified_participants=verified,
+            grounding_notes=notes,
         )
 
 
@@ -126,6 +142,8 @@ class CharacterIdentificationAgent(BaseAgent[CharacterIdentificationInput, Chara
             atmosphere=input_data.atmosphere,
             tension_level=input_data.tension_level,
             detected_figures=input_data.detected_figures,
+            verified_participants=input_data.verified_participants,
+            grounding_notes=input_data.grounding_notes,
         )
 
     async def run(

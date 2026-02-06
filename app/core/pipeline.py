@@ -53,6 +53,7 @@ from app.agents.image_prompt_optimizer import (
     ImagePromptOptimizerAgent,
     ImagePromptOptimizerInput,
 )
+from app.agents.critique import CritiqueAgent, CritiqueInput
 from app.agents.grounding import (
     GroundingAgent,
     GroundingInput,
@@ -300,6 +301,7 @@ class GenerationPipeline:
         self._image_prompt_agent: ImagePromptAgent | None = None
         self._image_prompt_optimizer_agent: ImagePromptOptimizerAgent | None = None
         self._image_gen_agent: ImageGenAgent | None = None
+        self._critique_agent: CritiqueAgent | None = None
 
     @property
     def router(self) -> LLMRouter:
@@ -332,6 +334,7 @@ class GenerationPipeline:
         self._image_prompt_agent = ImagePromptAgent(router=router)
         self._image_prompt_optimizer_agent = ImagePromptOptimizerAgent(router=router)
         self._image_gen_agent = ImageGenAgent(router=router)
+        self._critique_agent = CritiqueAgent(router=router)
         self._agents_initialized = True
 
     def _plan_execution(self) -> None:
@@ -628,6 +631,7 @@ class GenerationPipeline:
             timeline=state.timeline_data,
             scene=state.scene_data,
             detected_figures=state.judge_result.detected_figures,
+            grounded_context=state.grounded_context,
         )
         id_result = await self._char_id_agent.run(id_input)
 
@@ -1132,6 +1136,7 @@ class GenerationPipeline:
             timeline=state.timeline_data,
             scene=state.scene_data,
             detected_figures=state.judge_result.detected_figures,
+            grounded_context=state.grounded_context,
         )
         id_result = await self._char_id_agent.run(id_input)
 
@@ -1334,8 +1339,9 @@ class GenerationPipeline:
             return state
 
         # Pass graph data for relationship-informed dialog
+        query = state.judge_result.cleaned_query or state.query
         input_data = DialogInput.from_data(
-            query=state.judge_result.cleaned_query or state.query,
+            query=query,
             timeline=state.timeline_data,
             scene=state.scene_data,
             characters=state.character_data,
@@ -1343,7 +1349,48 @@ class GenerationPipeline:
         )
         result = await self._dialog_agent.run(input_data)
 
-        if result.success:
+        if result.success and result.content:
+            state.dialog_data = result.content
+
+            # === CRITIQUE LOOP (one pass max) ===
+            critique_input = CritiqueInput(
+                step_name="dialog",
+                output_json=result.content.model_dump_json(),
+                year=state.timeline_data.year,
+                era=state.timeline_data.era or "",
+                location=state.timeline_data.location,
+                query=query,
+            )
+            critique_result = await self._critique_agent.run(critique_input)
+
+            if (
+                critique_result.success
+                and critique_result.content
+                and critique_result.content.has_critical
+            ):
+                logger.info(
+                    f"Dialog critique found critical issues, re-running dialog with corrections"
+                )
+                # Re-run dialog with critique injected as additional context
+                retry_input = DialogInput.from_data(
+                    query=query,
+                    timeline=state.timeline_data,
+                    scene=state.scene_data,
+                    characters=state.character_data,
+                    graph=state.graph_data,
+                )
+                # Inject critique into the query so the dialog agent sees it
+                revision = critique_result.content.revision_instructions
+                if revision:
+                    retry_input.query = f"{query}\n\nCRITICAL CORRECTIONS REQUIRED:\n{revision}"
+
+                retry_result = await self._dialog_agent.run(retry_input)
+                if retry_result.success and retry_result.content:
+                    state.dialog_data = retry_result.content
+                    result = retry_result
+                    logger.info("Dialog retry completed")
+
+        elif result.success:
             state.dialog_data = result.content
 
         state.step_results.append(
@@ -1517,7 +1564,9 @@ class GenerationPipeline:
             year=state.timeline_data.year,
             query=state.judge_result.cleaned_query or state.query,
             style=state.image_prompt_data.style or "photorealistic",
-            max_words=120,
+            max_words=77,
+            tension_arc=state.moment_data.tension_arc if state.moment_data else "",
+            emotional_beats=state.moment_data.emotional_beats if state.moment_data else None,
         )
         result = await self._image_prompt_optimizer_agent.run(input_data)
 

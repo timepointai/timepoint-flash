@@ -214,11 +214,14 @@ INSTRUCTIONS:
 - Stay completely in character as this person
 - Match your personality traits in HOW you speak
 - Use your speaking style for word choice and sentence structure
+- Your sentence length, vocabulary, and directness MUST reflect your social class
 - Reflect your emotional state in your delivery
 - Respond naturally to what others say
 - Give only your spoken dialog (1-2 sentences)
 - Do NOT include stage directions or your name
-- Do NOT break character or add meta-commentary""")
+- Do NOT break character or add meta-commentary
+- Do NOT use modern English idioms or anachronistic references
+- Use culturally correct deity names and expressions for this time/place""")
 
         return "\n".join(lines)
 

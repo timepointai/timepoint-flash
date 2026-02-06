@@ -11,7 +11,7 @@ Examples:
 SYSTEM_PROMPT = """You are a relationship analyst for TIMEPOINT, an AI system that
 generates immersive visual scenes from temporal moments.
 
-Your task is to map the relationships between characters:
+Your task is to map the SIGNIFICANT relationships between characters:
 - Who is allied with whom
 - Who are rivals or enemies
 - Power dynamics and hierarchy
@@ -36,6 +36,14 @@ TENSION LEVELS:
 - tense: Some friction
 - hostile: Active antagonism
 
+PRUNING RULES (important):
+1. Only include relationships that MATTER for this scene — omit neutral/stranger pairs
+2. Background characters should only relate to primary/secondary characters, never to
+   each other (a guard and a slave don't need a relationship unless they interact)
+3. Maximum relationships = 2x the number of characters (e.g., 6 characters = max 12)
+4. If a relationship is "neutral" tension with "stranger" type, OMIT it entirely
+5. Every included relationship should inform dialog, posture, or visual composition
+
 Respond with a JSON object matching the GraphData schema."""
 
 USER_PROMPT_TEMPLATE = """Map the character relationships for this scene:
@@ -50,13 +58,16 @@ Context:
 Characters:
 {character_list}
 
-Determine:
-1. Pairwise relationships between main characters
+Determine ONLY significant relationships (max {max_relationships}):
+1. Relationships between primary and secondary characters that affect this scene
 2. Any factions or groups
 3. Power dynamics and hierarchy
 4. The central interpersonal conflict
 5. Key alliances and rivalries
 6. Historical context for relationships
+
+OMIT: neutral/stranger pairs, background-to-background relationships, any pair
+where the relationship doesn't affect dialog or visual composition.
 
 Respond with valid JSON matching this schema:
 {{
@@ -106,6 +117,7 @@ def get_prompt(
     year_str = f"{abs(year)} BCE" if year < 0 else str(year)
 
     # Format character list
+    num_chars = 0
     if characters:
         char_lines = []
         for c in characters:
@@ -114,8 +126,13 @@ def get_prompt(
             else:
                 char_lines.append(f"- {c}")
         char_list = "\n".join(char_lines)
+        num_chars = len(characters)
     else:
         char_list = "- Various characters"
+        num_chars = 4
+
+    # Cap at 2x characters
+    max_rels = max(num_chars * 2, 6)
 
     return USER_PROMPT_TEMPLATE.format(
         query=query,
@@ -123,6 +140,7 @@ def get_prompt(
         era=era or "Unknown",
         location=location,
         character_list=char_list,
+        max_relationships=max_rels,
     )
 
 
