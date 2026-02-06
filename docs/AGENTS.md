@@ -159,6 +159,49 @@ class GraphData:
 
 **Graph-ready:** The `Relationship.to_edge()` method returns `(from, to, type)` tuples for easy conversion to networkx/igraph if you want to add visualization.
 
+## Example Output: AlphaGo Move 37
+
+Query: `"AlphaGo plays Move 37 against Lee Sedol in Game 2, the move no human would make, Four Seasons Hotel Seoul March 10 2016"`
+
+**What the pipeline produced:**
+
+```
+Location:  Four Seasons Hotel, Seoul, South Korea
+Date:      2016-03-10, afternoon, spring
+Tension:   high
+Image:     generated (gemini-2.5-flash-image)
+```
+
+**Scene:** A brightly lit conference room arranged for a Go tournament. Central Go board on a low, polished wooden table. Lee Sedol sits opposite the AlphaGo system, represented by a monitor. Journalists, AI researchers, and Go enthusiasts seated behind a low barrier. Cables connecting the AlphaGo system to power and network.
+
+**Characters (5 speaking + 3 background):**
+
+| Character | Role | Voice |
+|-----------|------|-------|
+| Lee Sedol | primary | Short, halting fragments — stunned understatement |
+| Commentator 1 | secondary | Chatty, analytical, comfortable on-air cadence |
+| Commentator 2 | secondary | More measured, technical |
+| Tournament Official | secondary | Formal, procedural |
+| AlphaGo | primary (silent) | Represented by monitor — grounding agent correctly identified non-human entity |
+
+**Dialog excerpt:**
+
+> **Lee Sedol:** "...Huh. That's... certainly a move."
+>
+> **Commentator 1:** "I'm not sure I've ever seen a professional play quite like that before."
+>
+> **Lee Sedol:** "It's... unexpected, to say the least."
+>
+> **Commentator 1:** "It's either genius or madness, and I honestly can't tell which right now."
+
+**What this demonstrates:**
+- **Grounding agent** correctly resolved AlphaGo as a non-human entity represented by a monitor
+- **Voice differentiation** — Lee Sedol's halting fragments vs. commentator's fluid analysis
+- **Emotional transfer** — image optimizer translated "high tension" into physical cues (Sedol's posture, focused expressions)
+- **Scene accuracy** — Four Seasons Hotel setup matches documented tournament configuration
+
+---
+
 ## Parallel Execution
 
 The pipeline doesn't wait for each step:
