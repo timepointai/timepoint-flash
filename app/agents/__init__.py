@@ -43,6 +43,11 @@ from app.agents.image_prompt_optimizer import (
     ImagePromptOptimizerInput,
     ImagePromptOptimizerOutput,
 )
+from app.agents.critique import (
+    CritiqueAgent,
+    CritiqueInput,
+    CritiqueOutput,
+)
 from app.agents.grounding import (
     GroundingAgent,
     GroundingInput,
@@ -82,6 +87,10 @@ __all__ = [
     "ImagePromptOptimizerAgent",
     "ImagePromptOptimizerInput",
     "ImagePromptOptimizerOutput",
+    # Critique
+    "CritiqueAgent",
+    "CritiqueInput",
+    "CritiqueOutput",
     # Grounding
     "GroundingAgent",
     "GroundingInput",

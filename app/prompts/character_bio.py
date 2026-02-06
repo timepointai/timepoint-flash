@@ -28,6 +28,19 @@ FOR SPEAKING CHARACTERS, also provide:
 - Speaking style: How they talk (e.g., "formal, eloquent, uses metaphors")
 - Voice notes: Speech patterns, accent hints, verbal quirks
 - Emotional state: Their current mood in this scene
+- voice_contrast: How this character sounds DIFFERENT from the other speakers
+
+VOICE DIFFERENTIATION (critical for speaking characters):
+Social class and education MUST determine speech patterns:
+- Elite/noble: Complex sentence structure, subordinate clauses, abstract concepts
+- Educated commoner: Clear declarative sentences, practical metaphors, moderate vocabulary
+- Common laborer: Short sentences, concrete language, trade-specific terms
+- Servant/slave: Fragments, deferential phrasing, indirect speech, hedging
+- Child: Simple vocabulary, questions, incomplete thoughts
+
+Each speaking character MUST sound recognizably different from every other speaker.
+If two characters would sound similar, differentiate by: sentence length, vocabulary
+level, use of questions vs statements, directness vs indirectness, or verbal tics.
 
 GUIDELINES:
 1. For historical figures, use accurate physical descriptions when known
@@ -36,6 +49,9 @@ GUIDELINES:
 4. Reference their relationships with other characters in the scene
 5. For known historical figures, capture their documented personality
 6. Ensure consistency with the full cast dynamics
+7. Use period-authentic deity names and cultural references (Roman = Jupiter/Pluto/Dis Pater,
+   NOT Greek equivalents like Zeus/Hades unless the setting is Greek)
+8. Avoid modern English idioms in voice_notes — flag any that slip through
 
 Respond with a JSON object matching the Character schema."""
 
@@ -77,12 +93,17 @@ Respond with valid JSON:
   "speaks_in_scene": {speaks_in_scene_json},
   "personality": "core traits (required if speaks)" | null,
   "speaking_style": "how they talk (required if speaks)" | null,
-  "voice_notes": "speech patterns, verbal quirks" | null,
+  "voice_notes": "speech patterns, verbal quirks — NO modern idioms" | null,
   "emotional_state": "current emotional state" | null
 }}
 
-IMPORTANT: Ensure this character's portrayal reflects their relationships
-with other characters in the scene, especially: {key_relationships}"""
+IMPORTANT:
+- Ensure this character's portrayal reflects their relationships
+  with other characters in the scene, especially: {key_relationships}
+- For speaking characters: their voice MUST be distinguishable from all other speakers.
+  Vary sentence length, vocabulary level, directness, and verbal tics by social class.
+- Use culturally correct references (Roman setting = Roman deities/idioms, NOT Greek)
+- Do NOT use modern English idioms (e.g., "six feet under", "beat around the bush")"""
 
 
 def get_prompt(
