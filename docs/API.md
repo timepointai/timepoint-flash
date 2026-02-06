@@ -71,6 +71,8 @@ Override preset models for custom configurations:
 | **Generate** | `POST /api/v1/timepoints/generate/stream` | Create a scene (streaming) - **recommended** |
 | **Generate** | `POST /api/v1/timepoints/generate/sync` | Create a scene (blocking) |
 | **Generate** | `POST /api/v1/timepoints/generate` | Create a scene (background task) |
+
+All generation endpoints run a 15-agent pipeline with critique loop: dialog is reviewed for anachronisms, cultural errors, and voice distinctiveness, and retried if critical issues are found. Characters are capped at 6 with social register-based voice differentiation. Image prompts translate narrative emotion into physicalized body language (~77 words).
 | **Get** | `GET /api/v1/timepoints/{id}` | Retrieve a scene |
 | **Chat** | `POST /api/v1/interactions/{id}/chat` | Talk to a character |
 | **Time Travel** | `POST /api/v1/temporal/{id}/next` | Jump forward |

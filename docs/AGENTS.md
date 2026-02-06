@@ -13,16 +13,18 @@ Your Query: "signing of the declaration of independence"
 │              ↓                          │        ↓                   │
 │    (Google Search                       ├── Moment                   │
 │     verification)                       │        ↓                   │
-│                                         └── Dialog → Camera          │
+│                                         └── Dialog → Critique        │
+│                                                (retry if critical)    │
 │                                                      ↓               │
-│                                               ImagePrompt            │
+│                                               Camera → ImagePrompt   │
 │                                                      ↓               │
 │                                            ImagePromptOptimizer      │
+│                                             (emotion → physicality)   │
 │                                                      ↓               │
 │                                                   ImageGen           │
 └──────────────────────────────────────────────────────────────────────┘
                            ↓
-    Complete scene with up to 8 characters, dialog, relationships, grounded facts, image
+    Complete scene with up to 6 characters, dialog, relationships, grounded facts, image
 ```
 
 **Why multiple agents instead of one big prompt?**
@@ -30,8 +32,9 @@ Your Query: "signing of the declaration of independence"
 1. **Speed** - Independent agents run in parallel, cutting time by ~40%
 2. **Quality** - Each agent has a focused prompt optimized for one task
 3. **Accuracy** - Grounding agent verifies facts via Google Search before generation
-4. **Reliability** - If image generation fails, you still get the scene
-5. **Visibility** - You see progress as each step completes
+4. **Self-correction** - Critique agent reviews dialog for anachronisms and cultural errors, retries if critical issues found
+5. **Reliability** - If image generation fails, you still get the scene
+6. **Visibility** - You see progress as each step completes
 
 ## What Each Agent Does
 
@@ -41,18 +44,19 @@ Your Query: "signing of the declaration of independence"
 | **Timeline** | When exactly? | year, month, day, time of day |
 | **Grounding** | Verify facts via Google Search | verified location, date, participants, physical presence |
 | **Scene** | Where and what's the atmosphere? | location, weather, mood |
-| **Characters** | Who's there? | 8 people with names, roles, bios |
-| **Graph** | How do they relate? | alliances, tensions, history |
+| **Characters** | Who's there? | Up to 6 people with names, roles, bios, social registers |
+| **Graph** | How do they relate? | alliances, tensions, history (pruned to significant pairs only) |
 | **Moment** | What's the dramatic tension? | stakes, conflict, emotion |
-| **Dialog** | What are they saying? | 7 period-appropriate lines |
+| **Dialog** | What are they saying? | Up to 7 voice-differentiated lines |
+| **Critique** | Any anachronisms or errors? | Issues list; retriggers dialog if critical |
 | **Camera** | How should we frame this? | composition, focal point |
 | **ImagePrompt** | Describe the image in detail | ~5,000-11,000 character prompt with grounded facts |
-| **ImagePromptOptimizer** | Compress prompt for image gen limits | Shortened prompt preserving key visual details |
+| **ImagePromptOptimizer** | Compress + physicalize emotion | ~77 words with tension translated to body language |
 | **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google → OpenRouter → Pollinations.ai) |
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
 
-Note: The Characters step internally uses 3 sub-agents: **CharacterIdentification** (detect who's present), **Graph** (extract relationships), and **CharacterBio** (generate detailed bios for each character).
+Note: The Characters step internally uses 3 sub-agents: **CharacterIdentification** (detect who's present, with grounding data for name authenticity), **Graph** (extract significant relationships, pruned to 2x character count), and **CharacterBio** (generate detailed bios with social register and voice differentiation).
 
 ## The Grounding Agent (Technical Details)
 
@@ -160,9 +164,9 @@ class GraphData:
 The pipeline doesn't wait for each step:
 
 ```
-Phase 1 (sequential): Judge → Timeline → Scene
-Phase 2 (parallel):   Characters + Moment + Camera (all at once)
-Phase 3 (sequential): Dialog → ImagePrompt → ImageGen
+Phase 1 (sequential): Judge → Timeline → Grounding → Scene
+Phase 2 (parallel):   Characters (with grounding) + Moment + Camera (all at once)
+Phase 3 (sequential): Dialog → Critique (retry if needed) → ImagePrompt → Optimize → ImageGen
 ```
 
 ## Adding Your Own Agent
@@ -198,8 +202,9 @@ app/agents/
 ├── dialog.py                 # Period dialog
 ├── camera.py                 # Visual composition
 ├── image_prompt.py           # Prompt assembly (with grounded facts)
-├── image_prompt_optimizer.py # Compress prompt for image gen limits
+├── image_prompt_optimizer.py # Compress prompt + physicalize emotion (~77 words)
 ├── image_gen.py              # Image generation (3-tier fallback)
+├── critique.py               # Post-generation quality review (anachronisms, voice, cultural errors)
 ├── character_chat.py         # Chat interactions
 ├── dialog_extension.py       # Extended dialog generation
 └── survey.py                 # Multi-character survey
@@ -207,4 +212,4 @@ app/agents/
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-06*

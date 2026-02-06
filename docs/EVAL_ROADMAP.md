@@ -10,12 +10,18 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
-- 402 unit tests + 81 integration tests (483 total)
+- 402 unit tests + 81 integration tests + 13 e2e tests (496 total)
 - Google Search grounding for historical accuracy
 - 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
 - Physical presence detection for accurate image generation
 - Model tracking (`text_model_used`, `image_model_used` in responses)
 - Image URL populated as data URI when image generation succeeds
+- CritiqueAgent: post-dialog review for anachronisms, cultural errors, voice issues (auto-retry)
+- Voice differentiation: social register constraints per character class (elite/educated/common/servant/child)
+- Emotional transfer: image prompt optimizer translates tension_arc into physicalized body language
+- Grounding→CharacterID pipeline: verified participants inform character casting and naming
+- Graph pruning: relationship cap at 2x characters, salience threshold, no background-to-background pairs
+- Character cap reduced to 6 for higher per-character quality
 
 **Gap**: Measures speed only, not quality.
 
@@ -247,6 +253,20 @@ The following issues were discovered and fixed during comprehensive testing:
 6. **Async `/generate` background task didn't persist image data** - `image_base64`, `image_model_used`, and `slug` were not copied to the DB after background generation — generated images were silently discarded. Fixed by adding missing field assignments in the DB update loop.
 
 7. **Temporal navigation never generated images** - `generate_moment_from_context()` called `pipeline.run()` without `generate_image=True`, so `/temporal/{id}/next` and `/prior` never produced images. Fixed.
+
+### Quality Enhancements (v2.3.2)
+
+Addressing critique feedback on dialog quality (3/10), historical accuracy (5/10), and image emotional flatness (6.5/10):
+
+8. **CritiqueAgent abstraction** — New `app/agents/critique.py` reviews dialog output for anachronisms (material, linguistic), cultural errors (Greek vs Roman deities, modern idioms), voice distinctiveness, and timeline accuracy. When critical issues found, dialog re-runs with revision instructions injected. One retry max.
+
+9. **Voice differentiation by social register** — Character identification now assigns social registers (elite/educated/common/servant/child). Bio prompts enforce class-appropriate sentence structure, vocabulary level, and verbal tics. Sequential dialog prompts require each character to be "identifiable by voice alone." Modern idioms explicitly prohibited.
+
+10. **Emotional transfer in image optimizer** — Optimizer no longer strips emotion. Instead translates `tension_arc` and `emotional_beats` into physicalized visual cues (body language, facial expressions, environmental urgency). Target reduced from 120 to 77 words (~100 tokens). Goal changed from "illustration" to "caught moment."
+
+11. **Grounding feeds character identification** — Grounding agent's `verified_participants` and `setting_details` now flow into `CharacterIdentificationInput`. Prevents literary pattern-matching (e.g., naming a random Roman woman "Fortunata" from Petronius's Satyricon). Naming rules enforce period-authentic identifiers or generic role-based names.
+
+12. **Graph relationship pruning** — Relationships capped at 2x character count. Neutral/stranger pairs omitted. Background-to-background relationships prohibited. Only relationships that affect dialog or visual composition are included.
 
 ---
 
