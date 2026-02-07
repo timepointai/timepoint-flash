@@ -4,13 +4,13 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
-## Current State (v2.3.1)
+## Current State (v2.3.3)
 
 - Multi-model latency comparison (`/api/v1/eval/compare`)
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
-- 402 unit tests + 81 integration tests + 13 e2e tests (496 total)
+- 447 unit tests + 81 integration tests + 13 e2e tests (541 total)
 - Google Search grounding for historical accuracy
 - 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
 - Physical presence detection for accurate image generation
@@ -268,6 +268,24 @@ Addressing critique feedback on dialog quality (3/10), historical accuracy (5/10
 
 12. **Graph relationship pruning** — Relationships capped at 2x character count. Neutral/stranger pairs omitted. Background-to-background relationships prohibited. Only relationships that affect dialog or visual composition are included.
 
+### Pipeline + Dialog Enhancements (v2.3.3)
+
+13. **`text_model_used` not copied in background task** — The `/generate` async endpoint never stored `text_model_used` because it was missing from the field-copy loop in `run_generation_task()`. Fixed.
+
+14. **`social_register` missing from CharacterStub schema** — The prompt asked for social register but the schema had no field, so the LLM output was silently dropped. Added `social_register: str | None` to `CharacterStub`.
+
+15. **Grounding trigger too restrictive** — `needs_grounding()` required BOTH `query_type == HISTORICAL` AND `detected_figures > 0`. If the Judge didn't extract supporting musicians (e.g., Billy Cox, Larry Lee at Woodstock), grounding was skipped entirely. Fixed: grounding now triggers for any HISTORICAL query — the grounding agent discovers participants itself via Google Search.
+
+16. **Grounding + moment data not stored in DB** — `grounding_data_json` and `moment_data_json` had no DB columns, so they were lost after generation. Added columns + alembic migration, stored from `state_to_timepoint()`, and exposed in API response when `include_full=True`.
+
+17. **Grounding context not fully passed to character ID** — `CharacterIdentificationInput.from_data()` only extracted `physical_participants` and `setting_details` from grounding. Now also extracts `verified_participants`, `verified_location`, `verified_date`, and `event_mechanics` for richer character identification context.
+
+18. **Character validator cap 8→6** — `CharacterIdentification` validator allowed up to 8 characters, inconsistent with the stated cap of 6. Fixed to truncate at 6 while preserving priority order (primary > secondary > background).
+
+19. **Narrative arc dialog system** — New `app/schemas/dialog_arc.py` implements Vonnegut's 6 story shapes + Freytag's pyramid. Maps MomentData's `tension_arc` to a narrative shape, assigns 7 beats with functions (establish/complicate/escalate/turn/react/resolve/punctuate), intensity curves, and speaker roles. Dialog agent uses arc-aware speaker selection: TURN → focal character, REACT → different character, PUNCTUATE → background outsider. Forces dialog complexity to O(n) instead of O(2^n).
+
+20. **MomentData + relationships wired into dialog** — `DialogInput.from_data()` now accepts `moment` parameter. Narrative context (stakes, central question, conflict) injected into first-turn prompts. Relationship context injected into response prompts. Speaker limit expanded from 4 to 6 (arc manages coherence).
+
 ---
 
-*Last updated: 2026-02-06*
+*Last updated: 2026-02-07*

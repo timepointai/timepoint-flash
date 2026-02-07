@@ -207,6 +207,8 @@ class TimepointResponse(BaseModel):
     characters: dict[str, Any] | None = None
     scene: dict[str, Any] | None = None
     dialog: list[dict[str, Any]] | None = None
+    grounding: dict[str, Any] | None = None
+    moment: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -269,6 +271,8 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         response.characters = tp.character_data_json
         response.scene = tp.scene_data_json
         response.dialog = tp.dialog_json
+        response.grounding = tp.grounding_data_json
+        response.moment = tp.moment_data_json
 
     return response
 
@@ -502,7 +506,10 @@ async def run_generation_task(
                 tp.dialog_json = generated_tp.dialog_json
                 tp.image_prompt = generated_tp.image_prompt
                 tp.image_base64 = generated_tp.image_base64
+                tp.text_model_used = generated_tp.text_model_used
                 tp.image_model_used = generated_tp.image_model_used
+                tp.grounding_data_json = generated_tp.grounding_data_json
+                tp.moment_data_json = generated_tp.moment_data_json
                 tp.error_message = generated_tp.error_message
 
                 await session.commit()

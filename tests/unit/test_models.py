@@ -173,6 +173,40 @@ class TestTimepoint:
         assert tp.scene_data_json is not None
         assert tp.dialog_json is not None
 
+    def test_timepoint_grounding_data_column(self):
+        """Test grounding_data_json column exists and accepts data."""
+        tp = Timepoint.create(query="Deep Blue vs Kasparov")
+        tp.grounding_data_json = {
+            "verified_location": "Equitable Center, Manhattan",
+            "verified_date": "May 11, 1997",
+        }
+        assert tp.grounding_data_json["verified_location"] == "Equitable Center, Manhattan"
+
+    def test_timepoint_moment_data_column(self):
+        """Test moment_data_json column exists and accepts data."""
+        tp = Timepoint.create(query="signing of the declaration")
+        tp.moment_data_json = {
+            "plot_summary": "The delegates prepare to sign",
+            "tension_arc": "climactic",
+            "stakes": "American independence",
+        }
+        assert tp.moment_data_json["tension_arc"] == "climactic"
+
+    def test_timepoint_grounding_moment_default_none(self):
+        """Test new columns default to None."""
+        tp = Timepoint.create(query="test")
+        assert tp.grounding_data_json is None
+        assert tp.moment_data_json is None
+
+    def test_timepoint_to_dict_includes_grounding_moment(self):
+        """Test to_dict includes grounding and moment fields."""
+        tp = Timepoint.create(query="test")
+        tp.grounding_data_json = {"verified_location": "Rome"}
+        tp.moment_data_json = {"tension_arc": "rising"}
+        data = tp.to_dict()
+        assert data["grounding"] == {"verified_location": "Rome"}
+        assert data["moment"] == {"tension_arc": "rising"}
+
 
 @pytest.mark.fast
 class TestGenerationLog:

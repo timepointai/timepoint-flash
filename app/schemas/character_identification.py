@@ -65,6 +65,10 @@ class CharacterStub(BaseModel):
         default_factory=list,
         description="Names of other characters they interact with",
     )
+    social_register: str | None = Field(
+        default=None,
+        description="Social register: elite/educated/common/servant/child",
+    )
 
 
 class CharacterIdentification(BaseModel):
@@ -89,7 +93,7 @@ class CharacterIdentification(BaseModel):
 
     characters: list[CharacterStub] = Field(
         ...,
-        description="List of character stubs (max 8)",
+        description="List of character stubs (max 6)",
     )
     focal_character: str = Field(
         ...,
@@ -107,13 +111,13 @@ class CharacterIdentification(BaseModel):
     @field_validator("characters")
     @classmethod
     def validate_max_characters(cls, v: list[CharacterStub]) -> list[CharacterStub]:
-        """Ensure maximum 8 characters."""
-        if len(v) > 8:
+        """Ensure maximum 6 characters."""
+        if len(v) > 6:
             # Keep most important characters
             primary = [c for c in v if c.role == CharacterRole.PRIMARY]
             secondary = [c for c in v if c.role == CharacterRole.SECONDARY]
             background = [c for c in v if c.role == CharacterRole.BACKGROUND]
-            v = (primary + secondary + background)[:8]
+            v = (primary + secondary + background)[:6]
         return v
 
     @property

@@ -12,14 +12,14 @@ Interactive docs: [Swagger UI](http://localhost:8000/docs) | [ReDoc](http://loca
 ```bash
 curl -X POST http://localhost:8000/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
-  -d '{"query": "moon landing 1969", "preset": "hyper", "generate_image": true}'
+  -d '{"query": "Oppenheimer Trinity test control bunker 5:29 AM July 16 1945", "preset": "hyper", "generate_image": true}'
 ```
 
 **Chat with a character:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/interactions/{timepoint_id}/chat \
   -H "Content-Type: application/json" \
-  -d '{"character": "Neil Armstrong", "message": "What did it feel like to step on the moon?"}'
+  -d '{"character": "Oppenheimer", "message": "What did you feel when the sky turned white?"}'
 ```
 
 **Jump forward in time:**
@@ -45,7 +45,7 @@ Control the speed/quality tradeoff with presets:
 **Usage:**
 ```json
 {
-  "query": "boston tea party",
+  "query": "Turing interrogation Wilmslow February 1952",
   "preset": "hyper",
   "generate_image": false
 }
@@ -56,7 +56,7 @@ Control the speed/quality tradeoff with presets:
 Override preset models for custom configurations:
 ```json
 {
-  "query": "boston tea party",
+  "query": "Zheng He treasure fleet Malindi harbor 1418",
   "text_model": "google/gemini-2.0-flash-001",
   "image_model": "gemini-2.5-flash-image"
 }
@@ -72,7 +72,7 @@ Override preset models for custom configurations:
 | **Generate** | `POST /api/v1/timepoints/generate/sync` | Create a scene (blocking) |
 | **Generate** | `POST /api/v1/timepoints/generate` | Create a scene (background task) |
 
-All generation endpoints run a 15-agent pipeline with critique loop: dialog is reviewed for anachronisms, cultural errors, and voice distinctiveness, and retried if critical issues are found. Characters are capped at 6 with social register-based voice differentiation. Image prompts translate narrative emotion into physicalized body language (~77 words).
+All generation endpoints run a 14-agent pipeline with critique loop: dialog is reviewed for anachronisms, cultural errors, and voice distinctiveness, and retried if critical issues are found. Characters are capped at 6 with social register-based voice differentiation. Image prompts translate narrative emotion into physicalized body language (~77 words).
 | **Get** | `GET /api/v1/timepoints/{id}` | Retrieve a scene |
 | **Chat** | `POST /api/v1/interactions/{id}/chat` | Talk to a character |
 | **Time Travel** | `POST /api/v1/temporal/{id}/next` | Jump forward |
@@ -93,7 +93,7 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 **Request:**
 ```json
 {
-  "query": "signing of the declaration of independence",
+  "query": "Oppenheimer watches the Trinity test 5:29 AM July 16 1945",
   "preset": "hyper",
   "generate_image": true
 }
@@ -150,7 +150,7 @@ Start background generation. Returns immediately with timepoint ID.
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "processing",
-  "message": "Generation started for 'moon landing 1969'"
+  "message": "Generation started for 'Oppenheimer watches the Trinity test'"
 }
 ```
 
@@ -170,26 +170,26 @@ Get a completed scene.
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "query": "signing of the declaration",
+  "query": "Oppenheimer watches the Trinity test",
   "status": "completed",
-  "year": 1776,
+  "year": 1945,
   "month": 7,
-  "day": 4,
+  "day": 16,
   "season": "summer",
-  "time_of_day": "afternoon",
-  "location": "Independence Hall, Philadelphia",
+  "time_of_day": "pre-dawn",
+  "location": "Control bunker S-10000, Jornada del Muerto, New Mexico",
   "has_image": true,
   "image_url": "data:image/jpeg;base64,...",
   "text_model_used": "gemini-2.5-flash",
   "image_model_used": "gemini-2.5-flash-image",
   "characters": {
     "characters": [
-      {"name": "John Hancock", "role": "primary", "description": "..."},
-      {"name": "Benjamin Franklin", "role": "secondary", "description": "..."}
+      {"name": "J. Robert Oppenheimer", "role": "primary", "description": "..."},
+      {"name": "Kenneth Bainbridge", "role": "secondary", "description": "..."}
     ]
   },
   "dialog": [
-    {"speaker": "John Hancock", "text": "Let us sign this declaration..."}
+    {"speaker": "Bainbridge", "text": "Now we are all sons of bitches."}
   ],
   "scene": {"setting": "...", "atmosphere": "..."},
   "image_prompt": "..."
@@ -441,7 +441,7 @@ Run the same prompt across multiple models in parallel. Returns raw JSON results
 **Request:**
 ```json
 {
-  "query": "battle of thermopylae 480 BCE",
+  "query": "Kasparov Deep Blue Game 6 1997",
   "preset": "verified"
 }
 ```
@@ -457,7 +457,7 @@ Run the same prompt across multiple models in parallel. Returns raw JSON results
 **Response:**
 ```json
 {
-  "query": "battle of thermopylae 480 BCE",
+  "query": "Kasparov Deep Blue Game 6 1997",
   "prompt_type": "text",
   "timestamp": "2026-02-05T10:47:29Z",
   "total_duration_ms": 16045,
@@ -551,7 +551,7 @@ List available models and presets for evaluation.
 ```json
 {
   "status": "healthy",
-  "version": "2.3.0",
+  "version": "2.3.3",
   "database": true,
   "providers": {
     "google": true,
@@ -629,4 +629,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-02-06*
+*Last updated: 2026-02-07*

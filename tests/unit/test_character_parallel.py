@@ -101,7 +101,7 @@ class TestCharacterIdentification:
         assert char_id.focal_character == "Caesar"
 
     def test_max_characters_enforced(self):
-        """Test that CharacterIdentification limits to 8 characters."""
+        """Test that CharacterIdentification limits to 6 characters."""
         stubs = [
             CharacterStub(
                 name=f"Character {i}",
@@ -115,7 +115,7 @@ class TestCharacterIdentification:
             focal_character="Character 0",
             group_dynamics="Large crowd",
         )
-        assert len(char_id.characters) == 8
+        assert len(char_id.characters) == 6
 
     def test_primary_stubs_property(self):
         """Test primary_stubs property."""

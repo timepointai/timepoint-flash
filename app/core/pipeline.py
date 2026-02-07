@@ -985,9 +985,9 @@ class GenerationPipeline:
             year_hint=state.judge_result.detected_year,  # Use detected_year as hint
         )
 
-        # Check if grounding is needed (HISTORICAL + detected figures)
+        # Check if grounding is needed (HISTORICAL queries)
         if not grounding_input.needs_grounding():
-            reason = "no historical figures detected" if state.judge_result.query_type.value == "historical" else f"query type: {state.judge_result.query_type.value}"
+            reason = f"query type: {state.judge_result.query_type.value}"
             logger.info(f"Skipping grounding: {reason}")
             # Record that we skipped (not a failure, just not applicable)
             state.step_results.append(
@@ -1338,7 +1338,7 @@ class GenerationPipeline:
             )
             return state
 
-        # Pass graph data for relationship-informed dialog
+        # Pass graph data for relationship-informed dialog + moment for narrative arc
         query = state.judge_result.cleaned_query or state.query
         input_data = DialogInput.from_data(
             query=query,
@@ -1346,6 +1346,7 @@ class GenerationPipeline:
             scene=state.scene_data,
             characters=state.character_data,
             graph=state.graph_data,  # Relationships inform dialog!
+            moment=state.moment_data,  # Narrative arc informs dialog structure!
         )
         result = await self._dialog_agent.run(input_data)
 
@@ -1378,6 +1379,7 @@ class GenerationPipeline:
                     scene=state.scene_data,
                     characters=state.character_data,
                     graph=state.graph_data,
+                    moment=state.moment_data,
                 )
                 # Inject critique into the query so the dialog agent sees it
                 revision = critique_result.content.revision_instructions
@@ -1714,6 +1716,14 @@ class GenerationPipeline:
         # Add scene data
         if state.scene_data:
             timepoint.scene_data_json = state.scene_data.model_dump()
+
+        # Add grounding data
+        if state.grounded_context:
+            timepoint.grounding_data_json = state.grounded_context.model_dump()
+
+        # Add moment data
+        if state.moment_data:
+            timepoint.moment_data_json = state.moment_data.model_dump()
 
         # Add dialog
         if state.dialog_data:

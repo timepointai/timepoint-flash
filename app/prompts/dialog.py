@@ -166,6 +166,8 @@ TENSION: {tension_level}
 
 The moment: {query}
 
+{narrative_context}
+
 {scene_context}
 
 What do you say — in YOUR voice, which reflects your social class, education,
@@ -180,6 +182,8 @@ SEQUENTIAL_USER_RESPONSE = """The conversation so far:
 
 {other_character} just said: "{last_line}"
 
+{relationship_context}
+
 What do you say in response — in YOUR distinct voice? Your sentence structure,
 vocabulary, and directness should reflect who YOU are, not mirror how they spoke.
 Give ONLY your spoken words (1-2 sentences).
@@ -193,6 +197,7 @@ def get_sequential_first_turn_prompt(
     atmosphere: str,
     tension_level: str,
     scene_context: str = "",
+    moment_data: object | None = None,
 ) -> str:
     """Get prompt for the first character's dialog turn.
 
@@ -202,15 +207,28 @@ def get_sequential_first_turn_prompt(
         atmosphere: Scene atmosphere
         tension_level: Dramatic tension
         scene_context: Additional scene context
+        moment_data: MomentData for narrative context (optional)
 
     Returns:
         Formatted prompt for first speaker
     """
+    narrative_context = ""
+    if moment_data is not None:
+        parts = []
+        if hasattr(moment_data, "stakes") and moment_data.stakes:
+            parts.append(f"STAKES: {moment_data.stakes}")
+        if hasattr(moment_data, "central_question") and moment_data.central_question:
+            parts.append(f"CENTRAL QUESTION: {moment_data.central_question}")
+        if hasattr(moment_data, "conflict_type") and moment_data.conflict_type:
+            parts.append(f"CONFLICT: {moment_data.conflict_type}")
+        narrative_context = "\n".join(parts)
+
     return SEQUENTIAL_USER_FIRST_TURN.format(
         query=query,
         setting=setting,
         atmosphere=atmosphere,
         tension_level=tension_level,
+        narrative_context=narrative_context,
         scene_context=scene_context or "",
     )
 
@@ -219,6 +237,7 @@ def get_sequential_response_prompt(
     conversation_history: str,
     other_character: str,
     last_line: str,
+    relationship_context: str = "",
 ) -> str:
     """Get prompt for responding to another character.
 
@@ -226,6 +245,7 @@ def get_sequential_response_prompt(
         conversation_history: Formatted history of dialog so far
         other_character: Name of the character who just spoke
         last_line: What they said
+        relationship_context: Relationship description between current and previous speaker
 
     Returns:
         Formatted prompt for response
@@ -234,6 +254,7 @@ def get_sequential_response_prompt(
         conversation_history=conversation_history,
         other_character=other_character,
         last_line=last_line,
+        relationship_context=relationship_context,
     )
 
 

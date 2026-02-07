@@ -180,6 +180,14 @@ class Timepoint(Base):
         JSON,
         default=None,
     )
+    grounding_data_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        default=None,
+    )
+    moment_data_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        default=None,
+    )
 
     # Image generation
     image_prompt: Mapped[str | None] = mapped_column(Text, default=None)
@@ -299,6 +307,8 @@ class Timepoint(Base):
             "characters": self.character_data_json,
             "scene": self.scene_data_json,
             "dialog": self.dialog_json,
+            "grounding": self.grounding_data_json,
+            "moment": self.moment_data_json,
             "image_prompt": self.image_prompt,
             "image_url": self.image_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,

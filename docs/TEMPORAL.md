@@ -8,10 +8,9 @@ Jump forward or backward from any scene to explore what happens next—or what l
 
 **Track an event over time:**
 ```
-1776: Declaration signing
-  → +1 year: Revolutionary War battles
-  → +7 years: Treaty of Paris, war ends
-  → +11 years: Constitutional Convention
+1945: Trinity detonation
+  → +1 day: Potsdam Conference telegram
+  → +3 weeks: Hiroshima
 ```
 
 **Explore a single day:**
@@ -24,9 +23,9 @@ Morning: Leonardo in his workshop
 
 **See before and after:**
 ```
-← 1 hour before: Caesar enters the Senate
-The moment: Assassination
-→ 1 hour after: Chaos erupts in Rome
+← 1 hour: Turing answers the door
+The moment: Police interrogation
+→ 1 hour: Turing alone
 ```
 
 ---
@@ -79,12 +78,12 @@ When you jump in time, the system keeps:
 
 Example:
 ```
-Source: Declaration signing, July 4, 1776
-Jump: +10 years
+Source: Trinity test, July 16, 1945
+Jump: +1 day
 
-Result: Independence Hall, 1786
+Result: S-10000 bunker, Jornada del Muerto, July 17, 1945
 - Same location
-- Same characters (now 10 years older)
+- Same characters (processing the aftermath)
 - Story reflects what happened in between
 ```
 
@@ -100,12 +99,12 @@ curl "http://localhost:8000/api/v1/temporal/{id}/sequence?direction=both"
 
 ```json
 {
-  "center": {"id": "...", "year": 1776, "slug": "declaration-signing-abc123"},
+  "center": {"id": "...", "year": 1945, "slug": "trinity-test-abc123"},
   "prior": [
-    {"id": "...", "year": 1775, "slug": "continental-congress-def456"}
+    {"id": "...", "year": 1945, "slug": "trinity-preparation-def456"}
   ],
   "next": [
-    {"id": "...", "year": 1777, "slug": "valley-forge-ghi789"}
+    {"id": "...", "year": 1945, "slug": "trinity-aftermath-ghi789"}
   ]
 }
 ```
@@ -146,4 +145,4 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-07*

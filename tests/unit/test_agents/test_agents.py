@@ -297,6 +297,109 @@ class TestDialogAgent:
         assert "Hancock" in result.metadata["speakers"]
 
 
+@pytest.mark.fast
+class TestDialogInputWithMoment:
+    """Tests for DialogInput with MomentData and DialogArc."""
+
+    def test_dialog_input_from_data_with_moment(self):
+        """Test DialogInput.from_data includes moment_data."""
+        from app.schemas.moment import MomentData
+
+        timeline = TimelineData(
+            year=1776, location="Philadelphia", era="Revolution",
+        )
+        scene = SceneData(
+            setting="Assembly Room", atmosphere="Tense", tension_level="high",
+        )
+        characters = CharacterData(
+            characters=[
+                Character(name="Hancock", role=CharacterRole.PRIMARY, description="President", speaks_in_scene=True),
+                Character(name="Franklin", role=CharacterRole.SECONDARY, description="Diplomat", speaks_in_scene=True),
+            ],
+            focal_character="Hancock",
+        )
+        moment = MomentData(
+            plot_summary="The signing",
+            tension_arc="climactic",
+            stakes="Independence",
+            central_question="Will they sign?",
+        )
+
+        input_data = DialogInput.from_data(
+            query="signing of the declaration",
+            timeline=timeline,
+            scene=scene,
+            characters=characters,
+            moment=moment,
+        )
+
+        assert input_data.moment_data is not None
+        assert input_data.moment_data.tension_arc == "climactic"
+        assert input_data.dialog_arc is not None
+        assert len(input_data.dialog_arc.beats) == 7
+
+    def test_dialog_input_from_data_without_moment(self):
+        """Test DialogInput.from_data works without moment."""
+        timeline = TimelineData(year=1776, location="Philadelphia", era="Revolution")
+        scene = SceneData(setting="Room", atmosphere="Tense", tension_level="high")
+        characters = CharacterData(
+            characters=[
+                Character(name="Hancock", role=CharacterRole.PRIMARY, description="President", speaks_in_scene=True),
+            ],
+            focal_character="Hancock",
+        )
+
+        input_data = DialogInput.from_data(
+            query="signing",
+            timeline=timeline,
+            scene=scene,
+            characters=characters,
+        )
+
+        assert input_data.moment_data is None
+        assert input_data.dialog_arc is None
+
+    def test_dialog_input_speaker_limit_6(self):
+        """Test DialogInput limits speakers to 6."""
+        timeline = TimelineData(year=1776, location="Philadelphia", era="Revolution")
+        scene = SceneData(setting="Room", atmosphere="Tense", tension_level="high")
+        chars = [
+            Character(name=f"Char{i}", role=CharacterRole.SECONDARY, description=f"Person {i}", speaks_in_scene=True)
+            for i in range(8)
+        ]
+        characters = CharacterData(characters=chars, focal_character="Char0")
+
+        input_data = DialogInput.from_data(
+            query="test",
+            timeline=timeline,
+            scene=scene,
+            characters=characters,
+        )
+
+        assert len(input_data.speaking_characters) <= 6
+
+    def test_dialog_input_relationship_context(self):
+        """Test get_relationship_context returns relationship info."""
+        from app.schemas.graph import Relationship
+
+        input_data = DialogInput(
+            query="test",
+            year=1776,
+            relationships=[
+                Relationship(
+                    from_character="Adams",
+                    to_character="Jefferson",
+                    relationship_type="ally",
+                    description="Fellow founding fathers",
+                )
+            ],
+        )
+
+        ctx = input_data.get_relationship_context("Adams", "Jefferson")
+        assert "ally" in ctx
+        assert "Adams" in ctx
+
+
 # Camera Agent Tests
 
 

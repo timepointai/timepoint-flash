@@ -63,15 +63,12 @@ class GroundingInput:
         """Check if this input needs grounding.
 
         Grounding is triggered when:
-        - Query type is HISTORICAL AND
-        - Historical figures were detected (indicating a specific event/person)
+        - Query type is HISTORICAL
 
-        Generic period scenes (no detected figures) skip grounding.
+        The grounding agent itself discovers participants via Google Search,
+        so it should not require the Judge to pre-detect figures.
         """
-        return (
-            self.query_type == QueryType.HISTORICAL
-            and len(self.detected_figures) > 0
-        )
+        return self.query_type == QueryType.HISTORICAL
 
 
 class GroundedContext(BaseModel):

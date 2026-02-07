@@ -15,6 +15,7 @@ from app.core.pipeline import (
     PipelineStep,
     StepResult,
 )
+from app.agents.grounding import GroundedContext, GroundingInput
 from app.schemas import (
     Character,
     CharacterData,
@@ -23,6 +24,7 @@ from app.schemas import (
     DialogLine,
     ImagePromptData,
     JudgeResult,
+    MomentData,
     QueryType,
     SceneData,
     TimelineData,
@@ -286,3 +288,134 @@ class TestGenerationPipeline:
         assert logs[1].step == "timeline"
         assert logs[1].status == "failed"
         assert logs[1].error_message == "API error"
+
+    def test_state_to_timepoint_stores_grounding(self):
+        """Test that grounding data is stored in timepoint."""
+        state = PipelineState(query="Deep Blue vs Kasparov")
+        state.judge_result = JudgeResult(
+            is_valid=True,
+            query_type=QueryType.HISTORICAL,
+            cleaned_query="Deep Blue vs Kasparov 1997",
+        )
+        state.timeline_data = TimelineData(
+            year=1997,
+            location="Equitable Center, Manhattan",
+            era="Modern",
+        )
+        state.scene_data = SceneData(
+            setting="35th floor theater",
+            atmosphere="Tense intellectual battle",
+            tension_level="high",
+        )
+        state.character_data = CharacterData(
+            characters=[
+                Character(
+                    name="Garry Kasparov",
+                    role=CharacterRole.PRIMARY,
+                    description="World chess champion",
+                )
+            ]
+        )
+        state.grounded_context = GroundedContext(
+            verified_location="Equitable Center, 35th floor, Manhattan",
+            venue_description="Theater-style room with raised seating",
+            verified_date="May 11, 1997",
+            verified_year=1997,
+            verified_participants=["Garry Kasparov", "Feng-hsiung Hsu"],
+            setting_details="35th floor theater",
+            historical_context="Deep Blue rematch",
+            grounding_confidence=0.95,
+        )
+        state.step_results = [
+            StepResult(step=PipelineStep.JUDGE, success=True),
+            StepResult(step=PipelineStep.GROUNDING, success=True),
+            StepResult(step=PipelineStep.TIMELINE, success=True),
+            StepResult(step=PipelineStep.SCENE, success=True),
+            StepResult(step=PipelineStep.CHARACTERS, success=True),
+        ]
+
+        pipeline = GenerationPipeline()
+        timepoint = pipeline.state_to_timepoint(state)
+
+        assert timepoint.grounding_data_json is not None
+        assert timepoint.grounding_data_json["verified_location"] == "Equitable Center, 35th floor, Manhattan"
+        assert timepoint.grounding_data_json["verified_year"] == 1997
+
+    def test_state_to_timepoint_stores_moment(self):
+        """Test that moment data is stored in timepoint."""
+        state = PipelineState(query="signing of the declaration")
+        state.judge_result = JudgeResult(
+            is_valid=True,
+            query_type=QueryType.HISTORICAL,
+        )
+        state.timeline_data = TimelineData(
+            year=1776,
+            location="Independence Hall",
+            era="American Revolution",
+        )
+        state.scene_data = SceneData(
+            setting="The Assembly Room",
+            atmosphere="Historic anticipation",
+            tension_level="high",
+        )
+        state.character_data = CharacterData(
+            characters=[
+                Character(
+                    name="John Hancock",
+                    role=CharacterRole.PRIMARY,
+                    description="President of Congress",
+                )
+            ]
+        )
+        state.moment_data = MomentData(
+            plot_summary="The delegates prepare to sign",
+            tension_arc="climactic",
+            stakes="American independence",
+            central_question="Will they sign?",
+        )
+        state.step_results = [
+            StepResult(step=PipelineStep.JUDGE, success=True),
+            StepResult(step=PipelineStep.TIMELINE, success=True),
+            StepResult(step=PipelineStep.SCENE, success=True),
+            StepResult(step=PipelineStep.CHARACTERS, success=True),
+            StepResult(step=PipelineStep.MOMENT, success=True),
+        ]
+
+        pipeline = GenerationPipeline()
+        timepoint = pipeline.state_to_timepoint(state)
+
+        assert timepoint.moment_data_json is not None
+        assert timepoint.moment_data_json["tension_arc"] == "climactic"
+        assert timepoint.moment_data_json["stakes"] == "American independence"
+
+
+@pytest.mark.fast
+class TestGroundingTrigger:
+    """Tests for grounding trigger behavior."""
+
+    def test_grounding_triggers_for_historical(self):
+        """Test grounding triggers for HISTORICAL queries without figures."""
+        input_data = GroundingInput(
+            query="Woodstock music festival 1969",
+            detected_figures=[],
+            query_type=QueryType.HISTORICAL,
+        )
+        assert input_data.needs_grounding() is True
+
+    def test_grounding_triggers_for_historical_with_figures(self):
+        """Test grounding triggers for HISTORICAL queries with figures."""
+        input_data = GroundingInput(
+            query="Deep Blue vs Kasparov",
+            detected_figures=["Garry Kasparov"],
+            query_type=QueryType.HISTORICAL,
+        )
+        assert input_data.needs_grounding() is True
+
+    def test_grounding_skips_for_fictional(self):
+        """Test grounding skips for FICTIONAL queries."""
+        input_data = GroundingInput(
+            query="A dragon attacks a castle",
+            detected_figures=[],
+            query_type=QueryType.FICTIONAL,
+        )
+        assert input_data.needs_grounding() is False

@@ -6,7 +6,7 @@ with parallelism where possible.
 ## The Pipeline
 
 ```
-Your Query: "signing of the declaration of independence"
+Your Query: "Oppenheimer watches the Trinity test, 5:29 AM July 16 1945"
                            ↓
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Judge → Timeline → Grounding → Scene ──┬── Characters ─ Graph      │
@@ -64,7 +64,7 @@ The Grounding agent uses Google Search to verify historical facts before generat
 
 **When Grounding is Triggered:**
 - Query type is HISTORICAL (not fictional/hypothetical)
-- Judge detected specific historical figures (not generic scenes)
+- The grounding agent itself discovers participants via Google Search — no pre-detection by Judge required
 
 **What Gets Verified:**
 ```python
@@ -202,6 +202,40 @@ Image:     generated (gemini-2.5-flash-image)
 
 ---
 
+## Narrative Arc System (Dialog)
+
+The dialog agent uses a **narrative arc** to constrain 7 lines into a coherent micro-story. This forces dialog complexity to O(n) instead of O(2^n) — more characters don't mean more incoherent cross-talk. Every scene follows exposition → complication → climax → resolution, regardless of cast size.
+
+**Six Vonnegut shapes + Freytag's pyramid:**
+
+| Shape | Pattern | Example |
+|-------|---------|---------|
+| Man in Hole | Good → Bad → Good | Rescue mission, comeback |
+| Creation | Low → Steady Rise | Apollo 11, Woodstock |
+| Cinderella | Low → High → Low → Very High | Rags to riches |
+| From Bad to Worse | Bad → Worse | Pompeii, Titanic |
+| Old Testament | Rise → Deep Fall | Icarus, Sarajevo |
+| Freytag | Exposition → Climax → Denouement | Standard dramatic pyramid |
+
+**How it works:**
+
+1. MomentData's `tension_arc` maps to a narrative shape (climactic → Freytag, rising → Creation, etc.)
+2. Each shape defines 7 beats with narrative functions: `establish`, `complicate`, `escalate`, `turn`, `react`, `resolve`, `punctuate`
+3. Each beat has an emotional target, intensity curve, and speaker role preference
+4. The dialog agent selects speakers based on beat roles (TURN → focal character, REACT → different character, PUNCTUATE → background/outsider)
+5. Beat context is injected into each line's prompt: "Your line should {turn} the scene. Target emotion: {revelation}. Intensity: high."
+
+**Speaker selection logic:**
+- TURN/ESCALATE beats → primary/focal character
+- REACT beats → different character than previous speaker
+- PUNCTUATE beats → background character (outsider perspective)
+- Always avoids repeating the last speaker when possible
+- Falls back to rotation pattern when no arc is available
+
+**Schema:** `app/schemas/dialog_arc.py` — `DialogArc`, `ArcBeat`, `NarrativeShape`, `NarrativeFunction`, `build_arc_from_moment()`
+
+---
+
 ## Parallel Execution
 
 The pipeline doesn't wait for each step:
@@ -255,4 +289,4 @@ app/agents/
 
 ---
 
-*Last updated: 2026-02-06*
+*Last updated: 2026-02-07*

@@ -21,7 +21,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 usage() {
-    echo "TIMEPOINT Flash Multi-Model Evaluation v2.3.0"
+    echo "TIMEPOINT Flash Multi-Model Evaluation v2.3.3"
     echo ""
     echo "Usage: ./eval.sh [query] [options]"
     echo ""
@@ -32,8 +32,8 @@ usage() {
     echo "  --help                Show this help"
     echo ""
     echo "Examples:"
-    echo "  ./eval.sh \"battle of thermopylae\"        # Eval with verified models"
-    echo "  ./eval.sh \"moon landing\" -p google_native # Use Google models only"
+    echo "  ./eval.sh \"Kasparov Deep Blue Game 6 1997\"  # Eval with verified models"
+    echo "  ./eval.sh \"Turing interrogation 1952\" -p google_native # Use Google models only"
     echo "  ./eval.sh -i                              # Interactive mode"
     echo ""
     exit 0
@@ -55,7 +55,7 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\\  | | |  "
     echo "   |_| |___|_|  |_|_____|_|    \\___/___|_| \\_| |_|  "
     echo -e "${NC}"
-    echo -e "${BOLD}Multi-Model Evaluation v2.3.0${NC}"
+    echo -e "${BOLD}Multi-Model Evaluation v2.3.3${NC}"
     echo ""
 }
 

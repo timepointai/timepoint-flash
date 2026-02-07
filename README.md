@@ -102,7 +102,7 @@ Swagger docs at `http://localhost:8000/docs`
 
 ## How It Works
 
-15 specialized agents run a pipeline with parallel execution, Google Search grounding, and a critique-retry loop:
+14 specialized agents run a pipeline with parallel execution, Google Search grounding, and a critique-retry loop:
 
 ```
 Judge → Timeline → Grounding (Google Search) → Scene
@@ -128,31 +128,39 @@ Judge → Timeline → Grounding (Google Search) → Scene
 
 ## Example Scenes
 
-**Vesuvius erupts as seen from a Pompeii bakery, 79 AD:**
+**Oppenheimer at Trinity, 5:29 AM July 16 1945:**
 
 ```
-Location: Pompeii, Italy - bakery near the Vesuvius gate
-Characters: Marcus (baker), Lucius, Fortunata, Slave Boy
+Location: Control bunker S-10000, Jornada del Muerto desert, New Mexico
+Characters: J. Robert Oppenheimer (director), Leslie Groves (general),
+            Kenneth Bainbridge (test director), Enrico Fermi (physicist)
 Dialog:
-  Marcus: "By Jupiter, what was that sound? Is that...ash falling from the sky?"
-```
-
-**Mission Control, the moment Eagle lands on the Moon:**
-
-```
-Location: Mission Control, Johnson Space Center, Houston, Texas
-Characters: Charlie Duke (CAPCOM), Gene Kranz (Flight Director)
-Dialog:
-  Charlie Duke: "Roger, Tranquility Base here, the Eagle has landed."
-  Gene Kranz: "Okay, Tranquility Base. We copy you down. Houston is a go."
+  Bainbridge: "Minus ten seconds."
+  Fermi: [tearing strips of paper, holding them above his head to measure blast yield]
+  Oppenheimer: "..."
+  Bainbridge: "Now we are all sons of bitches."
 ```
 
 **Gavrilo Princip at Schiller's Deli, Sarajevo 1914:**
 
 ```
-Location: Moritz Schiller's Delicatessen near the Latin Bridge over the Miljacka River
-Characters: Gavrilo Princip, Archduke Franz Ferdinand, Sophie Chotek
-Tension: high — the car took a wrong turn and stopped right in front of him
+Location: Moritz Schiller's Delicatessen, Latin Bridge, Sarajevo
+Date: June 28, 1914 — late morning
+Tension: extreme — the car took a wrong turn and stopped right in front of him
+Characters: Gavrilo Princip (19-year-old), Archduke Franz Ferdinand,
+            Sophie Chotek, Driver Leopold Lojka
+```
+
+**Ramanujan arrives at Trinity College, March 1914:**
+
+```
+Location: Great Gate, Trinity College, Cambridge
+Date: March 1914 — freezing rain, late afternoon
+Characters: Srinivasa Ramanujan (26, mathematician), College Porter
+Dialog:
+  Porter: "Name?"
+  Ramanujan: "Ramanujan. I have a letter from Mr. Hardy."
+  Porter: "Everyone's got a letter from someone, haven't they."
 ```
 
 Each scene includes full character bios, relationship graphs, scene metadata, camera composition, and a generated image.
@@ -171,11 +179,11 @@ Each scene includes full character bios, relationship graphs, scene metadata, ca
 ```bash
 # Hyper for speed
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
-  -d '{"query": "moon landing 1969", "preset": "hyper", "generate_image": true}'
+  -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper", "generate_image": true}'
 
 # HD for quality
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
-  -d '{"query": "moon landing 1969", "preset": "hd", "generate_image": true}'
+  -d '{"query": "Oppenheimer Trinity test 5:29 AM July 16 1945", "preset": "hd", "generate_image": true}'
 ```
 
 ---
@@ -213,12 +221,12 @@ DATABASE_URL=sqlite+aiosqlite:///./timepoint.db      # Default storage
 ## Testing
 
 ```bash
-python3.10 -m pytest tests/unit/ -v         # 402 unit tests
+python3.10 -m pytest tests/unit/ -v         # 447 unit tests
 python3.10 -m pytest tests/integration/ -v  # 81 integration tests
 python3.10 -m pytest tests/e2e/ -v          # 13 end-to-end tests
 ```
 
-496 tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, and provider failover.
+541 tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, and provider failover.
 
 ---
 

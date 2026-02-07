@@ -76,10 +76,25 @@ class CharacterIdentificationInput:
         verified = ""
         notes = ""
         if grounded_context is not None:
+            # Extract verified participant names
+            verified_parts = []
+            if hasattr(grounded_context, "verified_participants") and grounded_context.verified_participants:
+                verified_parts.append("Verified participants: " + ", ".join(grounded_context.verified_participants))
             if hasattr(grounded_context, "physical_participants") and grounded_context.physical_participants:
-                verified = grounded_context.physical_participants
+                verified_parts.append("Physical positions: " + "; ".join(grounded_context.physical_participants))
+            verified = "\n".join(verified_parts) if verified_parts else ""
+
+            # Extract richer context from grounding
+            notes_parts = []
+            if hasattr(grounded_context, "verified_location") and grounded_context.verified_location:
+                notes_parts.append(f"Verified location: {grounded_context.verified_location}")
+            if hasattr(grounded_context, "verified_date") and grounded_context.verified_date:
+                notes_parts.append(f"Verified date: {grounded_context.verified_date}")
             if hasattr(grounded_context, "setting_details") and grounded_context.setting_details:
-                notes = grounded_context.setting_details
+                notes_parts.append(f"Setting: {grounded_context.setting_details}")
+            if hasattr(grounded_context, "event_mechanics") and grounded_context.event_mechanics:
+                notes_parts.append(f"Event mechanics: {grounded_context.event_mechanics}")
+            notes = "\n".join(notes_parts) if notes_parts else ""
 
         return cls(
             query=query,

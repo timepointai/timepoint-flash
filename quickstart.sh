@@ -1,5 +1,5 @@
 #!/bin/bash
-# TIMEPOINT Flash Quickstart v2.3.0
+# TIMEPOINT Flash Quickstart v2.3.3
 # One-command demo that shows off the best of TIMEPOINT
 
 set -e
@@ -19,11 +19,11 @@ NC='\033[0m'
 
 # Demo queries (chosen for visual impact and historical significance)
 DEMO_QUERIES=(
-    "assassination of julius caesar ides of march"
-    "neil armstrong first steps on the moon 1969"
-    "signing of the declaration of independence"
-    "fall of the berlin wall 1989"
-    "leonardo da vinci painting the mona lisa"
+    "Oppenheimer watches the Trinity test from the control bunker, 5:29 AM July 16 1945"
+    "Kasparov slams the table after Deep Blue's move in Game 6, May 11 1997"
+    "Hypatia teaching astronomy in the Library of Alexandria, 415 AD"
+    "the crew of Apollo 13 hears the oxygen tank explode, April 13 1970"
+    "Tesla sits alone in room 3327 of the New Yorker Hotel, January 1943"
 )
 
 # Pick a random query
@@ -37,7 +37,7 @@ echo "   | |  | || |\\/| |  _| | |_) | | | | ||  \\| | | |  "
 echo "   | |  | || |  | | |___|  __/| |_| | || |\\  | | |  "
 echo "   |_| |___|_|  |_|_____|_|    \\___/___|_| \\_| |_|  "
 echo -e "${NC}"
-echo -e "${BOLD}TIMEPOINT Flash v2.3.0 Quickstart${NC}"
+echo -e "${BOLD}TIMEPOINT Flash v2.3.3 Quickstart${NC}"
 echo ""
 echo -e "${DIM}Dial into any moment in history${NC}"
 echo ""

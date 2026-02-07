@@ -505,16 +505,16 @@ build_json_payload() {
 
 # Sample templates
 declare -a TEMPLATES=(
-    "signing of the declaration of independence"
-    "assassination of Julius Caesar"
-    "moon landing 1969"
-    "battle of thermopylae"
-    "fall of the berlin wall"
-    "boston tea party 1773"
-    "coronation of napoleon"
-    "wright brothers first flight"
-    "martin luther king i have a dream speech"
-    "fall of rome 476 AD"
+    "Oppenheimer watches the Trinity test from the control bunker, Jornada del Muerto desert, 5:29 AM July 16 1945"
+    "Zheng He's treasure fleet arrives at Malindi harbor, East Africa, 1418"
+    "Alan Turing's interrogation by police at his home in Wilmslow, Cheshire, February 1952"
+    "Hypatia teaching astronomy in the Library of Alexandria, 415 AD, weeks before her murder"
+    "Srinivasa Ramanujan arrives at Trinity College Cambridge in freezing rain, March 1914"
+    "the crew of Apollo 13 hears the oxygen tank explode, 200,000 miles from Earth, April 13 1970"
+    "Toussaint Louverture dictates his memoir in the freezing cell at Fort de Joux, Jura Mountains, 1803"
+    "Kasparov slams the table after Deep Blue's move in Game 6, Equitable Center Manhattan, May 11 1997"
+    "a young Aztec priest atop the Templo Mayor witnesses Cortes's ships on the horizon, Tenochtitlan, November 1519"
+    "Nikola Tesla sits alone in room 3327 of the New Yorker Hotel feeding pigeons through the window, January 1943"
 )
 
 # Functions
@@ -527,7 +527,7 @@ print_header() {
     echo "   | |  | || |  | | |___|  __/| |_| | || |\  | | |   |  _| | |___ / ___ \ ___) |  _  |"
     echo "   |_| |___|_|  |_|_____|_|    \___/___|_| \_| |_|   |_|   |_____/_/   \_\____/|_| |_|"
     echo -e "${NC}"
-    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.3.0${NC}"
+    echo -e "${BOLD}AI-Powered Temporal Simulation Engine v2.3.3${NC}"
     echo -e "${DIM}Parallel Pipeline | Image Fallback: Google → OpenRouter → Pollinations.ai${NC}"
     echo ""
 }
@@ -1462,7 +1462,7 @@ except Exception as e:
     echo ""
 
     # Get query
-    echo -e "${YELLOW}Enter query to test (e.g., 'battle of thermopylae'):${NC}"
+    echo -e "${YELLOW}Enter query to test (e.g., 'Kasparov Deep Blue Game 6 1997'):${NC}"
     echo -e "${YELLOW}> ${NC}\c"
     read -r query
 
@@ -1663,7 +1663,7 @@ test_quick_generate() {
     echo -e "${YELLOW}This will create a test timepoint...${NC}"
     echo ""
 
-    test_query="boston tea party 1773"
+    test_query="Turing interrogation Wilmslow 1952"
     json_payload="{\"query\": \"$test_query\", \"generate_image\": false, \"preset\": \"balanced\"}"
 
     echo -e "Query: ${BOLD}$test_query${NC}"

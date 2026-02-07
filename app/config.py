@@ -76,7 +76,7 @@ class Environment(str, Enum):
 # These models have been tested and confirmed working.
 # DO NOT use any model not in this list - it will fail silently or loudly.
 #
-# Last verified: 2025-12-09
+# Last verified: 2026-02-07
 # =============================================================================
 
 class VerifiedModels:

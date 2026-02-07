@@ -25,7 +25,8 @@ from app.agents.base import AgentResult, BaseAgent
 logger = logging.getLogger(__name__)
 from app.core.llm_router import LLMRouter
 from app.prompts import dialog as dialog_prompts
-from app.schemas import Character, CharacterData, DialogData, DialogLine, SceneData, TimelineData
+from app.schemas import Character, CharacterData, DialogData, DialogLine, MomentData, SceneData, TimelineData
+from app.schemas.dialog_arc import ArcBeat, DialogArc, NarrativeFunction, build_arc_from_moment
 from app.schemas.graph import GraphData, Relationship
 
 
@@ -58,6 +59,8 @@ class DialogInput:
     speaking_characters: list[Character] = field(default_factory=list)
     character_names: list[str] = field(default_factory=list)
     relationships: list[Relationship] = field(default_factory=list)
+    moment_data: MomentData | None = None
+    dialog_arc: DialogArc | None = None
 
     @classmethod
     def from_data(
@@ -67,6 +70,7 @@ class DialogInput:
         scene: SceneData,
         characters: CharacterData,
         graph: GraphData | None = None,
+        moment: MomentData | None = None,
     ) -> "DialogInput":
         """Create DialogInput from previous agent data.
 
@@ -76,6 +80,7 @@ class DialogInput:
             scene: SceneData from Scene Agent
             characters: CharacterData from Characters Agent
             graph: GraphData from Graph Agent (optional but recommended!)
+            moment: MomentData from Moment Agent (optional, enables narrative arc)
 
         Returns:
             DialogInput populated with context including full Character objects
@@ -87,14 +92,22 @@ class DialogInput:
             speaking_chars = list(characters.primary_characters[:2])
             speaking_chars.extend(characters.secondary_characters[:2])
 
-        # Limit to max 4 speakers for dialog coherence
-        speaking_chars = speaking_chars[:4]
+        # Limit to max 6 speakers — narrative arc manages who speaks when
+        speaking_chars = speaking_chars[:6]
 
         # Get names for backwards compatibility
         speaking_names = [c.name for c in speaking_chars]
 
         # Get relationships if graph data provided
         relationships = graph.relationships if graph else []
+
+        # Build narrative arc from moment data when available
+        dialog_arc = None
+        if moment is not None:
+            try:
+                dialog_arc = build_arc_from_moment(moment)
+            except Exception as e:
+                logger.warning(f"Failed to build dialog arc: {e}")
 
         return cls(
             query=query,
@@ -107,6 +120,8 @@ class DialogInput:
             speaking_characters=speaking_chars,
             character_names=speaking_names,
             relationships=relationships,
+            moment_data=moment,
+            dialog_arc=dialog_arc,
         )
 
     def get_relationship(self, char1: str, char2: str) -> Relationship | None:
@@ -241,6 +256,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         is_first_turn: bool,
         last_speaker: str | None,
         last_line: str | None,
+        beat: ArcBeat | None = None,
     ) -> str | None:
         """Generate a single dialog line for one character.
 
@@ -253,6 +269,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             is_first_turn: Whether this is the first line of dialog
             last_speaker: Name of the previous speaker
             last_line: Text of the previous line
+            beat: Optional ArcBeat for narrative structure guidance
 
         Returns:
             The generated dialog text, or None if generation failed
@@ -271,13 +288,28 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
                 setting=input_data.setting,
                 atmosphere=input_data.atmosphere,
                 tension_level=input_data.tension_level,
+                moment_data=input_data.moment_data,
             )
         else:
             history_str = dialog_prompts.format_conversation_history(conversation_history)
+            # Get relationship context between current speaker and last speaker
+            rel_context = ""
+            if last_speaker:
+                rel_context = input_data.get_relationship_context(character.name, last_speaker)
             user_prompt = dialog_prompts.get_sequential_response_prompt(
                 conversation_history=history_str,
                 other_character=last_speaker or "Someone",
                 last_line=last_line or "",
+                relationship_context=rel_context,
+            )
+
+        # Append narrative arc context if available
+        beat_context = ""
+        if beat is not None:
+            intensity_label = "high" if beat.intensity >= 0.7 else "moderate" if beat.intensity >= 0.4 else "low"
+            beat_context = (
+                f"\n\nNARRATIVE ROLE: Your line should {beat.narrative_function.value} the scene."
+                f"\nTarget emotion: {beat.emotional_target}. Intensity: {intensity_label}."
             )
 
         # Call LLM with character roleplay prompt
@@ -286,7 +318,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
 
 ---
 
-{user_prompt}"""
+{user_prompt}{beat_context}"""
 
         try:
             response = await self.router.call(
@@ -316,18 +348,23 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         characters: list[Character],
         conversation_history: list[tuple[str, str]],
         line_index: int,
+        beat: ArcBeat | None = None,
     ) -> Character:
         """Pick the next character to speak.
 
-        Uses a pattern that creates natural back-and-forth dialog:
-        - Line 0: First character (usually most important)
-        - Line 1: Second character (response)
-        - Lines 2+: Alternate with occasional third speaker
+        When a narrative arc beat is available, uses arc-aware selection:
+        - TURN/ESCALATE beats prefer the focal (primary) character
+        - REACT beats prefer a different character than the TURN speaker
+        - PUNCTUATE beats prefer background characters (outsider perspective)
+        - Avoids repeating the last speaker unless only 1 candidate
+
+        Falls back to rotation pattern when no arc is available.
 
         Args:
             characters: Available speaking characters
             conversation_history: Dialog so far
             line_index: Current line number (0-indexed)
+            beat: Optional ArcBeat for narrative-aware selection
 
         Returns:
             The Character who should speak next
@@ -340,18 +377,81 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         if num_chars == 1:
             return characters[0]
 
+        # Arc-aware selection when beat is available
+        if beat is not None:
+            return self._select_speaker_for_beat(characters, conversation_history, beat)
+
+        # Fallback: original rotation pattern
         if num_chars == 2:
-            # Simple alternation
             return characters[line_index % 2]
 
-        # For 3+ characters, use weighted selection
-        # Primary pattern: char0, char1, char0, char1, char2, char0, char1...
         if line_index < 4:
             return characters[line_index % 2]
         elif line_index == 4 and num_chars > 2:
-            return characters[2]  # Third character gets a turn
+            return characters[2]
         else:
             return characters[line_index % 2]
+
+    def _select_speaker_for_beat(
+        self,
+        characters: list[Character],
+        conversation_history: list[tuple[str, str]],
+        beat: ArcBeat,
+    ) -> Character:
+        """Select speaker based on narrative arc beat.
+
+        Args:
+            characters: Available speaking characters
+            conversation_history: Dialog so far
+            beat: The current ArcBeat
+
+        Returns:
+            The best Character for this beat
+        """
+        from app.schemas.characters import CharacterRole
+
+        last_speaker_name = conversation_history[-1][0] if conversation_history else None
+
+        # Categorize characters by role
+        primary = [c for c in characters if c.role == CharacterRole.PRIMARY]
+        secondary = [c for c in characters if c.role == CharacterRole.SECONDARY]
+        background = [c for c in characters if c.role == CharacterRole.BACKGROUND]
+
+        # Select candidates based on beat's speaker_role
+        if beat.speaker_role == "primary":
+            candidates = primary or secondary or characters
+        elif beat.speaker_role == "secondary":
+            candidates = secondary or primary or characters
+        elif beat.speaker_role == "background":
+            candidates = background or secondary or characters
+        else:
+            candidates = characters
+
+        # Special handling for specific narrative functions
+        func = beat.narrative_function
+
+        if func == NarrativeFunction.TURN or func == NarrativeFunction.ESCALATE:
+            # Prefer focal/primary character for climactic moments
+            candidates = primary or candidates
+
+        elif func == NarrativeFunction.REACT:
+            # Prefer someone different from the last speaker
+            if last_speaker_name:
+                different = [c for c in candidates if c.name != last_speaker_name]
+                if different:
+                    candidates = different
+
+        elif func == NarrativeFunction.PUNCTUATE:
+            # Prefer background/outsider for final note
+            candidates = background or secondary or candidates
+
+        # Avoid repeating last speaker when possible
+        if last_speaker_name and len(candidates) > 1:
+            non_repeat = [c for c in candidates if c.name != last_speaker_name]
+            if non_repeat:
+                candidates = non_repeat
+
+        return candidates[0]
 
     async def _run_sequential(self, input_data: DialogInput) -> AgentResult[DialogData]:
         """Generate dialog using sequential roleplay.
@@ -382,8 +482,13 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         last_line: str | None = None
 
         for i in range(self.max_lines):
-            # Pick next speaker
-            speaker = self._pick_next_speaker(characters, conversation_history, i)
+            # Get current beat if arc is available
+            beat = None
+            if input_data.dialog_arc and i < len(input_data.dialog_arc.beats):
+                beat = input_data.dialog_arc.beats[i]
+
+            # Pick next speaker (arc-aware if available)
+            speaker = self._pick_next_speaker(characters, conversation_history, i, beat=beat)
 
             # Generate their line
             text = await self._generate_single_line(
@@ -393,6 +498,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
                 is_first_turn=(i == 0),
                 last_speaker=last_speaker,
                 last_line=last_line,
+                beat=beat,
             )
 
             if not text:

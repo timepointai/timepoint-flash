@@ -33,6 +33,13 @@ from app.schemas.chat import (
 from app.schemas.image_prompt import ImagePromptData
 from app.schemas.judge import JudgeResult, QueryType
 from app.schemas.moment import MomentData
+from app.schemas.dialog_arc import (
+    ArcBeat,
+    DialogArc,
+    NarrativeFunction,
+    NarrativeShape,
+    build_arc_from_moment,
+)
 from app.schemas.scene import SceneData, SensoryDetail
 from app.schemas.timeline import TimelineData
 
@@ -63,6 +70,12 @@ __all__ = [
     "GraphData",
     "Relationship",
     "Faction",
+    # Dialog Arc (narrative structure)
+    "ArcBeat",
+    "DialogArc",
+    "NarrativeFunction",
+    "NarrativeShape",
+    "build_arc_from_moment",
     # Image Prompt
     "ImagePromptData",
     # Chat & Interactions
