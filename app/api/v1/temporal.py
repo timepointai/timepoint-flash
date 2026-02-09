@@ -19,6 +19,8 @@ Tests:
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,10 +28,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.pipeline import GenerationPipeline
 from app.core.temporal import TemporalNavigator, TemporalPoint, TimeUnit
 from app.database import get_db_session
-from app.models import Timepoint, TimepointStatus
+from app.models import GenerationLog, Timepoint, TimepointStatus
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +207,37 @@ async def generate_next_moment(
         session=session,
     )
 
+    # Assign sequence_id to both source and target
+    seq_id = source_tp.sequence_id or str(uuid.uuid4())
+    source_tp.sequence_id = seq_id
+    new_tp.sequence_id = seq_id
+    await session.commit()
+
+    # Write blob for new sequence member if storage enabled
+    app_settings = get_settings()
+    if app_settings.BLOB_STORAGE_ENABLED:
+        try:
+            from app.storage import StorageConfig, StorageService
+            storage_config = StorageConfig(
+                enabled=True,
+                root=app_settings.BLOB_STORAGE_ROOT,
+            )
+            storage_service = StorageService.from_config(storage_config)
+            # Build sequence members list
+            seq_members = [
+                {"id": source_tp.id, "slug": source_tp.slug, "year": source_tp.year},
+                {"id": new_tp.id, "slug": new_tp.slug, "year": new_tp.year},
+            ]
+            full_path, folder_name = await storage_service.write_blob(
+                new_tp, sequence_members=seq_members,
+            )
+            new_tp.blob_path = full_path
+            new_tp.blob_folder_name = folder_name
+            new_tp.blob_written_at = datetime.now(tz=timezone.utc)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Blob write for temporal nav failed (non-fatal): {e}")
+
     return NavigationResponse(
         source_id=source_tp.id,
         target_id=new_tp.id,
@@ -270,7 +304,36 @@ async def generate_prior_moment(
 
     # For prior, the new timepoint should be the parent
     source_tp.parent_id = new_tp.id
+
+    # Assign sequence_id to both source and target
+    seq_id = source_tp.sequence_id or str(uuid.uuid4())
+    source_tp.sequence_id = seq_id
+    new_tp.sequence_id = seq_id
     await session.commit()
+
+    # Write blob for new sequence member if storage enabled
+    app_settings = get_settings()
+    if app_settings.BLOB_STORAGE_ENABLED:
+        try:
+            from app.storage import StorageConfig, StorageService
+            storage_config = StorageConfig(
+                enabled=True,
+                root=app_settings.BLOB_STORAGE_ROOT,
+            )
+            storage_service = StorageService.from_config(storage_config)
+            seq_members = [
+                {"id": new_tp.id, "slug": new_tp.slug, "year": new_tp.year},
+                {"id": source_tp.id, "slug": source_tp.slug, "year": source_tp.year},
+            ]
+            full_path, folder_name = await storage_service.write_blob(
+                new_tp, sequence_members=seq_members,
+            )
+            new_tp.blob_path = full_path
+            new_tp.blob_folder_name = folder_name
+            new_tp.blob_written_at = datetime.now(tz=timezone.utc)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Blob write for temporal nav failed (non-fatal): {e}")
 
     return NavigationResponse(
         source_id=source_tp.id,

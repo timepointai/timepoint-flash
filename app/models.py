@@ -26,6 +26,8 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
+    Integer,
     JSON,
     DateTime,
     Enum as SQLEnum,
@@ -230,6 +232,45 @@ class Timepoint(Base):
     # Error tracking
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
 
+    # Blob storage
+    blob_folder_name: Mapped[str | None] = mapped_column(String(200), default=None)
+    blob_path: Mapped[str | None] = mapped_column(Text, default=None)
+    blob_written_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+
+    # Soft delete
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+
+    # NSFW stub
+    nsfw_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Refresh tracking
+    generation_version: Mapped[int] = mapped_column(Integer, default=1)
+    regenerated_from_id: Mapped[str | None] = mapped_column(String(36), default=None)
+
+    # Sequence grouping
+    sequence_id: Mapped[str | None] = mapped_column(String(36), default=None, index=True)
+
+    # Analytics stubs
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_accessed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    api_source: Mapped[str | None] = mapped_column(String(50), default=None)
+
+    # User attribution stub
+    created_by: Mapped[str | None] = mapped_column(String(100), default=None)
+
+    # Render type stub
+    render_type: Mapped[str] = mapped_column(String(20), default="image")
+
+    # Tags
+    tags_json: Mapped[list[str] | None] = mapped_column(JSON, default=None)
+
     def __repr__(self) -> str:
         """String representation."""
         status_val = self.status.value if self.status else "None"
@@ -315,6 +356,19 @@ class Timepoint(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "parent_id": self.parent_id,
             "error": self.error_message,
+            # Blob storage
+            "blob_folder_name": self.blob_folder_name,
+            "blob_path": self.blob_path,
+            "blob_written_at": self.blob_written_at.isoformat() if self.blob_written_at else None,
+            # Soft delete
+            "is_deleted": self.is_deleted,
+            "deleted_at": self.deleted_at.isoformat() if self.deleted_at else None,
+            # Sequence
+            "sequence_id": self.sequence_id,
+            # Metadata
+            "render_type": self.render_type,
+            "generation_version": self.generation_version,
+            "tags": self.tags_json,
         }
 
 

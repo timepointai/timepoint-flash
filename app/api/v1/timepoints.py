@@ -32,6 +32,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -40,7 +41,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import QualityPreset
+from app.config import QualityPreset, get_settings
 from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
 from app.models import GenerationLog, Timepoint, TimepointStatus
@@ -90,6 +91,10 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Custom image model override (e.g., 'google/imagen-3'). Overrides preset.",
         examples=["google/imagen-3", "black-forest-labs/flux-1.1-pro"],
+    )
+    write_blob: bool = Field(
+        default=False,
+        description="Write blob storage folder for this generation",
     )
 
 
@@ -202,6 +207,22 @@ class TimepointResponse(BaseModel):
     created_at: str | None = None
     error: str | None = None
 
+    # Blob storage
+    blob_folder_name: str | None = None
+    blob_path: str | None = None
+    blob_written_at: str | None = None
+
+    # Soft delete
+    is_deleted: bool = False
+
+    # Sequence
+    sequence_id: str | None = None
+
+    # Metadata
+    render_type: str = "image"
+    generation_version: int = 1
+    tags: list[str] | None = None
+
     # Full data (optional, for detailed requests)
     metadata: dict[str, Any] | None = None
     characters: dict[str, Any] | None = None
@@ -264,6 +285,15 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         image_model_used=tp.image_model_used,
         created_at=tp.created_at.isoformat() if tp.created_at else None,
         error=tp.error_message,
+        # Blob storage fields
+        blob_folder_name=tp.blob_folder_name,
+        blob_path=tp.blob_path,
+        blob_written_at=tp.blob_written_at.isoformat() if tp.blob_written_at else None,
+        is_deleted=tp.is_deleted,
+        sequence_id=tp.sequence_id,
+        render_type=tp.render_type or "image",
+        generation_version=tp.generation_version or 1,
+        tags=tp.tags_json,
     )
 
     if include_full:
@@ -638,6 +668,27 @@ async def generate_timepoint_sync(
             session.add(log)
         await session.commit()
 
+        # Write blob if requested or globally enabled
+        app_settings = get_settings()
+        if request.write_blob or app_settings.BLOB_STORAGE_ENABLED:
+            try:
+                from app.storage import StorageConfig, StorageService
+                storage_config = StorageConfig(
+                    enabled=True,
+                    root=app_settings.BLOB_STORAGE_ROOT,
+                )
+                storage_service = StorageService.from_config(storage_config)
+                full_path, folder_name = await storage_service.write_blob(
+                    timepoint, generation_logs=logs,
+                )
+                timepoint.blob_path = full_path
+                timepoint.blob_folder_name = folder_name
+                timepoint.blob_written_at = datetime.now(tz=timezone.utc)
+                await session.commit()
+                await session.refresh(timepoint)
+            except Exception as blob_err:
+                logger.error(f"Blob write failed (non-fatal): {blob_err}")
+
         return timepoint_to_response(timepoint, include_full=True)
 
     except Exception as e:
@@ -833,8 +884,8 @@ async def list_timepoints(
     Returns:
         TimepointListResponse with paginated items
     """
-    # Build query
-    query = select(Timepoint).order_by(Timepoint.created_at.desc())
+    # Build query — exclude soft-deleted by default
+    query = select(Timepoint).where(Timepoint.is_deleted == False).order_by(Timepoint.created_at.desc())  # noqa: E712
 
     if status:
         try:
@@ -933,14 +984,17 @@ async def generate_timepoint_stream(
 @router.delete("/{timepoint_id}", response_model=DeleteResponse)
 async def delete_timepoint(
     timepoint_id: str,
+    permanent: bool = Query(False, description="Permanently delete (skip soft-delete)"),
     session: AsyncSession = Depends(get_db_session),
 ) -> DeleteResponse:
     """Delete a timepoint by ID.
 
-    Also deletes associated generation logs.
+    By default, performs a soft-delete (sets is_deleted=True and moves blob to .trash).
+    Pass permanent=true to hard-delete the record and all associated data.
 
     Args:
         timepoint_id: Timepoint UUID
+        permanent: If true, permanently delete instead of soft-delete
         session: Database session
 
     Returns:
@@ -958,19 +1012,122 @@ async def delete_timepoint(
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    # Delete generation logs first
-    await session.execute(
-        delete(GenerationLog).where(GenerationLog.timepoint_id == timepoint_id)
+    if permanent:
+        # Hard delete: move blob to trash then delete DB records
+        app_settings = get_settings()
+        if timepoint.blob_path and app_settings.BLOB_STORAGE_ENABLED:
+            try:
+                from app.storage import StorageConfig, StorageService
+                storage_config = StorageConfig(
+                    enabled=True,
+                    root=app_settings.BLOB_STORAGE_ROOT,
+                )
+                storage_service = StorageService.from_config(storage_config)
+                await storage_service.delete_blob(timepoint, soft=False)
+            except Exception as e:
+                logger.error(f"Blob hard-delete failed (non-fatal): {e}")
+
+        # Delete generation logs first
+        await session.execute(
+            delete(GenerationLog).where(GenerationLog.timepoint_id == timepoint_id)
+        )
+        # Delete timepoint
+        await session.delete(timepoint)
+        await session.commit()
+
+        logger.info(f"Hard-deleted timepoint: {timepoint_id}")
+        return DeleteResponse(
+            id=timepoint_id,
+            deleted=True,
+            message=f"Timepoint {timepoint_id} permanently deleted",
+        )
+    else:
+        # Soft delete
+        timepoint.is_deleted = True
+        timepoint.deleted_at = datetime.now(tz=timezone.utc)
+
+        # Move blob to .trash if it exists
+        app_settings = get_settings()
+        if timepoint.blob_path and app_settings.BLOB_STORAGE_ENABLED:
+            try:
+                from app.storage import StorageConfig, StorageService
+                storage_config = StorageConfig(
+                    enabled=True,
+                    root=app_settings.BLOB_STORAGE_ROOT,
+                )
+                storage_service = StorageService.from_config(storage_config)
+                await storage_service.delete_blob(timepoint, soft=True)
+            except Exception as e:
+                logger.error(f"Blob soft-delete failed (non-fatal): {e}")
+
+        await session.commit()
+
+        logger.info(f"Soft-deleted timepoint: {timepoint_id}")
+        return DeleteResponse(
+            id=timepoint_id,
+            deleted=True,
+            message=f"Timepoint {timepoint_id} soft-deleted",
+        )
+
+
+@router.post("/{timepoint_id}/export", response_model=TimepointResponse)
+async def export_timepoint_blob(
+    timepoint_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> TimepointResponse:
+    """Write or rewrite a blob folder for an existing timepoint.
+
+    Creates a self-contained folder with decoded image, JSON sidecars,
+    manifest, and browsable index.html.
+
+    Args:
+        timepoint_id: Timepoint UUID
+        session: Database session
+
+    Returns:
+        Updated TimepointResponse with blob_path
+
+    Raises:
+        HTTPException: If timepoint not found or blob write fails
+    """
+    result = await session.execute(
+        select(Timepoint).where(Timepoint.id == timepoint_id)
     )
+    timepoint = result.scalar_one_or_none()
 
-    # Delete timepoint
-    await session.delete(timepoint)
-    await session.commit()
+    if not timepoint:
+        raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    logger.info(f"Deleted timepoint: {timepoint_id}")
+    if not timepoint.is_complete:
+        raise HTTPException(
+            status_code=400,
+            detail="Timepoint must be completed before export",
+        )
 
-    return DeleteResponse(
-        id=timepoint_id,
-        deleted=True,
-        message=f"Timepoint {timepoint_id} deleted successfully",
+    # Fetch generation logs
+    log_result = await session.execute(
+        select(GenerationLog).where(GenerationLog.timepoint_id == timepoint_id)
     )
+    logs = list(log_result.scalars().all())
+
+    try:
+        from app.storage import StorageConfig, StorageService
+        app_settings = get_settings()
+        storage_config = StorageConfig(
+            enabled=True,
+            root=app_settings.BLOB_STORAGE_ROOT,
+        )
+        storage_service = StorageService.from_config(storage_config)
+        full_path, folder_name = await storage_service.reconstruct_blob(
+            timepoint, generation_logs=logs,
+        )
+        timepoint.blob_path = full_path
+        timepoint.blob_folder_name = folder_name
+        timepoint.blob_written_at = datetime.now(tz=timezone.utc)
+        await session.commit()
+        await session.refresh(timepoint)
+    except Exception as e:
+        logger.error(f"Blob export failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Blob export failed: {e}")
+
+    return timepoint_to_response(timepoint, include_full=True)

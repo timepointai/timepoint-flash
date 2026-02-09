@@ -32,6 +32,7 @@ from app.schemas.chat import (
 )
 from app.schemas.image_prompt import ImagePromptData
 from app.schemas.judge import JudgeResult, QueryType
+from app.storage.manifest import BlobManifest, FileEntry
 from app.schemas.moment import MomentData
 from app.schemas.dialog_arc import (
     ArcBeat,
@@ -78,6 +79,9 @@ __all__ = [
     "build_arc_from_moment",
     # Image Prompt
     "ImagePromptData",
+    # Blob Storage
+    "BlobManifest",
+    "FileEntry",
     # Chat & Interactions
     "ChatMessage",
     "ChatRequest",

@@ -1683,6 +1683,7 @@ class GenerationPipeline:
             query=state.query,
             slug=slug,
             status=status,
+            render_type="image",
         )
 
         # Add timeline data
@@ -1706,6 +1707,17 @@ class GenerationPipeline:
                 timepoint.metadata_json["moment"] = state.moment_data.model_dump()
             if state.camera_data:
                 timepoint.metadata_json["camera"] = state.camera_data.model_dump()
+                # Add synthetic camera metadata with {synthetic} prefix
+                cam = state.camera_data
+                timepoint.metadata_json["synthetic_camera"] = {
+                    "{synthetic}shot_type": cam.shot_type,
+                    "{synthetic}angle": cam.angle,
+                    "{synthetic}focal_point": cam.focal_point,
+                    "{synthetic}depth_of_field": cam.depth_of_field,
+                    "{synthetic}composition_rule": cam.composition_rule,
+                    "{synthetic}framing_intent": cam.framing_intent,
+                    "{synthetic}movement": cam.movement,
+                }
             if state.graph_data:
                 timepoint.metadata_json["graph"] = state.graph_data.model_dump()
 

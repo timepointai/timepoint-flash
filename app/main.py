@@ -86,6 +86,17 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database initialization failed: {e}")
         # Continue anyway - might be using external DB
 
+    # Initialize blob storage if enabled
+    _settings = get_settings()
+    if _settings.BLOB_STORAGE_ENABLED:
+        from pathlib import Path
+        storage_root = Path(_settings.BLOB_STORAGE_ROOT)
+        try:
+            storage_root.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Blob storage initialized: {storage_root.resolve()}")
+        except Exception as e:
+            logger.error(f"Blob storage initialization failed: {e}")
+
     yield
 
     # Shutdown

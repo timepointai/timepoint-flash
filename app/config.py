@@ -364,6 +364,16 @@ class Settings(BaseSettings):
         le=5,
     )
 
+    # Blob Storage
+    BLOB_STORAGE_ENABLED: bool = Field(
+        default=False,
+        description="Enable blob storage for timepoint assets",
+    )
+    BLOB_STORAGE_ROOT: str = Field(
+        default="./output/timepoints",
+        description="Root directory for blob storage output",
+    )
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
