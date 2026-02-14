@@ -149,7 +149,7 @@ class Timepoint(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     slug: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     status: Mapped[TimepointStatus] = mapped_column(
-        SQLEnum(TimepointStatus),
+        SQLEnum(TimepointStatus, values_callable=lambda x: [e.value for e in x]),
         default=TimepointStatus.PENDING,
         index=True,
     )
