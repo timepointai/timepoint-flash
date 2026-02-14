@@ -117,7 +117,7 @@ class CreditTransaction(Base):
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
     transaction_type: Mapped[TransactionType] = mapped_column(
-        SQLEnum(TransactionType), nullable=False
+        SQLEnum(TransactionType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     reference_id: Mapped[str | None] = mapped_column(String(36), default=None)
     description: Mapped[str | None] = mapped_column(Text, default=None)
