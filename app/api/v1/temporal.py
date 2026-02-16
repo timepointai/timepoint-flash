@@ -34,7 +34,7 @@ from app.config import get_settings
 from app.core.pipeline import GenerationPipeline
 from app.core.temporal import TemporalNavigator, TemporalPoint, TimeUnit
 from app.database import get_db_session
-from app.models import GenerationLog, Timepoint, TimepointStatus
+from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility
 from app.models_auth import TransactionType, User
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,15 @@ class NavigationResponse(BaseModel):
 
 
 # Helper Functions
+
+
+def _check_visibility_access(tp: Timepoint, user: User | None) -> None:
+    """Raise 403 if private timepoint and user is not the owner."""
+    vis = tp.visibility.value if isinstance(tp.visibility, TimepointVisibility) else (tp.visibility or "public")
+    if vis == "private":
+        is_owner = user is not None and tp.user_id is not None and user.id == tp.user_id
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="This timepoint is private")
 
 
 def get_time_unit(unit: str) -> TimeUnit:
@@ -201,6 +210,8 @@ async def generate_next_moment(
     if not source_tp:
         raise HTTPException(status_code=404, detail="Source timepoint not found")
 
+    _check_visibility_access(source_tp, user)
+
     if not source_tp.is_complete:
         raise HTTPException(
             status_code=400,
@@ -305,6 +316,8 @@ async def generate_prior_moment(
 
     if not source_tp:
         raise HTTPException(status_code=404, detail="Source timepoint not found")
+
+    _check_visibility_access(source_tp, user)
 
     if not source_tp.is_complete:
         raise HTTPException(

@@ -86,7 +86,7 @@ Override preset models for custom configurations:
 
 All generation endpoints run a 14-agent pipeline with critique loop: dialog is reviewed for anachronisms, cultural errors, and voice distinctiveness, and retried if critical issues are found. Characters are capped at 6 with social register-based voice differentiation. Image prompts translate narrative emotion into physicalized body language (~77 words).
 
-When `AUTH_ENABLED=true`, generation, chat, and temporal endpoints require a Bearer JWT and deduct credits. See [iOS Integration Guide](IOS_INTEGRATION.md) for full details.
+When `AUTH_ENABLED=true`, generation, chat, dialog, survey, and temporal endpoints require a Bearer JWT and deduct credits. Private timepoints return 403 for non-owners. See [iOS Integration Guide](IOS_INTEGRATION.md) for full details.
 
 | **Get** | `GET /api/v1/timepoints/{id}` | Retrieve a scene |
 | **Chat** | `POST /api/v1/interactions/{id}/chat` | Talk to a character |
@@ -121,6 +121,7 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 | preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default), `gemini3` |
 | text_model | string | No | Override text model (ignores preset) |
 | image_model | string | No | Override image model (ignores preset) |
+| visibility | string | No | `public` (default) or `private` — controls who can see full data |
 
 **Response:** SSE stream with events:
 
@@ -197,6 +198,8 @@ Get a completed scene.
   "image_url": "data:image/jpeg;base64,...",
   "text_model_used": "gemini-2.5-flash",
   "image_model_used": "gemini-2.5-flash-image",
+  "visibility": "public",
+  "share_url": "https://timepointai.com/t/oppenheimer-trinity-abc123",
   "characters": {
     "characters": [
       {"name": "J. Robert Oppenheimer", "role": "primary", "description": "..."},
@@ -215,14 +218,41 @@ Get a completed scene.
 
 ### GET /api/v1/timepoints
 
-List all scenes with pagination.
+List scenes with pagination. Visibility filtering is applied automatically:
+
+- **Anonymous**: sees only public timepoints.
+- **Authenticated**: sees public + own private timepoints.
+- **Explicit `?visibility=`**: overrides the default (private still restricted to owner).
 
 **Query Params:**
-| Name | Type | Default |
-|------|------|---------|
-| page | int | 1 |
-| page_size | int | 20 |
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| page | int | 1 | Page number |
+| page_size | int | 20 | Items per page |
 | status | string | null | Filter by status (completed, failed, processing) |
+| visibility | string | null | Filter by visibility (`public` or `private`) |
+
+---
+
+### PATCH /api/v1/timepoints/{id}/visibility
+
+Update a timepoint's visibility. Owner-only (or open when `AUTH_ENABLED=false`).
+
+**Request:**
+```json
+{
+  "visibility": "private"
+}
+```
+
+**Response:** Full `TimepointResponse` with updated visibility.
+
+| Status | Meaning |
+|--------|---------|
+| 200 | Success |
+| 400 | Invalid visibility value |
+| 403 | Not the owner |
+| 404 | Timepoint not found |
 
 ---
 
@@ -902,6 +932,7 @@ All errors return:
 | 400 | Invalid request state |
 | 401 | Unauthorized — missing/invalid/expired JWT (when `AUTH_ENABLED=true`) |
 | 402 | Payment Required — insufficient credits for the operation |
+| 403 | Forbidden — private timepoint and requester is not the owner |
 | 404 | Not found |
 | 422 | Validation error |
 | 429 | Rate limit exceeded (triggers fallback internally) |
@@ -919,4 +950,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-16*

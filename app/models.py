@@ -66,6 +66,17 @@ class TimepointStatus(str, Enum):
     FAILED = "failed"
 
 
+class TimepointVisibility(str, Enum):
+    """Visibility of a timepoint.
+
+    PUBLIC: Visible to everyone with full data.
+    PRIVATE: Only the owner sees full data; others get redacted fields.
+    """
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
 def generate_slug(query: str, year: int | None = None) -> str:
     """Generate URL-safe slug from query with unique suffix.
 
@@ -267,6 +278,13 @@ class Timepoint(Base):
         String(36), ForeignKey("users.id"), default=None
     )
 
+    # Visibility
+    visibility: Mapped[str] = mapped_column(
+        SQLEnum(TimepointVisibility, values_callable=lambda x: [e.value for e in x]),
+        default=TimepointVisibility.PUBLIC,
+        index=True,
+    )
+
     # User attribution stub
     created_by: Mapped[str | None] = mapped_column(String(100), default=None)
 
@@ -302,6 +320,9 @@ class Timepoint(Base):
         # Set default status if not provided
         if "status" not in kwargs:
             kwargs["status"] = TimepointStatus.PENDING
+        # Set default visibility if not provided
+        if "visibility" not in kwargs:
+            kwargs["visibility"] = TimepointVisibility.PUBLIC
         return cls(query=query, slug=slug, **kwargs)
 
     def mark_processing(self) -> None:
@@ -374,6 +395,8 @@ class Timepoint(Base):
             "render_type": self.render_type,
             "generation_version": self.generation_version,
             "tags": self.tags_json,
+            # Visibility
+            "visibility": self.visibility.value if isinstance(self.visibility, TimepointVisibility) else (self.visibility or "public"),
         }
 
 

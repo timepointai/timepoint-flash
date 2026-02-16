@@ -44,7 +44,7 @@ from app.agents.survey import SurveyAgent, SurveyInput
 from app.auth.credits import CREDIT_COSTS, spend_credits
 from app.auth.dependencies import get_current_user, require_credits
 from app.database import get_db_session
-from app.models import Timepoint
+from app.models import Timepoint, TimepointVisibility
 from app.models_auth import TransactionType, User
 from app.schemas import Character, CharacterData, DialogData, DialogLine
 from app.schemas.chat import (
@@ -353,6 +353,15 @@ def filter_characters(
     return result
 
 
+def _check_visibility_access(tp: Timepoint, user: User | None) -> None:
+    """Raise 403 if private timepoint and user is not the owner."""
+    vis = tp.visibility.value if isinstance(tp.visibility, TimepointVisibility) else (tp.visibility or "public")
+    if vis == "private":
+        is_owner = user is not None and tp.user_id is not None and user.id == tp.user_id
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="This timepoint is private")
+
+
 def get_existing_dialog(timepoint: Timepoint) -> list[DialogLine]:
     """Parse existing dialog from timepoint.
 
@@ -416,6 +425,7 @@ async def chat_with_character(
 
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
     character = get_character_by_name(char_data, request.character)
 
     # Get session manager and history
@@ -479,6 +489,8 @@ async def chat_with_character(
 async def chat_with_character_stream(
     timepoint_id: str,
     request: ChatAPIRequest,
+    user: User | None = Depends(get_current_user),
+    _credits=Depends(require_credits(CREDIT_COSTS["chat"])),
     db: AsyncSession = Depends(get_db_session),
 ) -> StreamingResponse:
     """Stream chat response from a character.
@@ -488,6 +500,7 @@ async def chat_with_character_stream(
     Args:
         timepoint_id: Timepoint UUID
         request: Chat request
+        user: Authenticated user (or None)
         db: Database session
 
     Returns:
@@ -495,6 +508,7 @@ async def chat_with_character_stream(
     """
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
     character = get_character_by_name(char_data, request.character)
 
     # Get history if session exists
@@ -577,6 +591,8 @@ async def chat_with_character_stream(
 async def extend_dialog(
     timepoint_id: str,
     request: DialogAPIRequest,
+    user: User | None = Depends(get_current_user),
+    _credits=Depends(require_credits(CREDIT_COSTS["chat"])),
     db: AsyncSession = Depends(get_db_session),
 ) -> DialogAPIResponse:
     """Generate additional dialog for the timepoint.
@@ -587,6 +603,7 @@ async def extend_dialog(
     Args:
         timepoint_id: Timepoint UUID
         request: Dialog extension request
+        user: Authenticated user (or None)
         db: Database session
 
     Returns:
@@ -604,6 +621,7 @@ async def extend_dialog(
     """
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
 
     # Filter characters
     selected_chars = filter_characters(char_data, request.characters)
@@ -655,6 +673,8 @@ async def extend_dialog(
 async def extend_dialog_stream(
     timepoint_id: str,
     request: DialogAPIRequest,
+    user: User | None = Depends(get_current_user),
+    _credits=Depends(require_credits(CREDIT_COSTS["chat"])),
     db: AsyncSession = Depends(get_db_session),
 ) -> StreamingResponse:
     """Stream dialog generation line by line.
@@ -664,6 +684,7 @@ async def extend_dialog_stream(
     Args:
         timepoint_id: Timepoint UUID
         request: Dialog extension request
+        user: Authenticated user (or None)
         db: Database session
 
     Returns:
@@ -671,6 +692,7 @@ async def extend_dialog_stream(
     """
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
 
     # Filter characters
     char_names = None
@@ -731,6 +753,8 @@ async def extend_dialog_stream(
 async def survey_characters(
     timepoint_id: str,
     request: SurveyAPIRequest,
+    user: User | None = Depends(get_current_user),
+    _credits=Depends(require_credits(CREDIT_COSTS["chat"])),
     db: AsyncSession = Depends(get_db_session),
 ) -> SurveyAPIResponse:
     """Survey characters with questions.
@@ -741,6 +765,7 @@ async def survey_characters(
     Args:
         timepoint_id: Timepoint UUID
         request: Survey request
+        user: Authenticated user (or None)
         db: Database session
 
     Returns:
@@ -758,6 +783,7 @@ async def survey_characters(
     """
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
 
     # Filter characters
     selected_chars = filter_characters(char_data, request.characters)
@@ -817,6 +843,8 @@ async def survey_characters(
 async def survey_characters_stream(
     timepoint_id: str,
     request: SurveyAPIRequest,
+    user: User | None = Depends(get_current_user),
+    _credits=Depends(require_credits(CREDIT_COSTS["chat"])),
     db: AsyncSession = Depends(get_db_session),
 ) -> StreamingResponse:
     """Stream survey results as each character responds.
@@ -826,6 +854,7 @@ async def survey_characters_stream(
     Args:
         timepoint_id: Timepoint UUID
         request: Survey request
+        user: Authenticated user (or None)
         db: Database session
 
     Returns:
@@ -833,6 +862,7 @@ async def survey_characters_stream(
     """
     # Get timepoint and characters
     timepoint, char_data = await get_timepoint_with_characters(timepoint_id, db)
+    _check_visibility_access(timepoint, user)
 
     # Filter characters
     char_names = None
