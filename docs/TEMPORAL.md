@@ -133,6 +133,16 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 
 ---
 
+## Visibility
+
+Time travel respects timepoint visibility. When `AUTH_ENABLED=true`:
+
+- **Public source** — anyone can jump forward/backward
+- **Private source, owner** — allowed (new scene inherits the source's visibility)
+- **Private source, non-owner** — 403 Forbidden
+
+---
+
 ## Tips
 
 1. **Start with a clear moment** - The sharper your initial scene, the better the time jumps work
@@ -145,4 +155,4 @@ curl -X POST .../temporal/{id}/next -d '{"units": 100, "unit": "year"}'
 
 ---
 
-*Last updated: 2026-02-07*
+*Last updated: 2026-02-16*
