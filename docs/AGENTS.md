@@ -54,7 +54,7 @@ Your Query: "Oppenheimer watches the Trinity test, 5:29 AM July 16 1945"
 | **ImagePromptOptimizer** | Compress + physicalize emotion | ~77 words with tension translated to body language |
 | **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google → OpenRouter → Pollinations.ai) |
 
-Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question).
+Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question). All interaction endpoints check timepoint visibility — private timepoints block non-owner access (403). When `AUTH_ENABLED=true`, interactions also require a Bearer JWT and deduct credits.
 
 Note: The Characters step internally uses 3 sub-agents: **CharacterIdentification** (detect who's present, with grounding data for name authenticity), **Graph** (extract significant relationships, pruned to 2x character count), and **CharacterBio** (generate detailed bios with social register and voice differentiation).
 
@@ -289,4 +289,4 @@ app/agents/
 
 ---
 
-*Last updated: 2026-02-07*
+*Last updated: 2026-02-16*

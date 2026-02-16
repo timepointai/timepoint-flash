@@ -252,10 +252,10 @@ See [`.env.example`](.env.example) for the full list of environment variables.
 ## Testing
 
 ```bash
-python3.10 -m pytest tests/ -v              # 595 passed, 11 skipped (e2e needs API keys)
+python3.10 -m pytest tests/ -v              # 522 fast + integration, 11 skipped (e2e needs API keys)
 ```
 
-606 tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, and provider failover.
+630+ tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, visibility/access control, and provider failover.
 
 ---
 

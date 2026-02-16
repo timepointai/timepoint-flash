@@ -4,13 +4,13 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 
 ---
 
-## Current State (v2.3.3)
+## Current State (v2.4.0)
 
 - Multi-model latency comparison (`/api/v1/eval/compare`)
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
-- 447 unit tests + 81 integration tests + 13 e2e tests (541 total)
+- 522 fast tests + integration tests + e2e tests (600+ total)
 - Google Search grounding for historical accuracy
 - 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
 - Physical presence detection for accurate image generation
@@ -22,6 +22,9 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 - Grounding→CharacterID pipeline: verified participants inform character casting and naming
 - Graph pruning: relationship cap at 2x characters, salience threshold, no background-to-background pairs
 - Character cap reduced to 6 for higher per-character quality
+- Visibility system: public/private timepoints with server-enforced access control
+- Share URLs: configurable `SHARE_URL_BASE` generates shareable links for public scenes
+- Auth-gated interactions: chat, dialog, survey endpoints require JWT when `AUTH_ENABLED=true`
 
 **Gap**: Measures speed only, not quality.
 
@@ -288,4 +291,4 @@ Addressing critique feedback on dialog quality (3/10), historical accuracy (5/10
 
 ---
 
-*Last updated: 2026-02-07*
+*Last updated: 2026-02-16*
