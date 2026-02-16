@@ -26,4 +26,11 @@ router.include_router(eval_router)
 router.include_router(interactions_router)
 router.include_router(openapi_export_router)
 
+# Optional billing module (only available when timepoint-billing is installed)
+try:
+    from timepoint_billing import get_billing_router
+    router.include_router(get_billing_router())
+except ImportError:
+    pass
+
 __all__ = ["router"]

@@ -33,6 +33,11 @@ class TransactionType(str, Enum):
     CHAT = "chat"
     TEMPORAL = "temporal"
     ADMIN_GRANT = "admin_grant"
+    # Purchase types (used by timepoint-billing module)
+    APPLE_IAP = "apple_iap"
+    STRIPE_PURCHASE = "stripe_purchase"
+    SUBSCRIPTION_GRANT = "subscription_grant"
+    REFUND = "refund"
 
 
 class User(Base):
@@ -120,6 +125,7 @@ class CreditTransaction(Base):
         SQLEnum(TransactionType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     reference_id: Mapped[str | None] = mapped_column(String(36), default=None)
+    reference_type: Mapped[str | None] = mapped_column(String(50), default=None)
     description: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
