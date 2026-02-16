@@ -33,6 +33,7 @@ os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key-for-testing")
 # Auth test defaults
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-testing")
 os.environ.setdefault("AUTH_ENABLED", "false")
+os.environ.setdefault("SHARE_URL_BASE", "https://timepointai.com/t")
 
 
 # ============================================================================
@@ -63,6 +64,7 @@ def test_settings():
         GOOGLE_API_KEY="test-google-key",
         OPENROUTER_API_KEY="test-openrouter-key",
         DEBUG=True,
+        SHARE_URL_BASE="https://timepointai.com/t",
     )
 
 

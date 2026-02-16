@@ -212,6 +212,7 @@ curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
 | `POST /api/v1/timepoints/generate/sync` | Generate scene, block until complete |
 | `POST /api/v1/timepoints/generate` | Background generation, poll for result |
 | `GET /api/v1/timepoints/{id}` | Retrieve a completed scene |
+| `PATCH /api/v1/timepoints/{id}/visibility` | Set public/private visibility |
 | `POST /api/v1/interactions/{id}/chat` | Chat with a character |
 | `POST /api/v1/temporal/{id}/next` | Jump forward in time |
 | `POST /api/v1/temporal/{id}/prior` | Jump backward in time |
@@ -241,6 +242,7 @@ AUTH_ENABLED=false                                    # Set true to require JWT 
 JWT_SECRET_KEY=change-me-to-a-random-32-char-string  # Required when AUTH_ENABLED=true
 APPLE_BUNDLE_ID=com.yourcompany.app                  # Required when AUTH_ENABLED=true
 SIGNUP_CREDITS=50                                    # Free credits on first sign-in
+SHARE_URL_BASE=https://timepointai.com/t             # Optional: enables share_url in responses
 ```
 
 See [`.env.example`](.env.example) for the full list of environment variables.

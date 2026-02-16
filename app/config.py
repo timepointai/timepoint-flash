@@ -394,6 +394,18 @@ class Settings(BaseSettings):
         description="Secret key for admin endpoints (dev token, credit grants). Empty = disabled.",
     )
 
+    # CORS
+    CORS_ORIGINS: str = Field(
+        default="",
+        description="Comma-separated additional CORS origins (e.g. https://your-app.up.railway.app)",
+    )
+
+    # Share URL
+    SHARE_URL_BASE: str = Field(
+        default="",
+        description="Base URL for share links (e.g. https://timepointai.com/t). Empty = no share_url.",
+    )
+
     # Blob Storage
     BLOB_STORAGE_ENABLED: bool = Field(
         default=False,
@@ -407,8 +419,16 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        """Validate database URL format."""
-        valid_prefixes = ("sqlite", "postgresql", "postgres")
+        """Validate and normalize database URL format.
+
+        Converts postgres:// and postgresql:// to postgresql+asyncpg://
+        for compatibility with SQLAlchemy's async engine.
+        """
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://") and "+asyncpg" not in v:
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        valid_prefixes = ("sqlite", "postgresql")
         if not any(v.startswith(prefix) for prefix in valid_prefixes):
             raise ValueError(
                 f"DATABASE_URL must start with one of: {valid_prefixes}"

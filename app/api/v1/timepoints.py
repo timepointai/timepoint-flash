@@ -38,7 +38,7 @@ from typing import Any, AsyncGenerator
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.credits import CREDIT_COSTS, spend_credits
@@ -46,7 +46,7 @@ from app.auth.dependencies import get_current_user, require_credits
 from app.config import QualityPreset, get_settings
 from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
-from app.models import GenerationLog, Timepoint, TimepointStatus
+from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility
 from app.models_auth import TransactionType, User
 from app.schemas.characters import Character, CharacterData
 
@@ -98,6 +98,10 @@ class GenerateRequest(BaseModel):
     write_blob: bool = Field(
         default=False,
         description="Write blob storage folder for this generation",
+    )
+    visibility: str | None = Field(
+        default=None,
+        description="Visibility: 'public' (default) or 'private'",
     )
 
 
@@ -226,6 +230,10 @@ class TimepointResponse(BaseModel):
     generation_version: int = 1
     tags: list[str] | None = None
 
+    # Visibility & sharing
+    visibility: str = "public"
+    share_url: str | None = None
+
     # Full data (optional, for detailed requests)
     metadata: dict[str, Any] | None = None
     characters: dict[str, Any] | None = None
@@ -257,17 +265,47 @@ class GenerateResponse(BaseModel):
 # Helper Functions
 
 
-def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_image: bool = False) -> TimepointResponse:
+def _get_visibility_value(tp: Timepoint) -> str:
+    """Get visibility as a plain string value."""
+    if isinstance(tp.visibility, TimepointVisibility):
+        return tp.visibility.value
+    return tp.visibility or "public"
+
+
+def check_visibility_access(tp: Timepoint, user: User | None) -> None:
+    """Raise 403 if private timepoint and user is not the owner."""
+    vis = _get_visibility_value(tp)
+    if vis == "private":
+        is_owner = user is not None and tp.user_id is not None and user.id == tp.user_id
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="This timepoint is private")
+
+
+def timepoint_to_response(
+    tp: Timepoint,
+    include_full: bool = False,
+    include_image: bool = False,
+    current_user: User | None = None,
+) -> TimepointResponse:
     """Convert Timepoint model to response.
 
     Args:
         tp: Timepoint model
         include_full: Whether to include full metadata
         include_image: Whether to include base64 image data
+        current_user: Requesting user (None = anonymous)
 
     Returns:
-        TimepointResponse
+        TimepointResponse (redacted for private non-owner)
     """
+    vis = _get_visibility_value(tp)
+
+    # Build share_url
+    share_url: str | None = None
+    app_settings = get_settings()
+    if app_settings.SHARE_URL_BASE and vis == "public":
+        share_url = f"{app_settings.SHARE_URL_BASE}/{tp.slug}"
+
     response = TimepointResponse(
         id=tp.id,
         query=tp.query,
@@ -297,6 +335,8 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         render_type=tp.render_type or "image",
         generation_version=tp.generation_version or 1,
         tags=tp.tags_json,
+        visibility=vis,
+        share_url=share_url,
     )
 
     if include_full:
@@ -306,6 +346,23 @@ def timepoint_to_response(tp: Timepoint, include_full: bool = False, include_ima
         response.dialog = tp.dialog_json
         response.grounding = tp.grounding_data_json
         response.moment = tp.moment_data_json
+
+    # Redact sensitive fields for private timepoints when viewer is not the owner
+    if vis == "private":
+        is_owner = current_user is not None and tp.user_id is not None and current_user.id == tp.user_id
+        if not is_owner:
+            response.characters = None
+            response.dialog = None
+            response.scene = None
+            response.metadata = None
+            response.grounding = None
+            response.moment = None
+            response.image_base64 = None
+            response.image_url = None
+            response.image_prompt = None
+            response.text_model_used = None
+            response.image_model_used = None
+            response.has_image = False
 
     return response
 
@@ -607,6 +664,11 @@ async def generate_timepoint(
     )
     if user is not None:
         timepoint.user_id = user.id
+    if request.visibility:
+        try:
+            timepoint.visibility = TimepointVisibility(request.visibility)
+        except ValueError:
+            pass  # Invalid value, keep default
 
     session.add(timepoint)
     await session.commit()
@@ -685,6 +747,11 @@ async def generate_timepoint_sync(
         timepoint = pipeline.state_to_timepoint(state)
         if user is not None:
             timepoint.user_id = user.id
+        if request.visibility:
+            try:
+                timepoint.visibility = TimepointVisibility(request.visibility)
+            except ValueError:
+                pass  # Invalid value, keep default
 
         # Save to database
         session.add(timepoint)
@@ -718,7 +785,7 @@ async def generate_timepoint_sync(
             except Exception as blob_err:
                 logger.error(f"Blob write failed (non-fatal): {blob_err}")
 
-        return timepoint_to_response(timepoint, include_full=True)
+        return timepoint_to_response(timepoint, include_full=True, current_user=user)
 
     except Exception as e:
         logger.error(f"Sync generation failed: {e}")
@@ -730,6 +797,7 @@ async def get_timepoint(
     timepoint_id: str,
     full: bool = Query(False, description="Include full metadata"),
     include_image: bool = Query(False, description="Include base64 image data"),
+    user: User | None = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> TimepointResponse:
     """Get timepoint by ID.
@@ -738,13 +806,14 @@ async def get_timepoint(
         timepoint_id: Timepoint UUID
         full: Whether to include full metadata
         include_image: Whether to include base64 image data
+        user: Authenticated user (or None)
         session: Database session
 
     Returns:
         TimepointResponse
 
     Raises:
-        HTTPException: If timepoint not found
+        HTTPException: If timepoint not found or private and not owner
     """
     result = await session.execute(
         select(Timepoint).where(Timepoint.id == timepoint_id)
@@ -754,12 +823,15 @@ async def get_timepoint(
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    return timepoint_to_response(timepoint, include_full=full, include_image=include_image)
+    check_visibility_access(timepoint, user)
+
+    return timepoint_to_response(timepoint, include_full=full, include_image=include_image, current_user=user)
 
 
 @router.get("/{timepoint_id}/characters", response_model=CharacterBiosResponse)
 async def get_character_bios(
     timepoint_id: str,
+    user: User | None = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> CharacterBiosResponse:
     """Get all character bios with system prompts for a timepoint.
@@ -809,6 +881,8 @@ async def get_character_bios(
 
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
+
+    check_visibility_access(timepoint, user)
 
     # Check if character data exists
     if not timepoint.character_data_json:
@@ -871,6 +945,7 @@ async def get_character_bios(
 async def get_timepoint_by_slug(
     slug: str,
     full: bool = Query(False, description="Include full metadata"),
+    user: User | None = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> TimepointResponse:
     """Get timepoint by slug.
@@ -878,13 +953,14 @@ async def get_timepoint_by_slug(
     Args:
         slug: URL-safe slug
         full: Whether to include full metadata
+        user: Authenticated user (or None)
         session: Database session
 
     Returns:
         TimepointResponse
 
     Raises:
-        HTTPException: If timepoint not found
+        HTTPException: If timepoint not found or private and not owner
     """
     result = await session.execute(select(Timepoint).where(Timepoint.slug == slug))
     timepoint = result.scalar_one_or_none()
@@ -892,7 +968,9 @@ async def get_timepoint_by_slug(
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    return timepoint_to_response(timepoint, include_full=full)
+    check_visibility_access(timepoint, user)
+
+    return timepoint_to_response(timepoint, include_full=full, current_user=user)
 
 
 @router.get("", response_model=TimepointListResponse)
@@ -900,14 +978,23 @@ async def list_timepoints(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     status: str | None = Query(None, description="Filter by status"),
+    visibility: str | None = Query(None, description="Filter by visibility (public/private)"),
+    user: User | None = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> TimepointListResponse:
     """List timepoints with pagination.
+
+    Visibility filtering:
+    - Anonymous: sees only public timepoints.
+    - Authenticated: sees public + own private timepoints.
+    - Explicit ?visibility= overrides (private still restricted to owner).
 
     Args:
         page: Page number (1-indexed)
         page_size: Number of items per page
         status: Optional status filter
+        visibility: Optional visibility filter (public/private)
+        user: Authenticated user (or None)
         session: Database session
 
     Returns:
@@ -922,6 +1009,33 @@ async def list_timepoints(
             query = query.where(Timepoint.status == status_enum)
         except ValueError:
             pass  # Invalid status, ignore filter
+
+    # Visibility filtering
+    if visibility:
+        # Explicit filter requested
+        try:
+            vis_enum = TimepointVisibility(visibility)
+            query = query.where(Timepoint.visibility == vis_enum)
+            # If requesting private, restrict to own timepoints
+            if vis_enum == TimepointVisibility.PRIVATE:
+                if user is not None:
+                    query = query.where(Timepoint.user_id == user.id)
+                else:
+                    # Anonymous cannot see any private timepoints
+                    query = query.where(literal(False))
+        except ValueError:
+            pass  # Invalid visibility value, ignore filter
+    else:
+        # Default: anonymous sees only public; authed sees public + own private
+        if user is not None:
+            query = query.where(
+                or_(
+                    Timepoint.visibility == TimepointVisibility.PUBLIC,
+                    Timepoint.user_id == user.id,
+                )
+            )
+        else:
+            query = query.where(Timepoint.visibility == TimepointVisibility.PUBLIC)
 
     # Get total count
     count_subquery = query.subquery()
@@ -938,7 +1052,7 @@ async def list_timepoints(
     timepoints = result.scalars().all()
 
     return TimepointListResponse(
-        items=[timepoint_to_response(tp) for tp in timepoints],
+        items=[timepoint_to_response(tp, current_user=user) for tp in timepoints],
         total=total,
         page=page,
         page_size=page_size,
@@ -1010,6 +1124,65 @@ async def generate_timepoint_stream(
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         },
     )
+
+
+class VisibilityUpdateRequest(BaseModel):
+    """Request to update timepoint visibility."""
+
+    visibility: str = Field(
+        ...,
+        description="Visibility: 'public' or 'private'",
+    )
+
+
+@router.patch("/{timepoint_id}/visibility", response_model=TimepointResponse)
+async def update_visibility(
+    timepoint_id: str,
+    request: VisibilityUpdateRequest,
+    user: User | None = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> TimepointResponse:
+    """Update timepoint visibility (owner-only).
+
+    Args:
+        timepoint_id: Timepoint UUID
+        request: Visibility update request
+        user: Authenticated user (or None when AUTH_ENABLED=false)
+        session: Database session
+
+    Returns:
+        Updated TimepointResponse
+
+    Raises:
+        HTTPException: 400 invalid value, 403 not owner, 404 not found
+    """
+    # Validate the visibility value
+    try:
+        new_vis = TimepointVisibility(request.visibility)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid visibility value. Must be 'public' or 'private'.",
+        ) from None
+
+    result = await session.execute(
+        select(Timepoint).where(Timepoint.id == timepoint_id)
+    )
+    timepoint = result.scalar_one_or_none()
+
+    if not timepoint:
+        raise HTTPException(status_code=404, detail="Timepoint not found")
+
+    # Owner check (skip when AUTH_ENABLED=false, i.e. user is None)
+    if user is not None:
+        if timepoint.user_id is None or timepoint.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Only the owner can change visibility")
+
+    timepoint.visibility = new_vis
+    await session.commit()
+    await session.refresh(timepoint)
+
+    return timepoint_to_response(timepoint, include_full=True, current_user=user)
 
 
 @router.delete("/{timepoint_id}", response_model=DeleteResponse)

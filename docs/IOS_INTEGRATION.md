@@ -23,6 +23,7 @@ Reference for building the TIMEPOINT Flash iOS client. Covers credentials, auth 
 | `RATE_LIMIT` | No | `60` | Requests per minute per IP |
 | `BLOB_STORAGE_ENABLED` | No | `false` | Write asset folders per generation |
 | `BLOB_STORAGE_ROOT` | No | `./output/timepoints` | Root dir for blob output |
+| `SHARE_URL_BASE` | No | `""` | Base URL for share links (e.g. `https://timepointai.com/t`). Empty = no share_url in responses. |
 | `LOGFIRE_TOKEN` | No | — | Observability (optional) |
 
 ---
@@ -133,7 +134,7 @@ When receiving a 402:
 
 ## 4. Endpoint Map for iOS MVP
 
-All endpoints are under `/api/v1`. Prefix with your base URL.
+All endpoints are under `/api/v1`. Prefix with your Railway base URL (e.g. `https://your-app.up.railway.app`).
 
 ### Auth (requires `AUTH_ENABLED=true`)
 
@@ -167,8 +168,9 @@ All endpoints are under `/api/v1`. Prefix with your base URL.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/timepoints/{id}` | Bearer | Get scene (`?full=true&include_image=false`) |
-| `GET` | `/timepoints` | Bearer | List all scenes (paginated) |
+| `GET` | `/timepoints/{id}` | Bearer | Get scene (`?full=true&include_image=false`). Returns 403 for private non-owner. |
+| `GET` | `/timepoints` | Bearer | List scenes (paginated, `?visibility=public\|private`). Anonymous sees only public. |
+| `PATCH` | `/timepoints/{id}/visibility` | Bearer | Set visibility: `{"visibility": "public\|private"}`. Owner-only. |
 
 ### Interactions
 
@@ -243,6 +245,7 @@ On app launch:
 |-----------|---------|------------|
 | **401 Unauthorized** | Token expired or invalid | Attempt refresh; if that fails, re-authenticate via Apple Sign-In |
 | **402 Payment Required** | Insufficient credits | Show balance, explain cost, prompt for top-up (future) |
+| **403 Forbidden** | Private timepoint, not the owner | Show "This scene is private" message |
 | **404 Not Found** | Resource doesn't exist | Show appropriate empty state |
 | **422 Validation Error** | Bad request body | Show validation errors to user |
 | **429 Too Many Requests** | Rate limited | Exponential backoff (start at 1s, max 30s) |
@@ -302,7 +305,49 @@ Show a confirmation dialog before calling this endpoint. After success, clear Ke
 
 ---
 
-## 11. Future Notes
+## 11. Visibility & Sharing
+
+Timepoints have a `visibility` field: `"public"` (default) or `"private"`.
+
+### Response Fields
+
+Every `TimepointResponse` now includes:
+- `visibility` — `"public"` or `"private"`
+- `share_url` — Pre-built share link (only when `SHARE_URL_BASE` is configured and visibility is public). Example: `"https://timepointai.com/t/oppenheimer-trinity-abc123"`
+
+### Behavior
+
+| Scenario | `GET /{id}` | `GET /` list | Interactions |
+|----------|-------------|-------------|--------------|
+| **Public, anyone** | Full data | Included | Allowed |
+| **Private, owner** | Full data | Included | Allowed |
+| **Private, non-owner** | 403 Forbidden | Excluded | 403 Forbidden |
+| **Private, anonymous** | 403 Forbidden | Excluded | 403 Forbidden |
+
+### Setting Visibility
+
+```
+PATCH /api/v1/timepoints/{id}/visibility
+Authorization: Bearer <access_token>
+{ "visibility": "private" }
+→ 200 (updated TimepointResponse)
+```
+
+Owner-only. When `AUTH_ENABLED=false`, any caller can change visibility.
+
+### Generation
+
+Pass `"visibility": "private"` in the generate request to create a private scene:
+```json
+{
+  "query": "My private moment",
+  "visibility": "private"
+}
+```
+
+---
+
+## 12. Future Notes
 
 - **Stripe integration:** Auth, KYC, and billing will migrate to Stripe in a future phase. The current `admin_grant` transaction type is the interim top-up mechanism.
 - **Credit purchase flow:** Not yet implemented. When ready, it will use Stripe's iOS SDK for in-app purchases or web-based checkout.
@@ -311,7 +356,7 @@ Show a confirmation dialog before calling this endpoint. After success, clear Ke
 
 ---
 
-## 12. Doc Index
+## 13. Doc Index
 
 | File | Contents |
 |------|----------|
@@ -319,10 +364,10 @@ Show a confirmation dialog before calling this endpoint. After success, clear Ke
 | `docs/API.md` | Full endpoint reference |
 | `docs/AGENTS.md` | Pipeline architecture (14 agents) |
 | `docs/TEMPORAL.md` | Time travel mechanics |
-| `docs/DEPLOY.md` | Deployment guide (local, Replit, production) |
+| `docs/DEPLOY.md` | Deployment guide (local, Railway, Docker) |
 | `docs/EVAL_ROADMAP.md` | Quality benchmarks |
 | `docs/IOS_INTEGRATION.md` | This file |
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-16*

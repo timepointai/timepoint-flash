@@ -1,6 +1,6 @@
 # Deployment
 
-Three ways to run TIMEPOINT Flash: local development, Replit (one-click), or production.
+Three ways to run TIMEPOINT Flash: local development, Railway (recommended), or Docker.
 
 ---
 
@@ -19,127 +19,114 @@ Swagger docs at `http://localhost:8000/docs`
 
 ---
 
-## Replit (Recommended for Quick Deploy)
+## Railway (Recommended)
 
-The repo includes `.replit`, `replit.nix`, and `start.sh` — Replit runs automatically on import.
+Railway auto-detects the `Dockerfile` and deploys with PostgreSQL, health checks, and CI gating.
 
 ### Setup
 
-1. **Create a new Replit** → "Import from GitHub" → paste:
-   ```
-   https://github.com/realityinspector/timepoint-flash-deploy
-   ```
+1. **Create a Railway project** → connect your GitHub repo
+2. **Add PostgreSQL plugin** (Railway dashboard → Add Plugin → PostgreSQL)
+3. **Set environment variables** (see `.env.railway.example`):
 
-2. **Set Secrets** in the Replit sidebar (Secrets tab):
-
-   | Secret | Required | Source |
-   |--------|----------|--------|
+   | Variable | Required | Source |
+   |----------|----------|--------|
+   | `DATABASE_URL` | Auto | `${{Postgres.DATABASE_URL}}` (reference from plugin) |
    | `GOOGLE_API_KEY` | Yes | [aistudio.google.com](https://aistudio.google.com) (free) |
    | `OPENROUTER_API_KEY` | No | [openrouter.ai](https://openrouter.ai) (enables hyper/gemini3 presets) |
-   | `JWT_SECRET_KEY` | Only if `AUTH_ENABLED=true` | Random 32+ char string (e.g. `openssl rand -hex 32`) |
-   | `ADMIN_API_KEY` | No | Secret key for dev admin endpoints (create test users, grant credits). Empty = disabled. |
+   | `ENVIRONMENT` | No | `development` or `production` |
+   | `AUTH_ENABLED` | No | `false` (default) or `true` for iOS app mode |
+   | `JWT_SECRET_KEY` | If auth | `openssl rand -hex 32` |
+   | `ADMIN_API_KEY` | No | Secret key for dev admin endpoints |
+   | `CORS_ORIGINS` | No | Comma-separated allowed origins |
+   | `SHARE_URL_BASE` | No | Base URL for share links (e.g. `https://timepointai.com/t`) |
 
-3. **Hit Run** — done. The server starts on port 8080 and Replit assigns a public URL.
+4. **Deploy** — push to your connected branch. Railway builds the Dockerfile and deploys. Migrations run automatically at container startup (via Dockerfile CMD).
 
-### What Happens on Run
+### How It Works
 
-The `.replit` file calls `start.sh`, which:
+- `Dockerfile` — multi-stage build (builder + slim runtime)
+- `railway.json` — config-as-code (builder, health check, restart policy)
+- Alembic migrations run at container startup (inside Dockerfile CMD, not a pre-deploy command)
+- Health check at `/health` — Railway restarts unhealthy containers
+- Restart policy: ON_FAILURE with 3 retries
 
-1. Installs Python dependencies (`pip install -e .` — cached after first run)
-2. Runs Alembic database migrations (`alembic upgrade head`)
-3. Patches any ORM columns missing from migrations
-4. Starts uvicorn on `0.0.0.0:8080`
+### Branch Mapping
 
-No manual setup required. On subsequent runs, pip cache makes startup fast (~3-5 seconds).
-
-### Replit File Reference
-
-| File | Purpose |
-|------|---------|
-| `.replit` | Tells Replit what command to run, port mapping, env vars |
-| `replit.nix` | Nix packages: Python 3.11, pip, SQLite |
-| `start.sh` | Startup script: deps, migrations, server |
+| Branch | Environment | Auto-deploy |
+|--------|-------------|-------------|
+| `main` | Production | Yes (with "Wait for CI") |
+| `develop` | Development | Yes |
 
 ### Verify
 
 ```bash
-curl https://your-repl.replit.dev/health
-# → {"status":"healthy","version":"2.3.3","database":true,"providers":{"google":true,"openrouter":true}}
+curl https://your-app.up.railway.app/health
+# → {"status":"healthy","version":"2.4.0","database":true,"providers":{"google":true,"openrouter":true}}
 ```
 
 ### Generate a Scene
 
 ```bash
-curl -X POST https://your-repl.replit.dev/api/v1/timepoints/generate/sync \
+curl -X POST https://your-app.up.railway.app/api/v1/timepoints/generate/sync \
   -H "Content-Type: application/json" \
   -d '{"query": "Alan Turing breaks Enigma at Bletchley Park Hut 8, winter 1941", "preset": "balanced", "generate_image": true}'
 ```
 
-### Replit Deployment (Always-On)
+### Post-Deploy Smoke Test
 
-To keep the server running after you close the browser:
+Run the smoke test workflow manually from GitHub Actions:
 
-1. Go to the **Deployments** tab in Replit
-2. Select **Reserved VM** or **Autoscale**
-3. Replit uses the `[deployment]` section in `.replit` (runs with 2 workers)
+```bash
+gh workflow run smoke.yml -f target_url=https://your-app.up.railway.app
+```
 
 ---
 
-## Production
+## Docker (Local or Custom Deploy)
 
-For production deployment (AWS, GCP, Railway, Fly.io, etc.):
-
-### Environment
+The repo includes a production-ready multi-stage `Dockerfile`:
 
 ```bash
-GOOGLE_API_KEY=your-key
-OPENROUTER_API_KEY=your-key
+# Build
+docker build -t timepoint-flash .
+
+# Run with SQLite (local testing)
+docker run -p 8080:8080 \
+  -e DATABASE_URL=sqlite+aiosqlite:///./timepoint.db \
+  -e GOOGLE_API_KEY=your-key \
+  timepoint-flash
+
+# Run with PostgreSQL (production)
+docker run -p 8080:8080 \
+  -e DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/timepoint \
+  -e ENVIRONMENT=production \
+  -e GOOGLE_API_KEY=your-key \
+  timepoint-flash
+```
+
+### Environment Variables
+
+See `.env.railway.example` for the full list. Key variables:
+
+```bash
 DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/timepoint
+GOOGLE_API_KEY=your-key
 ENVIRONMENT=production
+AUTH_ENABLED=false       # Set true for iOS app mode
 BLOB_STORAGE_ENABLED=true
-
-# Auth (only needed if AUTH_ENABLED=true — for iOS app mode)
-AUTH_ENABLED=false            # default: false — existing deployments unaffected
-JWT_SECRET_KEY=your-random-secret-here   # required when AUTH_ENABLED=true
-APPLE_BUNDLE_ID=com.yourcompany.app      # required when AUTH_ENABLED=true
-SIGNUP_CREDITS=50
-ADMIN_API_KEY=                # secret key for dev admin endpoints — empty = disabled
+CORS_ORIGINS=https://your-domain.com
+SHARE_URL_BASE=https://timepointai.com/t   # Optional: enables share_url in responses
 ```
 
-> **Note:** `AUTH_ENABLED=false` is the default. Existing deployments are unaffected — all endpoints remain open-access. Set `AUTH_ENABLED=true` only when deploying for the iOS app.
+> **Note:** `AUTH_ENABLED=false` is the default. All endpoints remain open-access. Set `AUTH_ENABLED=true` only when deploying for the iOS app.
 
-### Database
-
-TIMEPOINT supports SQLite (development) and PostgreSQL (production):
+### Manual Run (without Docker)
 
 ```bash
-# PostgreSQL
-pip install asyncpg
-export DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/timepoint
+pip install -e .
 alembic upgrade head
-```
-
-### Run
-
-```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
-```
-
-Or with the included script:
-
-```bash
-./run.sh -P   # Production mode: 0.0.0.0, 4 workers, no reload
-```
-
-### Docker (Optional)
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY . .
-RUN pip install -e .
-RUN alembic upgrade head
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
 ```
 
 ---
@@ -162,4 +149,4 @@ Each folder is portable — copy it anywhere and open `index.html` to view the c
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-16*

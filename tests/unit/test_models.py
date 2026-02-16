@@ -9,7 +9,7 @@ Run with:
 
 import pytest
 
-from app.models import GenerationLog, Timepoint, TimepointStatus, generate_slug
+from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility, generate_slug
 
 
 @pytest.mark.fast
@@ -206,6 +206,50 @@ class TestTimepoint:
         data = tp.to_dict()
         assert data["grounding"] == {"verified_location": "Rome"}
         assert data["moment"] == {"tension_arc": "rising"}
+
+
+@pytest.mark.fast
+class TestTimepointVisibility:
+    """Tests for TimepointVisibility enum."""
+
+    def test_visibility_values(self):
+        """Test TimepointVisibility has expected values."""
+        assert TimepointVisibility.PUBLIC.value == "public"
+        assert TimepointVisibility.PRIVATE.value == "private"
+
+    def test_visibility_is_string_enum(self):
+        """Test TimepointVisibility is a string enum."""
+        assert isinstance(TimepointVisibility.PUBLIC.value, str)
+
+    def test_visibility_from_string(self):
+        """Test creating enum from string value."""
+        assert TimepointVisibility("public") == TimepointVisibility.PUBLIC
+        assert TimepointVisibility("private") == TimepointVisibility.PRIVATE
+
+    def test_timepoint_default_visibility(self):
+        """Test that new timepoints default to PUBLIC."""
+        tp = Timepoint.create(query="test query")
+        assert tp.visibility == TimepointVisibility.PUBLIC
+
+    def test_timepoint_set_visibility(self):
+        """Test setting visibility on a timepoint."""
+        tp = Timepoint.create(query="test query")
+        tp.visibility = TimepointVisibility.PRIVATE
+        assert tp.visibility == TimepointVisibility.PRIVATE
+
+    def test_timepoint_to_dict_includes_visibility(self):
+        """Test that to_dict includes visibility field."""
+        tp = Timepoint.create(query="test query")
+        data = tp.to_dict()
+        assert "visibility" in data
+        assert data["visibility"] == "public"
+
+    def test_timepoint_to_dict_private_visibility(self):
+        """Test that to_dict shows private visibility."""
+        tp = Timepoint.create(query="test query")
+        tp.visibility = TimepointVisibility.PRIVATE
+        data = tp.to_dict()
+        assert data["visibility"] == "private"
 
 
 @pytest.mark.fast
