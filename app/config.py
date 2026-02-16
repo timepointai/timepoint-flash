@@ -394,6 +394,12 @@ class Settings(BaseSettings):
         description="Secret key for admin endpoints (dev token, credit grants). Empty = disabled.",
     )
 
+    # Billing (set automatically when timepoint-billing is installed)
+    BILLING_ENABLED: bool = Field(
+        default=False,
+        description="Set automatically when timepoint-billing is installed",
+    )
+
     # CORS
     CORS_ORIGINS: str = Field(
         default="",
