@@ -131,6 +131,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
 
 ---
 
+## Billing
+
+The open-source app ships with `NoOpBilling` — all credit checks pass and access is unlimited. The `BillingProvider` protocol in `app/services/billing.py` provides hooks for custom billing integrations.
+
+The deployed version (`timepoint-flash-deploy`) uses a separate billing microservice (`timepoint-billing`) that handles Apple IAP and Stripe payments as its own Railway service with its own PostgreSQL database. The main app proxies billing requests and exposes an internal credits API for the billing service to grant/spend credits after purchases.
+
+---
+
 ## Blob Storage
 
 When `BLOB_STORAGE_ENABLED=true`, each generation writes a self-contained folder:
@@ -149,4 +157,4 @@ Each folder is portable — copy it anywhere and open `index.html` to view the c
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-17*
