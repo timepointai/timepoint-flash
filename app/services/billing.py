@@ -31,8 +31,3 @@ _provider: BillingProvider = NoOpBilling()
 
 def get_billing_provider() -> BillingProvider:
     return _provider
-
-
-def set_billing_provider(provider: BillingProvider) -> None:
-    global _provider
-    _provider = provider
