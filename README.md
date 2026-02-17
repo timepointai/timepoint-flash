@@ -243,7 +243,14 @@ JWT_SECRET_KEY=change-me-to-a-random-32-char-string  # Required when AUTH_ENABLE
 APPLE_BUNDLE_ID=com.yourcompany.app                  # Required when AUTH_ENABLED=true
 SIGNUP_CREDITS=50                                    # Free credits on first sign-in
 SHARE_URL_BASE=https://timepointai.com/t             # Optional: enables share_url in responses
+
+# Billing (optional — see app/services/billing.py)
+BILLING_ENABLED=false                                # Set true to enable billing integration
 ```
+
+### Billing Hooks
+
+The open-source app ships with `NoOpBilling` — all credit checks return `true` (unlimited access). The `BillingProvider` protocol in `app/services/billing.py` defines hooks for custom billing integrations. The deployed version uses a separate billing microservice for Apple IAP and Stripe payments.
 
 See [`.env.example`](.env.example) for the full list of environment variables.
 

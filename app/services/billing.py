@@ -1,8 +1,7 @@
 """Billing provider protocol and default no-op implementation.
 
 The open-source app ships with NoOpBilling (unlimited access).
-When the private timepoint-billing package is installed, it registers
-a real provider via set_billing_provider().
+The deployed version uses a billing microservice via proxy.
 """
 
 from __future__ import annotations

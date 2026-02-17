@@ -347,16 +347,26 @@ Pass `"visibility": "private"` in the generate request to create a private scene
 
 ---
 
-## 12. Future Notes
+## 12. Billing Hooks
 
-- **Stripe integration:** Auth, KYC, and billing will migrate to Stripe in a future phase. The current `admin_grant` transaction type is the interim top-up mechanism.
-- **Credit purchase flow:** Not yet implemented. When ready, it will use Stripe's iOS SDK for in-app purchases or web-based checkout.
+The open-source app includes a `BillingProvider` protocol (`app/services/billing.py`) with a default `NoOpBilling` implementation (unlimited access). The deployed version (`timepoint-flash-deploy`) uses a separate billing microservice that handles Apple IAP and Stripe payments, proxying billing requests through the main app.
+
+The billing hooks provide:
+- `check_credits(user_id, cost)` — called before credit-consuming operations
+- `on_credits_granted(user_id, amount, source)` — called after credits are granted
+
+The deployed fork adds `/api/v1/billing/*` proxy endpoints and `/internal/credits/*` internal API for service-to-service communication with the billing microservice.
+
+---
+
+## 13. Future Notes
+
 - **Push notifications:** Not yet implemented. Future phase may add APNs for generation-complete notifications.
 - **Rate limiting:** Currently per-IP (60/min). Future: per-user rate limiting tied to credit tier.
 
 ---
 
-## 13. Doc Index
+## 14. Doc Index
 
 | File | Contents |
 |------|----------|
@@ -370,4 +380,4 @@ Pass `"visibility": "private"` in the generate request to create a private scene
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-17*
