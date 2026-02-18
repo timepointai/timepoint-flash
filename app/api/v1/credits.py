@@ -115,11 +115,19 @@ async def admin_grant(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Resolve transaction type (billing sends specific types like stripe_purchase)
+    txn_type = TransactionType.ADMIN_GRANT
+    if request.transaction_type:
+        try:
+            txn_type = TransactionType(request.transaction_type)
+        except ValueError:
+            pass  # Fall back to ADMIN_GRANT for unknown types
+
     await grant_credits(
         session,
         request.user_id,
         request.amount,
-        TransactionType.ADMIN_GRANT,
+        txn_type,
         description=request.description,
     )
     await session.commit()
