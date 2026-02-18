@@ -1,20 +1,23 @@
-"""User API endpoints — user-scoped timepoints and data export.
+"""User API endpoints — user-scoped timepoints, data export, and user provisioning.
 
 Endpoints:
-    GET /api/v1/users/me/timepoints — Paginated list of authenticated user's timepoints
-    GET /api/v1/users/me/export     — Full JSON export of user data (GDPR SAR)
+    POST /api/v1/users/resolve       — Find or create user by external_id (service key)
+    GET  /api/v1/users/me/timepoints — Paginated list of authenticated user's timepoints
+    GET  /api/v1/users/me/export     — Full JSON export of user data (GDPR SAR)
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.config import get_settings
 from app.database import get_db_session
 from app.models import Timepoint, TimepointStatus
 from app.models_auth import CreditAccount, CreditTransaction, User
@@ -22,6 +25,90 @@ from app.models_auth import CreditAccount, CreditTransaction, User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+# ---------- Service-key-protected dependency ----------
+
+
+async def _require_service_key(request: Request) -> None:
+    """Verify the X-Service-Key header. Raises 403 if invalid."""
+    settings = get_settings()
+    if not settings.FLASH_SERVICE_KEY:
+        raise HTTPException(status_code=503, detail="FLASH_SERVICE_KEY not configured")
+    if request.headers.get("X-Service-Key", "") != settings.FLASH_SERVICE_KEY:
+        raise HTTPException(status_code=403, detail="Invalid service key")
+
+
+# ---------- Resolve schemas ----------
+
+
+class ResolveUserRequest(BaseModel):
+    """Find or create a user by external identity."""
+
+    external_id: str = Field(..., description="Auth0 sub or other external provider ID")
+    email: str | None = Field(default=None, description="User email (set on create)")
+    display_name: str | None = Field(default=None, description="Display name (set on create)")
+
+
+class ResolveUserResponse(BaseModel):
+    """Result of user resolution."""
+
+    user_id: str = Field(description="Flash user UUID")
+    created: bool = Field(description="True if a new user was provisioned")
+
+
+# ---------- Resolve endpoint ----------
+
+
+@router.post("/resolve", response_model=ResolveUserResponse)
+async def resolve_user(
+    request: ResolveUserRequest,
+    _key: None = Depends(_require_service_key),
+    session: AsyncSession = Depends(get_db_session),
+) -> ResolveUserResponse:
+    """Find or create a user by external_id.
+
+    Called by timepoint-billing after Auth0 login to ensure the user
+    exists in Flash before relaying generation requests.
+
+    - If a user with matching external_id exists, returns their UUID.
+    - Otherwise creates a new user + credit account and returns the UUID.
+
+    Requires X-Service-Key header.
+    """
+    # Look up by external_id
+    result = await session.execute(
+        select(User).where(User.external_id == request.external_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is not None:
+        return ResolveUserResponse(user_id=user.id, created=False)
+
+    # Create new user
+    settings = get_settings()
+    user = User(
+        id=str(uuid.uuid4()),
+        apple_sub=f"external:{request.external_id}",  # placeholder for NOT NULL constraint
+        external_id=request.external_id,
+        email=request.email,
+        display_name=request.display_name,
+    )
+    session.add(user)
+    await session.flush()
+
+    # Create credit account with signup bonus
+    account = CreditAccount(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        balance=settings.SIGNUP_CREDITS,
+        lifetime_earned=settings.SIGNUP_CREDITS,
+    )
+    session.add(account)
+    await session.commit()
+
+    logger.info(f"Provisioned user {user.id} for external_id={request.external_id}")
+    return ResolveUserResponse(user_id=user.id, created=True)
 
 
 # ---------- Response schemas ----------

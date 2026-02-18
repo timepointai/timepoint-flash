@@ -24,14 +24,42 @@ async def get_current_user(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
 ) -> User | None:
-    """Extract and validate the Bearer token, returning the User.
+    """Resolve the calling user from one of three auth paths:
 
-    When AUTH_ENABLED=false, returns None (open access).
+    1. **Service key + X-User-ID** — trusted forwarded identity from billing.
+       Looks up user by id, then by external_id.  Returns None if no
+       X-User-ID header (system/clockchain call → no credits deducted).
+    2. **Bearer JWT** — direct user auth (iOS app, dev tokens).
+    3. **AUTH_ENABLED=false** — open access, returns None.
 
     Raises:
-        HTTPException 401: If auth is enabled and token is missing/invalid.
+        HTTPException 401: If auth is enabled and no valid credentials.
     """
     settings = get_settings()
+
+    # Path 1: Service-key forwarded identity (billing / clockchain)
+    service_key = request.headers.get("X-Service-Key", "")
+    if settings.FLASH_SERVICE_KEY and service_key == settings.FLASH_SERVICE_KEY:
+        user_id = request.headers.get("X-User-ID")
+        if not user_id:
+            return None  # System call (clockchain) — no credits
+
+        # Look up by primary key first, then by external_id
+        result = await session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            result = await session.execute(
+                select(User).where(User.external_id == user_id)
+            )
+            user = result.scalar_one_or_none()
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {user_id} not found. Call POST /api/v1/users/resolve first.",
+            )
+        return user
+
+    # Path 2: Bearer JWT (direct user auth)
     if not settings.AUTH_ENABLED:
         return None
 
