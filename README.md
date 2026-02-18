@@ -222,6 +222,7 @@ curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
 | `GET /api/v1/credits/balance` | Credit balance |
 | `GET /api/v1/credits/costs` | Credit cost table |
 | `GET /api/v1/users/me/timepoints` | User's scene history |
+| `POST /api/v1/users/resolve` | Find or create user by external_id (service-key protected) |
 | `POST /api/v1/eval/compare` | Compare model latencies |
 | `GET /api/v1/models/free` | List free OpenRouter models |
 
@@ -244,6 +245,10 @@ APPLE_BUNDLE_ID=com.yourcompany.app                  # Required when AUTH_ENABLE
 SIGNUP_CREDITS=50                                    # Free credits on first sign-in
 SHARE_URL_BASE=https://timepointai.com/t             # Optional: enables share_url in responses
 
+# Service-to-service auth (optional — for multi-service deployment)
+FLASH_SERVICE_KEY=                                   # Shared secret for X-Service-Key header. Empty = disabled.
+CORS_ENABLED=true                                    # Set false when Flash is internal-only (no browser callers)
+
 # Billing (optional — see app/services/billing.py)
 BILLING_ENABLED=false                                # Set true to enable billing integration
 ```
@@ -262,7 +267,7 @@ See [`.env.example`](.env.example) for the full list of environment variables.
 python3.10 -m pytest tests/ -v              # 522 fast + integration, 11 skipped (e2e needs API keys)
 ```
 
-630+ tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, visibility/access control, and provider failover.
+660+ tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, visibility/access control, and provider failover.
 
 ---
 

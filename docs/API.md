@@ -80,6 +80,7 @@ Override preset models for custom configurations:
 | **Credits** | `GET /api/v1/credits/costs` | Credit cost table |
 | **Users** | `GET /api/v1/users/me/timepoints` | User's timepoints (paginated) |
 | **Users** | `GET /api/v1/users/me/export` | Full GDPR data export |
+| **Users** | `POST /api/v1/users/resolve` | Find or create user by external_id (service-key protected) |
 | **Generate** | `POST /api/v1/timepoints/generate/stream` | Create a scene (streaming) - **recommended** |
 | **Generate** | `POST /api/v1/timepoints/generate/sync` | Create a scene (blocking) |
 | **Generate** | `POST /api/v1/timepoints/generate` | Create a scene (background task) |
@@ -122,6 +123,8 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 | text_model | string | No | Override text model (ignores preset) |
 | image_model | string | No | Override image model (ignores preset) |
 | visibility | string | No | `public` (default) or `private` — controls who can see full data |
+| callback_url | string | No | URL to POST results to when generation completes (async endpoint only) |
+| request_context | object | No | Opaque context passed through to response (e.g. `{"source": "clockchain", "job_id": "..."}`) |
 
 **Response:** SSE stream with events:
 
@@ -157,16 +160,37 @@ Generate a scene synchronously. Blocks until complete (30-120 seconds).
 
 Start background generation. Returns immediately with timepoint ID.
 
-**Note:** Poll `GET /api/v1/timepoints/{id}` for completion status.
+**Note:** Poll `GET /api/v1/timepoints/{id}` for completion status. Alternatively, provide a `callback_url` — Flash will POST the full result to that URL when generation completes.
 
-**Request:** Same as streaming endpoint.
+**Request:** Same as streaming endpoint. Additionally supports `callback_url` and `request_context`.
+
+When `callback_url` is provided, Flash POSTs the result on completion:
+```json
+{
+  "timepoint": { /* full TimepointResponse */ },
+  "preset_used": "balanced",
+  "generation_time_ms": 95000,
+  "request_context": { /* echoed back from request */ }
+}
+```
+
+On failure, a minimal error payload is POSTed instead:
+```json
+{
+  "id": "550e8400-...",
+  "status": "failed",
+  "error": "...",
+  "request_context": { /* echoed back */ }
+}
+```
 
 **Response:**
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "processing",
-  "message": "Generation started for 'Oppenheimer watches the Trinity test'"
+  "message": "Generation started for 'Oppenheimer watches the Trinity test'",
+  "request_context": null
 }
 ```
 
@@ -589,6 +613,26 @@ List available models and presets for evaluation.
 
 ---
 
+## Service-to-Service Auth
+
+Flash supports service-key authentication for calls from other TIMEPOINT services (billing, clockchain).
+
+**Header:** `X-Service-Key: {FLASH_SERVICE_KEY}`
+
+Three auth paths are evaluated in order by `get_current_user`:
+
+| Priority | Headers | Behavior | Use Case |
+|----------|---------|----------|----------|
+| 1 | `X-Service-Key` + `X-User-ID` | Validates key, looks up user by UUID or `external_id` | Billing relays user requests (credits deducted) |
+| 2 | `X-Service-Key` only | Validates key, returns no user context | Clockchain system calls (unmetered) |
+| 3 | `Authorization: Bearer <JWT>` | Validates JWT, returns authenticated user | Direct user auth (iOS app) |
+
+When `AUTH_ENABLED=false` and no service key is provided, all endpoints are open-access.
+
+**Admin operations** (credit grants, dev tokens) use a separate `X-Admin-Key` header matching `ADMIN_API_KEY`.
+
+---
+
 ## Authentication
 
 Auth endpoints are always available but only functional when `AUTH_ENABLED=true`.
@@ -759,7 +803,8 @@ Grant credits to any user by user ID. Requires `X-Admin-Key` header matching the
 {
   "user_id": "550e8400-...",
   "amount": 100,
-  "description": "Manual top-up"
+  "transaction_type": "stripe_purchase",
+  "description": "Stripe purchase: 100 credits ($9.99)"
 }
 ```
 
@@ -767,6 +812,7 @@ Grant credits to any user by user ID. Requires `X-Admin-Key` header matching the
 |-------|------|----------|-------------|
 | user_id | string | Yes | Target user UUID |
 | amount | int | Yes | Credits to grant (must be > 0) |
+| transaction_type | string | No | Ledger transaction type (default: `admin_grant`). Valid: `admin_grant`, `apple_iap`, `stripe_purchase`, `subscription_grant`, `refund`, `signup_bonus` |
 | description | string | No | Ledger note (default: "Manual top-up") |
 
 **Headers:**
@@ -837,6 +883,46 @@ Paginated list of the authenticated user's timepoints. Requires Bearer JWT.
   "page_size": 20
 }
 ```
+
+---
+
+### POST /api/v1/users/resolve
+
+Find or create a user by `external_id` (Auth0 sub or other external identity provider ID). Service-key protected — requires `X-Service-Key` header matching `FLASH_SERVICE_KEY`.
+
+**Headers:**
+```
+X-Service-Key: your-flash-service-key
+```
+
+**Request:**
+```json
+{
+  "external_id": "auth0|abc123",
+  "email": "user@example.com",
+  "display_name": "Jane Doe"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| external_id | string | Yes | Auth0 sub or other external provider ID |
+| email | string | No | User email (set on create only) |
+| display_name | string | No | Display name (set on create only) |
+
+**Response:**
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "created": true
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| 200 | User found or created |
+| 403 | Invalid service key |
+| 503 | `FLASH_SERVICE_KEY` not configured |
 
 ---
 
@@ -950,4 +1036,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-18*
