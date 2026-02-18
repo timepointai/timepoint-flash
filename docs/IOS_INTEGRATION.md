@@ -194,6 +194,7 @@ All endpoints are under `/api/v1`. Prefix with your Railway base URL (e.g. `http
 |--------|------|------|-------------|
 | `GET` | `/users/me/timepoints` | Bearer | Paginated user timepoints (`?page=1&page_size=20&status=completed`) |
 | `GET` | `/users/me/export` | Bearer | Full GDPR data export |
+| `POST` | `/users/resolve` | `X-Service-Key` | Find or create user by `external_id` (service-to-service only) |
 
 ---
 
@@ -347,7 +348,19 @@ Pass `"visibility": "private"` in the generate request to create a private scene
 
 ---
 
-## 12. Billing Hooks
+## 12. User Model Notes
+
+The `User` model includes:
+- `id` — Flash internal UUID (primary key)
+- `apple_sub` — Apple Sign-In subject identifier
+- `external_id` — Auth0 sub or other external identity provider ID (added in migration 0009). Unique, indexed. Used by `POST /users/resolve` for find-or-create and by service-key auth for user lookup via `X-User-ID`.
+- `email`, `display_name` — optional profile fields
+
+The admin grant endpoint (`POST /credits/admin/grant`) now accepts an optional `transaction_type` parameter (e.g. `stripe_purchase`, `apple_iap`, `subscription_grant`) for proper ledger categorization when credits are granted by the billing service.
+
+---
+
+## 13. Billing Hooks
 
 The open-source app includes a `BillingProvider` protocol (`app/services/billing.py`) with a default `NoOpBilling` implementation (unlimited access). The deployed version (`timepoint-flash-deploy`) uses a separate billing microservice that handles Apple IAP and Stripe payments, proxying billing requests through the main app.
 
@@ -359,14 +372,14 @@ The deployed fork adds `/api/v1/billing/*` proxy endpoints and `/internal/credit
 
 ---
 
-## 13. Future Notes
+## 14. Future Notes
 
 - **Push notifications:** Not yet implemented. Future phase may add APNs for generation-complete notifications.
 - **Rate limiting:** Currently per-IP (60/min). Future: per-user rate limiting tied to credit tier.
 
 ---
 
-## 14. Doc Index
+## 15. Doc Index
 
 | File | Contents |
 |------|----------|
@@ -380,4 +393,4 @@ The deployed fork adds `/api/v1/billing/*` proxy endpoints and `/internal/credit
 
 ---
 
-*Last updated: 2026-02-17*
+*Last updated: 2026-02-18*

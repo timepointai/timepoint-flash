@@ -38,6 +38,8 @@ Railway auto-detects the `Dockerfile` and deploys with PostgreSQL, health checks
    | `AUTH_ENABLED` | No | `false` (default) or `true` for iOS app mode |
    | `JWT_SECRET_KEY` | If auth | `openssl rand -hex 32` |
    | `ADMIN_API_KEY` | No | Secret key for dev admin endpoints |
+   | `FLASH_SERVICE_KEY` | No | Shared secret for service-to-service auth via `X-Service-Key` header. Required when Flash is called by billing or clockchain. Empty = service-key auth disabled. |
+   | `CORS_ENABLED` | No | `true` (default) or `false` — disable CORS when Flash is internal-only (no browser callers) |
    | `CORS_ORIGINS` | No | Comma-separated allowed origins |
    | `SHARE_URL_BASE` | No | Base URL for share links (e.g. `https://timepointai.com/t`) |
 
@@ -131,6 +133,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
 
 ---
 
+## Service-to-Service Auth
+
+When Flash is deployed as an internal service (behind billing or clockchain), set `FLASH_SERVICE_KEY` to a shared secret. Other services include this in the `X-Service-Key` header when calling Flash.
+
+Three auth paths are evaluated in order:
+1. **Service key + X-User-ID** — billing relays user requests (credits deducted from user)
+2. **Service key only** — clockchain system calls (unmetered, no user context)
+3. **Bearer JWT** — direct user auth (iOS app)
+
+Set `CORS_ENABLED=false` when Flash is internal-only and never called from browsers.
+
+---
+
 ## Billing
 
 The open-source app ships with `NoOpBilling` — all credit checks pass and access is unlimited. The `BillingProvider` protocol in `app/services/billing.py` provides hooks for custom billing integrations.
@@ -157,4 +172,4 @@ Each folder is portable — copy it anywhere and open `index.html` to view the c
 
 ---
 
-*Last updated: 2026-02-17*
+*Last updated: 2026-02-18*
