@@ -22,10 +22,11 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import __version__
 from app.api.v1 import router as v1_router
@@ -104,6 +105,29 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
+# Service key middleware — gate all traffic when FLASH_SERVICE_KEY is set
+_OPEN_PATHS = {"/health", "/", "/docs", "/redoc", "/openapi.json"}
+
+
+class ServiceKeyMiddleware(BaseHTTPMiddleware):
+    """Reject requests without a valid X-Service-Key header.
+
+    When FLASH_SERVICE_KEY is empty, all requests are allowed (open access).
+    Health/docs endpoints are always exempt.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        service_key = get_settings().FLASH_SERVICE_KEY
+        if service_key and request.url.path not in _OPEN_PATHS:
+            provided = request.headers.get("X-Service-Key", "")
+            if provided != service_key:
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": "Invalid or missing service key"},
+                )
+        return await call_next(request)
+
+
 # Create FastAPI app
 settings = get_settings()
 
@@ -117,14 +141,24 @@ app = FastAPI(
     openapi_url="/openapi.json",  # Always available for client code generation
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["https://timepoint.ai"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Service key middleware (outermost — runs before CORS)
+if settings.FLASH_SERVICE_KEY:
+    app.add_middleware(ServiceKeyMiddleware)
+
+# CORS middleware (only when browser callers are expected)
+if settings.CORS_ENABLED:
+    _cors_origins: list[str] = ["*"] if settings.DEBUG else ["https://timepoint.ai"]
+    if settings.CORS_ORIGINS:
+        _cors_origins.extend(
+            origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()
+        )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include API v1 routes
 app.include_router(v1_router)

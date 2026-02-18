@@ -103,6 +103,14 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Visibility: 'public' (default) or 'private'",
     )
+    callback_url: str | None = Field(
+        default=None,
+        description="URL to POST results to when generation completes (async only)",
+    )
+    request_context: dict[str, Any] | None = Field(
+        default=None,
+        description="Opaque context passed through to response (e.g. source, job_id, user_id)",
+    )
 
 
 class StreamEvent(BaseModel):
@@ -234,6 +242,13 @@ class TimepointResponse(BaseModel):
     visibility: str = "public"
     share_url: str | None = None
 
+    # Generation info
+    preset_used: str | None = None
+    generation_time_ms: int | None = None
+
+    # Passthrough context from caller
+    request_context: dict[str, Any] | None = None
+
     # Full data (optional, for detailed requests)
     metadata: dict[str, Any] | None = None
     characters: dict[str, Any] | None = None
@@ -260,6 +275,7 @@ class GenerateResponse(BaseModel):
     id: str
     status: str
     message: str
+    request_context: dict[str, Any] | None = None
 
 
 # Helper Functions
@@ -535,6 +551,8 @@ async def run_generation_task(
     preset: str | None = None,
     text_model: str | None = None,
     image_model: str | None = None,
+    callback_url: str | None = None,
+    request_context: dict[str, Any] | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -546,10 +564,13 @@ async def run_generation_task(
         preset: Quality preset name
         text_model: Custom text model override
         image_model: Custom image model override
+        callback_url: URL to POST results to on completion
+        request_context: Opaque context to pass through to callback
     """
     from app.database import get_session
 
     logger.info(f"Starting background generation for {timepoint_id}")
+    t0 = time.monotonic()
 
     try:
         # Parse preset
@@ -605,6 +626,15 @@ async def run_generation_task(
                 await session.commit()
                 logger.info(f"Generation complete for {timepoint_id}: {tp.status}")
 
+                # Fire callback if requested
+                if callback_url:
+                    elapsed_ms = int((time.monotonic() - t0) * 1000)
+                    resp = timepoint_to_response(tp, include_full=True)
+                    resp.preset_used = preset or "balanced"
+                    resp.generation_time_ms = elapsed_ms
+                    resp.request_context = request_context
+                    await _fire_callback(callback_url, resp.model_dump(mode="json"))
+
     except Exception as e:
         logger.error(f"Background generation failed for {timepoint_id}: {e}")
         # Update status to failed
@@ -617,6 +647,26 @@ async def run_generation_task(
                 tp.status = TimepointStatus.FAILED
                 tp.error_message = str(e)
                 await session.commit()
+
+        # Fire callback with error if requested
+        if callback_url:
+            await _fire_callback(callback_url, {
+                "id": timepoint_id,
+                "status": "failed",
+                "error": str(e),
+                "request_context": request_context,
+            })
+
+
+async def _fire_callback(url: str, payload: dict[str, Any]) -> None:
+    """POST results to a callback URL. Best-effort, never raises."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(url, json=payload)
+            logger.info(f"Callback to {url}: {r.status_code}")
+    except Exception as e:
+        logger.warning(f"Callback to {url} failed: {e}")
 
 
 # Endpoints
@@ -684,12 +734,15 @@ async def generate_timepoint(
         preset=request.preset,
         text_model=request.text_model,
         image_model=request.image_model,
+        callback_url=request.callback_url,
+        request_context=request.request_context,
     )
 
     return GenerateResponse(
         id=timepoint.id,
         status="processing",
         message=f"Generation started for '{request.query}'",
+        request_context=request.request_context,
     )
 
 
@@ -716,6 +769,7 @@ async def generate_timepoint_sync(
         HTTPException: If generation fails
     """
     logger.info(f"Sync generate request: {request.query}")
+    t0 = time.monotonic()
 
     try:
         # Spend credits if authenticated
@@ -785,7 +839,11 @@ async def generate_timepoint_sync(
             except Exception as blob_err:
                 logger.error(f"Blob write failed (non-fatal): {blob_err}")
 
-        return timepoint_to_response(timepoint, include_full=True, current_user=user)
+        resp = timepoint_to_response(timepoint, include_full=True, current_user=user)
+        resp.preset_used = request.preset or "balanced"
+        resp.generation_time_ms = int((time.monotonic() - t0) * 1000)
+        resp.request_context = request.request_context
+        return resp
 
     except Exception as e:
         logger.error(f"Sync generation failed: {e}")
