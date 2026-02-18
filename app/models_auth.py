@@ -41,7 +41,7 @@ class TransactionType(str, Enum):
 
 
 class User(Base):
-    """User authenticated via Apple Sign-In."""
+    """User identity. Supports Apple Sign-In (apple_sub) and external IdPs like Auth0 (external_id)."""
 
     __tablename__ = "users"
 
@@ -52,6 +52,10 @@ class User(Base):
     )
     apple_sub: Mapped[str] = mapped_column(
         String(255), unique=True, index=True, nullable=False
+    )
+    external_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, index=True, default=None,
+        comment="Auth0 sub or other external identity provider ID",
     )
     email: Mapped[str | None] = mapped_column(String(255), default=None)
     display_name: Mapped[str | None] = mapped_column(String(255), default=None)
