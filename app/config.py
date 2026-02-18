@@ -394,6 +394,12 @@ class Settings(BaseSettings):
         description="Secret key for admin endpoints (dev token, credit grants). Empty = disabled.",
     )
 
+    # Service-to-service auth
+    FLASH_SERVICE_KEY: str = Field(
+        default="",
+        description="Shared secret for service-to-service auth via X-Service-Key header. Empty = open access.",
+    )
+
     # Billing (set automatically when timepoint-billing is installed)
     BILLING_ENABLED: bool = Field(
         default=False,
@@ -401,6 +407,10 @@ class Settings(BaseSettings):
     )
 
     # CORS
+    CORS_ENABLED: bool = Field(
+        default=True,
+        description="Enable CORS middleware. Disable when Flash is internal-only (no browser callers).",
+    )
     CORS_ORIGINS: str = Field(
         default="",
         description="Comma-separated additional CORS origins (e.g. https://your-app.up.railway.app)",
