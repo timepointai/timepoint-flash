@@ -87,6 +87,10 @@ class AdminGrantRequest(BaseModel):
 
     user_id: str = Field(..., description="Target user UUID")
     amount: int = Field(..., gt=0, description="Credits to grant")
+    transaction_type: str | None = Field(
+        default=None,
+        description="Ledger transaction type (e.g. stripe_purchase, apple_iap). Defaults to admin_grant.",
+    )
     description: str | None = Field(
         default="Manual top-up", description="Ledger note"
     )
