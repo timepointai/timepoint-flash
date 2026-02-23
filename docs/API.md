@@ -955,7 +955,7 @@ Full JSON export of user data for GDPR Subject Access Request compliance. Return
 ```json
 {
   "status": "healthy",
-  "version": "2.3.3",
+  "version": "2.4.0",
   "database": true,
   "providers": {
     "google": true,
@@ -1036,4 +1036,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-02-18*
+*Last updated: 2026-02-23*

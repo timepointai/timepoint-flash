@@ -155,4 +155,4 @@ Time travel respects timepoint visibility. When `AUTH_ENABLED=true`:
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-23*

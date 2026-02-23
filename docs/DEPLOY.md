@@ -7,8 +7,8 @@ Three ways to run TIMEPOINT Flash: local development, Railway (recommended), or 
 ## Local Development
 
 ```bash
-git clone https://github.com/realityinspector/timepoint-flash-deploy.git
-cd timepoint-flash-deploy
+git clone https://github.com/timepoint-ai/timepoint-flash.git
+cd timepoint-flash
 pip install -e .
 cp .env.example .env    # Add your API keys
 alembic upgrade head     # Run database migrations
@@ -172,4 +172,4 @@ Each folder is portable — copy it anywhere and open `index.html` to view the c
 
 ---
 
-*Last updated: 2026-02-18*
+*Last updated: 2026-02-23*
