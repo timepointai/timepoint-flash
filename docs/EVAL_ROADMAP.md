@@ -291,4 +291,4 @@ Addressing critique feedback on dialog quality (3/10), historical accuracy (5/10
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-23*
