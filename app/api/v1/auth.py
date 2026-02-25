@@ -2,6 +2,7 @@
 
 Endpoints:
     POST   /api/v1/auth/apple   — Verify Apple token, find-or-create user, return JWTs
+    POST   /api/v1/auth/demo    — Demo sign-in for App Store review (no auth)
     POST   /api/v1/auth/refresh  — Rotate refresh token, return new JWT pair
     GET    /api/v1/auth/me       — Return current user profile
     POST   /api/v1/auth/logout   — Revoke a refresh token
@@ -11,9 +12,10 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +42,9 @@ from app.models_auth import CreditAccount, RefreshToken, TransactionType, User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# In-memory sliding-window rate limit for the demo endpoint (10 req/min per IP).
+_demo_request_log: dict[str, list[float]] = defaultdict(list)
 
 
 @router.post("/apple", response_model=TokenResponse)
@@ -160,6 +165,88 @@ async def dev_token(
         user.last_login_at = datetime.now(timezone.utc)
         if request.display_name:
             user.display_name = request.display_name
+
+    # Issue tokens
+    access_token = create_access_token(user.id)
+    raw_refresh, _ = await create_refresh_token(session, user.id)
+
+    await session.commit()
+
+    settings = get_settings()
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh,
+        expires_in=settings.JWT_ACCESS_EXPIRE_MINUTES * 60,
+    )
+
+
+@router.post("/demo", response_model=TokenResponse)
+async def demo_sign_in(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> TokenResponse:
+    """Public demo sign-in for App Store reviewers and simulator testing.
+
+    No authentication required. Returns a JWT pair for a fixed demo account.
+    Rate-limited to 10 requests per minute per IP.
+    """
+    import hashlib
+    import time
+
+    # --- inline rate limit (10 req/min sliding window) ---
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    window = 60.0
+    max_requests = 10
+
+    log = _demo_request_log[client_ip]
+    # Prune entries older than the window
+    _demo_request_log[client_ip] = log = [t for t in log if now - t < window]
+
+    if len(log) >= max_requests:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demo sign-in rate limit exceeded. Try again in 60 seconds.",
+            headers={"Retry-After": "60"},
+        )
+    log.append(now)
+
+    # --- find or create demo user ---
+    demo_email = "demo@timepointai.com"
+    demo_display_name = "Demo User"
+    email_hash = hashlib.sha256(demo_email.encode()).hexdigest()[:16]
+    synthetic_sub = f"demo_{email_hash}"
+
+    result = await session.execute(
+        select(User).where(User.apple_sub == synthetic_sub)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            apple_sub=synthetic_sub,
+            email=demo_email,
+            display_name=demo_display_name,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        session.add(user)
+        await session.flush()
+
+        account = CreditAccount(user_id=user.id, balance=0, lifetime_earned=0, lifetime_spent=0)
+        session.add(account)
+        await session.flush()
+
+        settings = get_settings()
+        await grant_credits(
+            session,
+            user.id,
+            settings.SIGNUP_CREDITS,
+            TransactionType.SIGNUP_BONUS,
+            description="Welcome bonus (demo)",
+        )
+        logger.info("Demo user created: %s", user.id)
+    else:
+        user.last_login_at = datetime.now(timezone.utc)
 
     # Issue tokens
     access_token = create_access_token(user.id)
