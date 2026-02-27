@@ -1,6 +1,6 @@
 # TIMEPOINT Flash
 
-Generate historically grounded, AI-illustrated scenes from any moment in history. Type a query, get back a complete scene: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
+**Experience Synthetic Time Travel** — type any moment in history, get a complete historically grounded scene in seconds: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
 
 ---
 
@@ -139,6 +139,8 @@ Judge → Timeline → Grounding (Google Search) → Scene
 - **Entity representation** — Non-human entities (Deep Blue, AlphaGo, HAL 9000) are shown through their physical representatives (IBM operator, monitor display, red camera lens).
 - **Anachronism prevention** — Era-specific exclusion lists, mutual exclusion rules (Roman toga + tricorn hat), famous painting drift detection.
 - **3-tier image fallback** — Google Imagen → OpenRouter Flux → Pollinations.ai. Image generation never fails.
+
+**The Clockchain Connection** — Flash is the Reality Writer for the Clockchain. Every scene becomes a verified anchor point in the temporal causal graph, strengthening the Bayesian prior for all future renderings. Flash's Google Search grounding ensures historical accuracy today; as the Clockchain accumulates validated causal paths, it becomes a complementary grounding source. Flash scenes can be exported as TDF records for use across the Timepoint suite.
 
 ---
 
@@ -279,6 +281,23 @@ python3.10 -m pytest tests/ -v              # 522 fast + integration, 11 skipped
 - [Temporal Navigation](docs/TEMPORAL.md) — Time travel mechanics
 - [Eval Roadmap](docs/EVAL_ROADMAP.md) — Quality scoring and benchmark plans
 - [Deployment](docs/DEPLOY.md) — Local, Replit, and production deployment
+
+## Timepoint Suite
+
+Open-source engines for temporal AI. Render the past. Simulate the future. Score the predictions. Accumulate the graph.
+
+| Service | Type | Repo | Role |
+|---------|------|------|------|
+| **Flash** | **Open Source** | **timepoint-flash** | **Reality Writer — renders grounded historical moments (Synthetic Time Travel)** |
+| **Pro** | Open Source | timepoint-pro | Rendering Engine — SNAG-powered simulation, TDF output, training data |
+| **Clockchain** | Open Source | timepoint-clockchain | Temporal Causal Graph — Rendered Past + Rendered Future, growing 24/7 |
+| **SNAG Bench** | Open Source | timepoint-snag-bench | Quality Certifier — measures Causal Resolution across renderings |
+| **Proteus** | Open Source | proteus | Settlement Layer — prediction markets that validate Rendered Futures |
+| **TDF** | Open Source | timepoint-tdf | Data Format — JSON-LD interchange across all services |
+| **Web App** | Private | timepoint-web-app | Browser client at app.timepointai.com |
+| **iPhone App** | Private | timepoint-iphone-app | iOS client — Synthetic Time Travel on mobile |
+| **Billing** | Private | timepoint-billing | Payment processing — Apple IAP + Stripe |
+| **Landing** | Private | timepoint-landing | Marketing site at timepointai.com |
 
 ---
 
