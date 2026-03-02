@@ -11,6 +11,7 @@ from app.api.v1.eval import router as eval_router
 from app.api.v1.interactions import router as interactions_router
 from app.api.v1.models import router as models_router
 from app.api.v1.openapi_export import router as openapi_export_router
+from app.api.v1.tdf import router as tdf_router
 from app.api.v1.temporal import router as temporal_router
 from app.api.v1.timepoints import router as timepoints_router
 from app.api.v1.users import router as users_router
@@ -25,5 +26,6 @@ router.include_router(models_router)
 router.include_router(eval_router)
 router.include_router(interactions_router)
 router.include_router(openapi_export_router)
+router.include_router(tdf_router)
 
 __all__ = ["router"]
