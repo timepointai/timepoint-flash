@@ -1,0 +1,14 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Timepoint Flash",
+  "logo": {
+    "dark": "/logo/logo-full-dark.svg",
+    "light": "/logo/logo-full.svg"
+  },
+  "favicon": "/logo/favicon.svg",
+  "colors": {
+    "primary": "#d4a24e",
+    "light": "#f0c05e",
+    "dark": "#a67c30"
+  }
+}
