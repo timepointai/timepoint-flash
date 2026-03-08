@@ -140,6 +140,37 @@ class VerifiedModels:
         """Get a guaranteed working image model."""
         return cls.GOOGLE_IMAGE[0]  # gemini-2.5-flash-image
 
+    @classmethod
+    def is_verified_or_available(cls, model: str, provider: "ProviderType") -> bool:
+        """Check if a model is in verified lists or dynamically available via registry.
+
+        Args:
+            model: Model identifier.
+            provider: The provider to check against.
+
+        Returns:
+            True if verified or found in the OpenRouter model registry.
+        """
+        # Check static verified lists first
+        if provider == ProviderType.GOOGLE:
+            if model in cls.GOOGLE_TEXT or model in cls.GOOGLE_IMAGE:
+                return True
+        else:
+            if model in cls.OPENROUTER_TEXT:
+                return True
+
+        # Check dynamic registry for OpenRouter models (lazy import)
+        if provider == ProviderType.OPENROUTER:
+            try:
+                from app.core.model_registry import OpenRouterModelRegistry
+                registry = OpenRouterModelRegistry.get_instance()
+                if registry.is_model_available(model):
+                    return True
+            except Exception:
+                pass
+
+        return False
+
 
 # Quality Preset Configurations
 # =============================================================================
@@ -601,33 +632,22 @@ def validate_presets() -> list[str]:
         text_provider = config.get("text_provider", ProviderType.GOOGLE)
 
         # Validate text model
-        if text_provider == ProviderType.GOOGLE:
-            if text_model not in VerifiedModels.GOOGLE_TEXT:
-                errors.append(
-                    f"{preset.value}: text_model '{text_model}' not in VerifiedModels.GOOGLE_TEXT"
-                )
-        else:
-            if text_model not in VerifiedModels.OPENROUTER_TEXT:
-                errors.append(
-                    f"{preset.value}: text_model '{text_model}' not in VerifiedModels.OPENROUTER_TEXT"
-                )
+        if not VerifiedModels.is_verified_or_available(text_model, text_provider):
+            errors.append(
+                f"{preset.value}: text_model '{text_model}' not verified or available"
+            )
 
         # Validate judge model (follows text provider)
-        if text_provider == ProviderType.GOOGLE:
-            if judge_model not in VerifiedModels.GOOGLE_TEXT:
-                errors.append(
-                    f"{preset.value}: judge_model '{judge_model}' not in VerifiedModels.GOOGLE_TEXT"
-                )
-        else:
-            if judge_model not in VerifiedModels.OPENROUTER_TEXT:
-                errors.append(
-                    f"{preset.value}: judge_model '{judge_model}' not in VerifiedModels.OPENROUTER_TEXT"
-                )
+        if not VerifiedModels.is_verified_or_available(judge_model, text_provider):
+            errors.append(
+                f"{preset.value}: judge_model '{judge_model}' not verified or available"
+            )
 
         # Validate image model
-        if image_model and image_model not in VerifiedModels.GOOGLE_IMAGE:
+        image_provider = config.get("image_provider", ProviderType.GOOGLE)
+        if image_model and not VerifiedModels.is_verified_or_available(image_model, image_provider):
             errors.append(
-                f"{preset.value}: image_model '{image_model}' not in VerifiedModels.GOOGLE_IMAGE"
+                f"{preset.value}: image_model '{image_model}' not verified or available"
             )
 
     return errors

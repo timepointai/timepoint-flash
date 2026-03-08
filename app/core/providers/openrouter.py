@@ -196,7 +196,7 @@ class OpenRouterProvider(LLMProvider):
                 m
                 for m in models
                 if m.architecture
-                and capability in m.architecture.get("modality", "")
+                and capability in (m.architecture.get("output_modalities") or [])
             ]
 
         return models
