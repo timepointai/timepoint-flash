@@ -88,12 +88,18 @@ class CritiqueIssue(BaseModel):
             # error_type -> category
             if "category" not in data and "error_type" in data:
                 data["category"] = data.pop("error_type")
+            # Default category if LLM omits it entirely
+            if "category" not in data:
+                data["category"] = "general"
             # specific_error / specific_issue -> description
             if "description" not in data:
-                for alt in ("specific_error", "specific_issue", "issue"):
+                for alt in ("specific_error", "specific_issue", "issue", "reasoning"):
                     if alt in data:
                         data["description"] = data.pop(alt)
                         break
+            # Default description from fix_suggestion if still missing
+            if "description" not in data and "fix_suggestion" in data:
+                data["description"] = data["fix_suggestion"]
         return data
 
 
