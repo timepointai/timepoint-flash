@@ -74,11 +74,11 @@ PAID_FALLBACK_MODEL = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-fla
 
 # OpenRouter fallback image model when Google quota is exhausted
 # Uses Flux Schnell for fast, quality image generation
-OPENROUTER_IMAGE_FALLBACK = "black-forest-labs/flux-schnell"
+OPENROUTER_IMAGE_FALLBACK = "google/gemini-2.5-flash-image-preview"
 
 # Pollinations.ai - Ultimate free fallback for image generation
 # No API key required, always available, decent quality
-POLLINATIONS_URL = "https://image.pollinations.ai/prompt/{prompt}"
+POLLINATIONS_URL = "https://gen.pollinations.ai/image/{prompt}"
 POLLINATIONS_TIMEOUT = 60.0  # Image generation can take time
 
 # Rate limit retry settings
@@ -790,8 +790,8 @@ class LLMRouter:
         url = POLLINATIONS_URL.format(prompt=encoded_prompt)
 
         # Add parameters for better quality
-        # nologo=true removes watermark, width/height for resolution
-        url += "?nologo=true&width=1024&height=1024"
+        # nologo=true removes watermark, width/height for resolution, model=flux for best quality
+        url += "?nologo=true&width=1024&height=1024&model=flux"
 
         logger.info(f"Pollinations.ai fallback: generating image for prompt (first 50 chars): {prompt[:50]}...")
 
