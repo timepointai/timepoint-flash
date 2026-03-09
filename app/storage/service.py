@@ -82,18 +82,22 @@ class StorageService:
                 sha256=hashlib.sha256(image_data).hexdigest(),
             ))
 
-        # 2. Write JSON sidecars
+        # 2. Write JSON sidecars from TDF payload
+        p = getattr(timepoint, "tdf_payload", None) or {}
         json_files = [
-            ("metadata.json", timepoint.metadata_json),
-            ("scene.json", timepoint.scene_data_json),
-            ("characters.json", timepoint.character_data_json),
-            ("dialog.json", timepoint.dialog_json),
+            ("scene.json", p.get("scene_data")),
+            ("characters.json", p.get("character_data")),
+            ("dialog.json", p.get("dialog")),
         ]
         # Optional JSON fields
-        if timepoint.grounding_data_json:
-            json_files.append(("grounding.json", timepoint.grounding_data_json))
-        if timepoint.moment_data_json:
-            json_files.append(("moment.json", timepoint.moment_data_json))
+        if p.get("grounding_data"):
+            json_files.append(("grounding.json", p["grounding_data"]))
+        if p.get("moment_data"):
+            json_files.append(("moment.json", p["moment_data"]))
+        if p.get("graph_data"):
+            json_files.append(("graph.json", p["graph_data"]))
+        if p.get("camera_data"):
+            json_files.append(("camera.json", p["camera_data"]))
 
         for filename, data in json_files:
             if data is not None:
@@ -108,9 +112,10 @@ class StorageService:
                 ))
 
         # 3. Write image prompt text
-        if timepoint.image_prompt:
-            prompt_bytes = timepoint.image_prompt.encode("utf-8")
-            await self.backend.write_text(f"{full_path}/image_prompt.txt", timepoint.image_prompt)
+        image_prompt = p.get("image_prompt")
+        if image_prompt:
+            prompt_bytes = image_prompt.encode("utf-8")
+            await self.backend.write_text(f"{full_path}/image_prompt.txt", image_prompt)
             file_entries.append(FileEntry(
                 filename="image_prompt.txt",
                 mime_type="text/plain",

@@ -334,7 +334,7 @@ def timepoint_to_response(
         time_of_day=tp.time_of_day,
         era=tp.era,
         location=tp.location,
-        image_prompt=tp.image_prompt,
+        image_prompt=tp.tdf.get("image_prompt"),
         has_image=tp.has_image,  # Always include whether image exists
         image_url=tp.image_url,
         image_base64=tp.image_base64 if include_image else None,
@@ -356,12 +356,17 @@ def timepoint_to_response(
     )
 
     if include_full:
-        response.metadata = tp.metadata_json
-        response.characters = tp.character_data_json
-        response.scene = tp.scene_data_json
-        response.dialog = tp.dialog_json
-        response.grounding = tp.grounding_data_json
-        response.moment = tp.moment_data_json
+        p = tp.tdf
+        response.metadata = {
+            "graph": p.get("graph_data"),
+            "camera": p.get("camera_data"),
+            "image_prompt_data": p.get("image_prompt_data"),
+        }
+        response.characters = p.get("character_data")
+        response.scene = p.get("scene_data")
+        response.dialog = p.get("dialog")
+        response.grounding = p.get("grounding_data")
+        response.moment = p.get("moment_data")
 
     # Redact sensitive fields for private timepoints when viewer is not the owner
     if vis == "private":
@@ -611,16 +616,12 @@ async def run_generation_task(
                 tp.time_of_day = generated_tp.time_of_day
                 tp.era = generated_tp.era
                 tp.location = generated_tp.location
-                tp.metadata_json = generated_tp.metadata_json
-                tp.character_data_json = generated_tp.character_data_json
-                tp.scene_data_json = generated_tp.scene_data_json
-                tp.dialog_json = generated_tp.dialog_json
-                tp.image_prompt = generated_tp.image_prompt
+                tp.tdf_payload = generated_tp.tdf_payload
+                tp.tdf_hash = generated_tp.tdf_hash
                 tp.image_base64 = generated_tp.image_base64
+                tp.image_url = generated_tp.image_url
                 tp.text_model_used = generated_tp.text_model_used
                 tp.image_model_used = generated_tp.image_model_used
-                tp.grounding_data_json = generated_tp.grounding_data_json
-                tp.moment_data_json = generated_tp.moment_data_json
                 tp.error_message = generated_tp.error_message
 
                 await session.commit()
@@ -943,7 +944,7 @@ async def get_character_bios(
     check_visibility_access(timepoint, user)
 
     # Check if character data exists
-    if not timepoint.character_data_json:
+    if not timepoint.tdf.get("character_data"):
         raise HTTPException(
             status_code=404,
             detail="Timepoint has no character data. Generation may still be in progress.",
@@ -951,7 +952,7 @@ async def get_character_bios(
 
     # Parse character data
     try:
-        char_data = CharacterData.model_validate(timepoint.character_data_json)
+        char_data = CharacterData.model_validate(timepoint.tdf["character_data"])
     except Exception as e:
         logger.error(f"Failed to parse character data for {timepoint_id}: {e}")
         raise HTTPException(
