@@ -80,7 +80,7 @@ POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
 **Prerequisites:** Python 3.10+ and a Google API key ([free at AI Studio](https://aistudio.google.com))
 
 ```bash
-git clone https://github.com/timepoint-ai/timepoint-flash.git
+git clone https://github.com/timepointai/timepoint-flash.git
 cd timepoint-flash
 ./setup.sh            # Checks prereqs, installs deps, creates .env
 # Edit .env → add your GOOGLE_API_KEY
@@ -104,7 +104,7 @@ Swagger docs at `http://localhost:8000/docs`
 
 Import the repo directly from GitHub — Replit reads `.replit` and runs automatically.
 
-1. **Create a new Replit** → Import from GitHub → `https://github.com/timepoint-ai/timepoint-flash`
+1. **Create a new Replit** → Import from GitHub → `https://github.com/timepointai/timepoint-flash`
 2. **Set Secrets** (sidebar → Secrets tab):
    - `GOOGLE_API_KEY` — get free at [aistudio.google.com](https://aistudio.google.com)
    - `OPENROUTER_API_KEY` — get at [openrouter.ai](https://openrouter.ai) (optional, enables hyper/gemini3 presets)

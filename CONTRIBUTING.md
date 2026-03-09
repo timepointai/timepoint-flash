@@ -11,7 +11,7 @@ Changes merged here are periodically pulled into the production deployment (a se
 ## Getting Started
 
 ```bash
-git clone https://github.com/timepoint-ai/timepoint-flash.git
+git clone https://github.com/timepointai/timepoint-flash.git
 cd timepoint-flash
 pip install -e ".[dev]"
 cp .env.example .env    # Add your API keys

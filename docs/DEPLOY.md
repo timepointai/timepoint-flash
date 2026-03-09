@@ -7,7 +7,7 @@ Three ways to run TIMEPOINT Flash: local development, Railway (recommended), or 
 ## Local Development
 
 ```bash
-git clone https://github.com/timepoint-ai/timepoint-flash.git
+git clone https://github.com/timepointai/timepoint-flash.git
 cd timepoint-flash
 pip install -e .
 cp .env.example .env    # Add your API keys

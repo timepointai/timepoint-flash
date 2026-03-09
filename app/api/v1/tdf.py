@@ -13,7 +13,7 @@ A TDF record contains:
   - tdf_hash: SHA-256 of the canonicalised payload (content-addressed)
 
 The output conforms to the TDFRecord schema defined in the ``timepoint-tdf``
-library (https://github.com/timepoint-ai/timepoint-tdf).
+library (https://github.com/timepointai/timepoint-tdf).
 
 See also: docs/AGENTS.md § TDF for the full format specification.
 """

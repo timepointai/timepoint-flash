@@ -68,7 +68,7 @@ dev = [
     "pre-commit>=4.0.0",
 ]
 tdf = [
-    "timepoint-tdf @ git+https://github.com/timepoint-ai/timepoint-tdf.git",
+    "timepoint-tdf @ git+https://github.com/timepointai/timepoint-tdf.git",
 ]
 observability = [
     "logfire>=2.0.0",
@@ -79,10 +79,10 @@ observability = [
 # tp = "app.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/timepoint-ai/timepoint-flash"
-Documentation = "https://github.com/timepoint-ai/timepoint-flash#readme"
-Repository = "https://github.com/timepoint-ai/timepoint-flash"
-Issues = "https://github.com/timepoint-ai/timepoint-flash/issues"
+Homepage = "https://github.com/timepointai/timepoint-flash"
+Documentation = "https://github.com/timepointai/timepoint-flash#readme"
+Repository = "https://github.com/timepointai/timepoint-flash"
+Issues = "https://github.com/timepointai/timepoint-flash/issues"
 
 [tool.hatch.metadata]
 allow-direct-references = true
