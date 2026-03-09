@@ -168,41 +168,36 @@ class TestTimepoint:
         assert tp.season == "summer"
         assert tp.time_of_day == "afternoon"
         assert tp.location == "Independence Hall, Philadelphia"
-        assert tp.metadata_json is not None
-        assert tp.character_data_json is not None
-        assert tp.scene_data_json is not None
-        assert tp.dialog_json is not None
+        assert tp.tdf_payload is not None
 
-    def test_timepoint_grounding_data_column(self):
-        """Test grounding_data_json column exists and accepts data."""
+    def test_timepoint_tdf_payload_stores_data(self):
+        """Test tdf_payload stores and retrieves nested data."""
         tp = Timepoint.create(query="Deep Blue vs Kasparov")
-        tp.grounding_data_json = {
-            "verified_location": "Equitable Center, Manhattan",
-            "verified_date": "May 11, 1997",
+        tp.tdf_payload = {
+            "grounding_data": {
+                "verified_location": "Equitable Center, Manhattan",
+                "verified_date": "May 11, 1997",
+            },
+            "moment_data": {
+                "tension_arc": "climactic",
+                "stakes": "American independence",
+            },
         }
-        assert tp.grounding_data_json["verified_location"] == "Equitable Center, Manhattan"
+        assert tp.tdf["grounding_data"]["verified_location"] == "Equitable Center, Manhattan"
+        assert tp.tdf["moment_data"]["tension_arc"] == "climactic"
 
-    def test_timepoint_moment_data_column(self):
-        """Test moment_data_json column exists and accepts data."""
-        tp = Timepoint.create(query="signing of the declaration")
-        tp.moment_data_json = {
-            "plot_summary": "The delegates prepare to sign",
-            "tension_arc": "climactic",
-            "stakes": "American independence",
+    def test_timepoint_tdf_defaults_empty(self):
+        """Test tdf_payload defaults to empty dict."""
+        tp = Timepoint.create(query="test")
+        assert tp.tdf == {}
+
+    def test_timepoint_to_dict_reads_from_tdf(self):
+        """Test to_dict reads grounding and moment from tdf_payload."""
+        tp = Timepoint.create(query="test")
+        tp.tdf_payload = {
+            "grounding_data": {"verified_location": "Rome"},
+            "moment_data": {"tension_arc": "rising"},
         }
-        assert tp.moment_data_json["tension_arc"] == "climactic"
-
-    def test_timepoint_grounding_moment_default_none(self):
-        """Test new columns default to None."""
-        tp = Timepoint.create(query="test")
-        assert tp.grounding_data_json is None
-        assert tp.moment_data_json is None
-
-    def test_timepoint_to_dict_includes_grounding_moment(self):
-        """Test to_dict includes grounding and moment fields."""
-        tp = Timepoint.create(query="test")
-        tp.grounding_data_json = {"verified_location": "Rome"}
-        tp.moment_data_json = {"tension_arc": "rising"}
         data = tp.to_dict()
         assert data["grounding"] == {"verified_location": "Rome"}
         assert data["moment"] == {"tension_arc": "rising"}

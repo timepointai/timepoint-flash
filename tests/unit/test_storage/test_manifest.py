@@ -127,7 +127,9 @@ class TestBuildManifest:
         tp.last_accessed_at = overrides.get("last_accessed_at", None)
         tp.generation_version = overrides.get("generation_version", 1)
         tp.tags_json = overrides.get("tags_json", ["history", "wwii"])
-        tp.metadata_json = overrides.get("metadata_json", {})
+        tp.tdf_payload = overrides.get("tdf_payload", {})
+        tp.tdf_hash = overrides.get("tdf_hash", "")
+        tp.tdf_version = overrides.get("tdf_version", "1.0.0")
         return tp
 
     def test_basic_build(self):
@@ -154,7 +156,7 @@ class TestBuildManifest:
 
     def test_synthetic_camera(self):
         tp = self._make_mock_timepoint(
-            metadata_json={"synthetic_camera": {"{synthetic}shot_type": "wide"}}
+            tdf_payload={"camera_data": {"shot_type": "wide", "angle": "low"}}
         )
         m = build_manifest(tp, "f", "/p", [])
         assert m.synthetic_camera.get("{synthetic}shot_type") == "wide"

@@ -32,14 +32,15 @@ def _make_mock_timepoint(**overrides):
     tp.status = MagicMock()
     tp.status.value = "completed"
 
-    # JSON data
-    tp.metadata_json = overrides.get("metadata_json", {"timeline": {"year": 1943}})
-    tp.scene_data_json = overrides.get("scene_data_json", {"setting": "hotel lobby"})
-    tp.character_data_json = overrides.get("character_data_json", {"characters": []})
-    tp.dialog_json = overrides.get("dialog_json", [{"speaker": "Tesla", "line": "Hello"}])
-    tp.grounding_data_json = overrides.get("grounding_data_json", None)
-    tp.moment_data_json = overrides.get("moment_data_json", None)
-    tp.image_prompt = overrides.get("image_prompt", "A photorealistic image of Tesla")
+    # TDF payload
+    tp.tdf_payload = overrides.get("tdf_payload", {
+        "scene_data": {"setting": "hotel lobby"},
+        "character_data": {"characters": []},
+        "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+        "image_prompt": "A photorealistic image of Tesla",
+    })
+    tp.tdf_hash = overrides.get("tdf_hash", "abc123")
+    tp.tdf_version = overrides.get("tdf_version", "1.0.0")
     tp.image_base64 = overrides.get("image_base64", None)
 
     # Blob fields
@@ -99,17 +100,21 @@ class TestWriteBlob:
     async def test_writes_json_sidecars(self, service, mock_backend):
         tp = _make_mock_timepoint()
         await service.write_blob(tp)
-        # Should write metadata.json, scene.json, characters.json, dialog.json
+        # Should write scene.json, characters.json, dialog.json (from tdf_payload)
         write_calls = mock_backend.write_text.call_args_list
         filenames = [call.args[0].split("/")[-1] for call in write_calls]
-        assert "metadata.json" in filenames
         assert "scene.json" in filenames
         assert "characters.json" in filenames
         assert "dialog.json" in filenames
 
     @pytest.mark.asyncio
     async def test_writes_image_prompt(self, service, mock_backend):
-        tp = _make_mock_timepoint(image_prompt="A test prompt")
+        tp = _make_mock_timepoint(tdf_payload={
+            "scene_data": {"setting": "hotel lobby"},
+            "character_data": {"characters": []},
+            "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+            "image_prompt": "A test prompt",
+        })
         await service.write_blob(tp)
         write_calls = mock_backend.write_text.call_args_list
         filenames = [call.args[0].split("/")[-1] for call in write_calls]
@@ -164,7 +169,13 @@ class TestWriteBlob:
 
     @pytest.mark.asyncio
     async def test_grounding_json_written(self, service, mock_backend):
-        tp = _make_mock_timepoint(grounding_data_json={"facts": ["fact1"]})
+        tp = _make_mock_timepoint(tdf_payload={
+            "scene_data": {"setting": "hotel lobby"},
+            "character_data": {"characters": []},
+            "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+            "grounding_data": {"facts": ["fact1"]},
+            "image_prompt": "A photorealistic image of Tesla",
+        })
         await service.write_blob(tp)
         write_calls = mock_backend.write_text.call_args_list
         filenames = [call.args[0].split("/")[-1] for call in write_calls]

@@ -337,9 +337,9 @@ class TestGenerationPipeline:
         pipeline = GenerationPipeline()
         timepoint = pipeline.state_to_timepoint(state)
 
-        assert timepoint.grounding_data_json is not None
-        assert timepoint.grounding_data_json["verified_location"] == "Equitable Center, 35th floor, Manhattan"
-        assert timepoint.grounding_data_json["verified_year"] == 1997
+        assert timepoint.tdf.get("grounding_data") is not None
+        assert timepoint.tdf["grounding_data"]["verified_location"] == "Equitable Center, 35th floor, Manhattan"
+        assert timepoint.tdf["grounding_data"]["verified_year"] == 1997
 
     def test_state_to_timepoint_stores_moment(self):
         """Test that moment data is stored in timepoint."""
@@ -384,9 +384,9 @@ class TestGenerationPipeline:
         pipeline = GenerationPipeline()
         timepoint = pipeline.state_to_timepoint(state)
 
-        assert timepoint.moment_data_json is not None
-        assert timepoint.moment_data_json["tension_arc"] == "climactic"
-        assert timepoint.moment_data_json["stakes"] == "American independence"
+        assert timepoint.tdf.get("moment_data") is not None
+        assert timepoint.tdf["moment_data"]["tension_arc"] == "climactic"
+        assert timepoint.tdf["moment_data"]["stakes"] == "American independence"
 
 
 @pytest.mark.fast
