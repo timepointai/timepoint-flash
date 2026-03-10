@@ -1696,72 +1696,80 @@ class GenerationPipeline:
             timepoint.era = state.timeline_data.era
             timepoint.location = state.timeline_data.location
 
-        # Add metadata JSON
+        # Track which models were used
+        text_model = None
+        image_model = None
+        try:
+            text_model = self.router.config.get_model(ModelCapability.TEXT)
+        except Exception:
+            pass
+        try:
+            image_model = self.router.config.get_model(ModelCapability.IMAGE)
+        except Exception:
+            pass
+
+        # Build TDF payload — single source of truth for all scene content
+        payload: dict[str, Any] = {
+            "query": state.query,
+            "slug": slug,
+        }
+
         if state.timeline_data:
-            timepoint.metadata_json = {
-                "timeline": state.timeline_data.model_dump(),
-            }
-            if state.scene_data:
-                timepoint.metadata_json["scene"] = state.scene_data.model_dump()
-            if state.moment_data:
-                timepoint.metadata_json["moment"] = state.moment_data.model_dump()
-            if state.camera_data:
-                timepoint.metadata_json["camera"] = state.camera_data.model_dump()
-                # Add synthetic camera metadata with {synthetic} prefix
-                cam = state.camera_data
-                timepoint.metadata_json["synthetic_camera"] = {
-                    "{synthetic}shot_type": cam.shot_type,
-                    "{synthetic}angle": cam.angle,
-                    "{synthetic}focal_point": cam.focal_point,
-                    "{synthetic}depth_of_field": cam.depth_of_field,
-                    "{synthetic}composition_rule": cam.composition_rule,
-                    "{synthetic}framing_intent": cam.framing_intent,
-                    "{synthetic}movement": cam.movement,
-                }
-            if state.graph_data:
-                timepoint.metadata_json["graph"] = state.graph_data.model_dump()
+            payload.update({
+                "year": state.timeline_data.year,
+                "month": state.timeline_data.month,
+                "day": state.timeline_data.day,
+                "season": state.timeline_data.season,
+                "time_of_day": state.timeline_data.time_of_day,
+                "era": state.timeline_data.era,
+                "location": state.timeline_data.location,
+            })
 
-        # Add character data
-        if state.character_data:
-            timepoint.character_data_json = state.character_data.model_dump()
-
-        # Add scene data
         if state.scene_data:
-            timepoint.scene_data_json = state.scene_data.model_dump()
-
-        # Add grounding data
-        if state.grounded_context:
-            timepoint.grounding_data_json = state.grounded_context.model_dump()
-
-        # Add moment data
-        if state.moment_data:
-            timepoint.moment_data_json = state.moment_data.model_dump()
-
-        # Add dialog
+            payload["scene_data"] = state.scene_data.model_dump()
+        if state.character_data:
+            payload["character_data"] = state.character_data.model_dump()
         if state.dialog_data:
-            timepoint.dialog_json = [
-                line.model_dump() for line in state.dialog_data.lines
-            ]
-
-        # Add image prompt (use optimized version if available)
+            payload["dialog"] = [line.model_dump() for line in state.dialog_data.lines]
+        if state.grounded_context:
+            payload["grounding_data"] = state.grounded_context.model_dump()
+        if state.moment_data:
+            payload["moment_data"] = state.moment_data.model_dump()
+        if state.graph_data:
+            payload["graph_data"] = state.graph_data.model_dump()
+        if state.camera_data:
+            payload["camera_data"] = state.camera_data.model_dump()
         if state.image_prompt_data:
-            # Store the prompt that was actually used for image generation
-            timepoint.image_prompt = state.optimized_prompt or state.image_prompt_data.full_prompt
+            payload["image_prompt_data"] = state.image_prompt_data.model_dump()
+            payload["image_prompt"] = state.optimized_prompt or state.image_prompt_data.full_prompt
+        if state.optimized_prompt:
+            payload["optimized_prompt"] = state.optimized_prompt
+        if text_model:
+            payload["text_model_used"] = text_model
+        if image_model:
+            payload["image_model_used"] = image_model
 
-            # Store both prompts in metadata for debugging/comparison
-            if state.optimized_prompt and "timeline" in (timepoint.metadata_json or {}):
-                timepoint.metadata_json["prompt_optimization"] = {
-                    "original_words": len(state.image_prompt_data.full_prompt.split()),
-                    "optimized_words": len(state.optimized_prompt.split()),
-                    "full_prompt": state.image_prompt_data.full_prompt,
-                }
+        # Store image generation warning in payload if applicable
+        if state.image_generation_failed:
+            payload["image_generation_warning"] = state.image_generation_error
+
+        # Compute TDF hash
+        import hashlib
+        import json as _json
+        canonical = _json.dumps(payload, sort_keys=True, default=str)
+        tdf_hash = hashlib.sha256(canonical.encode()).hexdigest()
+
+        timepoint.tdf_payload = payload
+        timepoint.tdf_hash = tdf_hash
+
+        # Keep scalar model tracking columns for query convenience
+        timepoint.text_model_used = text_model
+        timepoint.image_model_used = image_model
 
         # Add image data
         if state.image_base64:
             timepoint.image_base64 = state.image_base64
-            # Generate data URI for image_url if not already set
             if not timepoint.image_url:
-                # Detect format from base64 header or default to jpeg
                 image_format = "jpeg"
                 if state.image_base64.startswith("iVBOR"):
                     image_format = "png"
@@ -1769,25 +1777,10 @@ class GenerationPipeline:
                     image_format = "gif"
                 timepoint.image_url = f"data:image/{image_format};base64,{state.image_base64}"
 
-        # Track which models were used
-        try:
-            timepoint.text_model_used = self.router.config.get_model(ModelCapability.TEXT)
-        except Exception:
-            pass
-        try:
-            timepoint.image_model_used = self.router.config.get_model(ModelCapability.IMAGE)
-        except Exception:
-            pass
-
         # Add error if failed
         if status == TimepointStatus.FAILED:
             errors = [r.error for r in state.step_results if r.error]
             timepoint.error_message = "; ".join(errors) if errors else "Unknown error"
-        elif state.image_generation_failed:
-            # Store image error as warning in metadata (not a failure)
-            if timepoint.metadata_json is None:
-                timepoint.metadata_json = {}
-            timepoint.metadata_json["image_generation_warning"] = state.image_generation_error
 
         return timepoint
 

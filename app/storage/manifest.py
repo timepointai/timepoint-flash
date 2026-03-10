@@ -140,10 +140,14 @@ def build_manifest(
 
     total_size = sum(f.size_bytes for f in file_entries)
 
-    # Extract synthetic camera from metadata
+    # Extract synthetic camera from TDF payload
     synthetic_camera: dict[str, Any] = {}
-    if timepoint.metadata_json and isinstance(timepoint.metadata_json, dict):
-        synthetic_camera = timepoint.metadata_json.get("synthetic_camera", {})
+    p = getattr(timepoint, "tdf_payload", None) or {}
+    cam = p.get("camera_data")
+    if cam and isinstance(cam, dict):
+        synthetic_camera = {
+            f"{{synthetic}}{k}": v for k, v in cam.items()
+        }
 
     # Extract tags
     tags: list[str] = []

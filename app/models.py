@@ -131,11 +131,9 @@ class Timepoint(Base):
         season: Season (spring, summer, fall, winter)
         time_of_day: Time description (morning, afternoon, etc.)
         location: Geographic location
-        metadata_json: Full metadata dictionary
-        character_data_json: Character information
-        scene_data_json: Scene environment data
-        dialog_json: Dialog lines
-        image_prompt: Generated image prompt
+        tdf_payload: Canonical TDF payload dict (all scene content)
+        tdf_hash: SHA-256 hash of canonical TDF payload
+        tdf_version: TDF format version
         image_url: Generated image URL/path
         created_at: Creation timestamp
         updated_at: Last update timestamp
@@ -176,34 +174,21 @@ class Timepoint(Base):
     # Location
     location: Mapped[str | None] = mapped_column(Text, default=None)
 
-    # JSON data fields
-    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+    # TDF canonical payload
+    tdf_payload: Mapped[dict[str, Any]] = mapped_column(
         JSON,
-        default=None,
+        nullable=False,
+        default=dict,
     )
-    character_data_json: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON,
-        default=None,
+    tdf_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+        index=True,
     )
-    scene_data_json: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON,
-        default=None,
-    )
-    dialog_json: Mapped[list[dict[str, str]] | None] = mapped_column(
-        JSON,
-        default=None,
-    )
-    grounding_data_json: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON,
-        default=None,
-    )
-    moment_data_json: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON,
-        default=None,
-    )
+    tdf_version: Mapped[str] = mapped_column(String(10), nullable=False, default="1.0.0")
 
     # Image generation
-    image_prompt: Mapped[str | None] = mapped_column(Text, default=None)
     image_url: Mapped[str | None] = mapped_column(Text, default=None)
     image_base64: Mapped[str | None] = mapped_column(Text, default=None)
 
@@ -352,12 +337,18 @@ class Timepoint(Base):
         """Check if timepoint has generated image."""
         return self.image_url is not None or self.image_base64 is not None
 
+    @property
+    def tdf(self) -> dict[str, Any]:
+        """Access TDF payload dict."""
+        return self.tdf_payload or {}
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses.
 
         Returns:
             Dictionary representation.
         """
+        p = self.tdf
         return {
             "id": self.id,
             "query": self.query,
@@ -370,13 +361,17 @@ class Timepoint(Base):
             "time_of_day": self.time_of_day,
             "era": self.era,
             "location": self.location,
-            "metadata": self.metadata_json,
-            "characters": self.character_data_json,
-            "scene": self.scene_data_json,
-            "dialog": self.dialog_json,
-            "grounding": self.grounding_data_json,
-            "moment": self.moment_data_json,
-            "image_prompt": self.image_prompt,
+            "metadata": {
+                "graph": p.get("graph_data"),
+                "camera": p.get("camera_data"),
+                "image_prompt_data": p.get("image_prompt_data"),
+            },
+            "characters": p.get("character_data"),
+            "scene": p.get("scene_data"),
+            "dialog": p.get("dialog"),
+            "grounding": p.get("grounding_data"),
+            "moment": p.get("moment_data"),
+            "image_prompt": p.get("image_prompt"),
             "image_url": self.image_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
