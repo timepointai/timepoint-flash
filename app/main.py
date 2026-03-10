@@ -98,10 +98,26 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Blob storage initialization failed: {e}")
 
+    # Initialize OpenRouter model registry for dynamic fallback selection
+    if _settings.OPENROUTER_API_KEY:
+        from app.core.model_registry import OpenRouterModelRegistry
+
+        registry = OpenRouterModelRegistry.get_instance()
+        await registry.initialize(api_key=_settings.OPENROUTER_API_KEY)
+        registry.start_background_refresh(interval=3600)
+
     yield
 
     # Shutdown
     logger.info("Shutting down TIMEPOINT Flash")
+
+    # Stop model registry background refresh
+    try:
+        from app.core.model_registry import OpenRouterModelRegistry
+        OpenRouterModelRegistry.get_instance().stop_background_refresh()
+    except Exception:
+        pass
+
     await close_db()
 
 

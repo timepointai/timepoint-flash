@@ -68,17 +68,40 @@ logger = logging.getLogger(__name__)
 # Type variable for structured response models
 T = TypeVar("T", bound=BaseModel)
 
-# Default fallback model for when free models hit rate limits
-# Uses VerifiedModels to ensure we always fall back to a working model
-PAID_FALLBACK_MODEL = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+# Static fallback defaults (used when model registry has no data)
+_PAID_FALLBACK_DEFAULT = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+_IMAGE_FALLBACK_DEFAULT = "google/gemini-2.5-flash-image-preview"
 
-# OpenRouter fallback image model when Google quota is exhausted
-# Uses Flux Schnell for fast, quality image generation
-OPENROUTER_IMAGE_FALLBACK = "black-forest-labs/flux-schnell"
+
+def get_paid_fallback_model() -> str:
+    """Get the best paid text fallback model, consulting the registry first."""
+    try:
+        from app.core.model_registry import OpenRouterModelRegistry
+        registry = OpenRouterModelRegistry.get_instance()
+        best = registry.get_best_text_model()
+        if best:
+            return best
+    except Exception:
+        pass
+    return _PAID_FALLBACK_DEFAULT
+
+
+def get_image_fallback_model() -> str:
+    """Get the best image fallback model, consulting the registry first."""
+    try:
+        from app.core.model_registry import OpenRouterModelRegistry
+        registry = OpenRouterModelRegistry.get_instance()
+        best = registry.get_best_image_model()
+        if best:
+            return best
+    except Exception:
+        pass
+    return _IMAGE_FALLBACK_DEFAULT
 
 # Pollinations.ai - Ultimate free fallback for image generation
 # No API key required, always available, decent quality
-POLLINATIONS_URL = "https://image.pollinations.ai/prompt/{prompt}"
+# NOTE: URL changed from image.pollinations.ai to gen.pollinations.ai in early 2026
+POLLINATIONS_URL = "https://gen.pollinations.ai/image/{prompt}"
 POLLINATIONS_TIMEOUT = 60.0  # Image generation can take time
 
 # Rate limit retry settings
@@ -591,11 +614,12 @@ class LLMRouter:
 
             # If using a free model, try falling back to paid model on same provider
             if is_free_model(primary_model) and self.config.primary == ProviderType.OPENROUTER:
-                logger.info(f"Free model rate limited. Falling back to paid model: {PAID_FALLBACK_MODEL}")
+                paid_fallback = get_paid_fallback_model()
+                logger.info(f"Free model rate limited. Falling back to paid model: {paid_fallback}")
                 try:
                     provider = self._get_provider(ProviderType.OPENROUTER)
                     return await self._call_with_retry(
-                        provider, PAID_FALLBACK_MODEL, prompt, **kwargs
+                        provider, paid_fallback, prompt, **kwargs
                     )
                 except (ProviderError, RateLimitError) as e2:
                     logger.warning(f"Paid model fallback also failed: {e2}")
@@ -714,11 +738,12 @@ class LLMRouter:
 
             # If using a free model, try falling back to paid model on same provider
             if is_free_model(primary_model) and self.config.primary == ProviderType.OPENROUTER:
-                logger.info(f"Free model rate limited. Falling back to paid model: {PAID_FALLBACK_MODEL}")
+                paid_fallback = get_paid_fallback_model()
+                logger.info(f"Free model rate limited. Falling back to paid model: {paid_fallback}")
                 try:
                     provider = self._get_provider(ProviderType.OPENROUTER)
                     return await self._call_with_retry(
-                        provider, PAID_FALLBACK_MODEL, prompt,
+                        provider, paid_fallback, prompt,
                         response_model=response_model, **kwargs
                     )
                 except (ProviderError, RateLimitError) as e2:
@@ -790,8 +815,8 @@ class LLMRouter:
         url = POLLINATIONS_URL.format(prompt=encoded_prompt)
 
         # Add parameters for better quality
-        # nologo=true removes watermark, width/height for resolution
-        url += "?nologo=true&width=1024&height=1024"
+        # nologo=true removes watermark, width/height for resolution, model=flux for best quality
+        url += "?nologo=true&width=1024&height=1024&model=flux"
 
         logger.info(f"Pollinations.ai fallback: generating image for prompt (first 50 chars): {prompt[:50]}...")
 
@@ -995,15 +1020,16 @@ class LLMRouter:
                     ) from e
 
             # Log appropriately based on error type
+            image_fallback = get_image_fallback_model()
             if isinstance(e, QuotaExhaustedError):
                 logger.warning(
                     f"Google quota exhausted - immediately falling back to OpenRouter "
-                    f"with {OPENROUTER_IMAGE_FALLBACK}"
+                    f"with {image_fallback}"
                 )
             else:
                 logger.warning(
                     f"Image generation failed on {image_provider.value}: {e}. "
-                    f"Falling back to OpenRouter with {OPENROUTER_IMAGE_FALLBACK}"
+                    f"Falling back to OpenRouter with {image_fallback}"
                 )
 
             try:
@@ -1015,7 +1041,7 @@ class LLMRouter:
                 }
                 return await self._generate_image_with_retry(
                     fallback_provider,
-                    OPENROUTER_IMAGE_FALLBACK,
+                    image_fallback,
                     prompt,
                     **fallback_kwargs,
                 )
