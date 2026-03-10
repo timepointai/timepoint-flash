@@ -148,8 +148,8 @@ class CharacterBioAgent(BaseAgent[CharacterBioInput, Character]):
                 rel_lines = []
                 for rel in relationships:
                     rel_lines.append(
-                        f"- {rel.character_a} <-> {rel.character_b}: "
-                        f"{rel.relationship_type} ({rel.emotional_tone})"
+                        f"- {rel.from_character} <-> {rel.to_character}: "
+                        f"{rel.relationship_type} ({rel.tension_level})"
                     )
                 relationship_context = "\n".join(rel_lines)
 
