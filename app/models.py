@@ -111,10 +111,12 @@ def generate_slug(query: str, year: int | None = None) -> str:
 
     # Add unique suffix (first 6 chars of UUID)
     unique_suffix = str(uuid.uuid4())[:6]
-    slug = f"{slug}-{unique_suffix}"
 
-    # Limit length
-    return slug[:100]
+    # Truncate base slug to leave room for the suffix, then append
+    max_base = 100 - len(unique_suffix) - 1  # -1 for the hyphen
+    slug = f"{slug[:max_base]}-{unique_suffix}"
+
+    return slug
 
 
 class Timepoint(Base):
