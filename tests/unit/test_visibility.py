@@ -38,13 +38,15 @@ def _make_timepoint(
     tp.user_id = user_id
     tp.year = 1776
     tp.location = "Philadelphia"
-    tp.character_data_json = {"characters": []}
-    tp.dialog_json = [{"speaker": "A", "line": "Hello"}]
-    tp.scene_data_json = {"setting": "hall"}
-    tp.metadata_json = {"key": "value"}
-    tp.grounding_data_json = {"verified": True}
-    tp.moment_data_json = {"arc": "rising"}
-    tp.image_prompt = "A grand hall"
+    tp.tdf_payload = {
+        "character_data": {"characters": []},
+        "dialog": [{"speaker": "A", "line": "Hello"}],
+        "scene_data": {"setting": "hall"},
+        "grounding_data": {"verified": True},
+        "moment_data": {"arc": "rising"},
+        "image_prompt": "A grand hall",
+    }
+    tp.tdf_hash = "testhash"
     tp.image_url = "https://example.com/img.png"
     tp.image_base64 = "base64data"
     tp.text_model_used = "gemini-2.5-flash"

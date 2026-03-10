@@ -280,14 +280,14 @@ async def get_timepoint_with_characters(
     if not timepoint:
         raise HTTPException(status_code=404, detail="Timepoint not found")
 
-    if not timepoint.character_data_json:
+    if not timepoint.tdf.get("character_data"):
         raise HTTPException(
             status_code=404,
             detail="Timepoint has no character data. Generation may be incomplete.",
         )
 
     try:
-        char_data = CharacterData.model_validate(timepoint.character_data_json)
+        char_data = CharacterData.model_validate(timepoint.tdf["character_data"])
     except Exception as e:
         logger.error(f"Failed to parse character data: {e}")
         raise HTTPException(status_code=500, detail="Failed to parse character data")
@@ -366,16 +366,17 @@ def get_existing_dialog(timepoint: Timepoint) -> list[DialogLine]:
     """Parse existing dialog from timepoint.
 
     Args:
-        timepoint: Timepoint with dialog_json
+        timepoint: Timepoint with tdf_payload dialog
 
     Returns:
         List of DialogLine objects (empty if none)
     """
-    if not timepoint.dialog_json:
+    dialog = timepoint.tdf.get("dialog")
+    if not dialog:
         return []
 
     try:
-        return [DialogLine.model_validate(line) for line in timepoint.dialog_json]
+        return [DialogLine.model_validate(line) for line in dialog]
     except Exception:
         return []
 
@@ -445,7 +446,7 @@ async def chat_with_character(
         year=timepoint.year or 0,
         location=timepoint.location or "Unknown",
         era=timepoint.era,
-        scene_context=timepoint.scene_data_json.get("setting", "") if timepoint.scene_data_json else "",
+        scene_context=timepoint.tdf.get("scene_data", {}).get("setting", ""),
         history=history,
     )
 
@@ -527,7 +528,7 @@ async def chat_with_character_stream(
         year=timepoint.year or 0,
         location=timepoint.location or "Unknown",
         era=timepoint.era,
-        scene_context=timepoint.scene_data_json.get("setting", "") if timepoint.scene_data_json else "",
+        scene_context=timepoint.tdf.get("scene_data", {}).get("setting", ""),
         history=history,
     )
 
@@ -637,8 +638,8 @@ async def extend_dialog(
         year=timepoint.year or 0,
         location=timepoint.location or "Unknown",
         era=timepoint.era,
-        setting=timepoint.scene_data_json.get("setting", "") if timepoint.scene_data_json else "",
-        atmosphere=timepoint.scene_data_json.get("atmosphere", "") if timepoint.scene_data_json else "",
+        setting=timepoint.tdf.get("scene_data", {}).get("setting", ""),
+        atmosphere=timepoint.tdf.get("scene_data", {}).get("atmosphere", ""),
         num_lines=request.num_lines,
         prompt=request.prompt,
         selected_characters=char_names,
@@ -710,8 +711,8 @@ async def extend_dialog_stream(
         year=timepoint.year or 0,
         location=timepoint.location or "Unknown",
         era=timepoint.era,
-        setting=timepoint.scene_data_json.get("setting", "") if timepoint.scene_data_json else "",
-        atmosphere=timepoint.scene_data_json.get("atmosphere", "") if timepoint.scene_data_json else "",
+        setting=timepoint.tdf.get("scene_data", {}).get("setting", ""),
+        atmosphere=timepoint.tdf.get("scene_data", {}).get("atmosphere", ""),
         num_lines=request.num_lines,
         prompt=request.prompt,
         selected_characters=char_names,

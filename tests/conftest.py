@@ -132,23 +132,30 @@ def sample_timepoint_data() -> dict[str, Any]:
         "season": "summer",
         "time_of_day": "afternoon",
         "location": "Independence Hall, Philadelphia",
-        "metadata_json": {
-            "historical_period": "American Revolution",
-            "significance": "Declaration signing",
+        "tdf_payload": {
+            "query": "signing of the declaration of independence",
+            "slug": "signing-declaration-independence-1776",
+            "year": 1776,
+            "month": 7,
+            "day": 4,
+            "season": "summer",
+            "time_of_day": "afternoon",
+            "location": "Independence Hall, Philadelphia",
+            "character_data": {
+                "characters": [
+                    {"name": "John Hancock", "role": "President of Congress"},
+                    {"name": "Benjamin Franklin", "role": "Delegate"},
+                ]
+            },
+            "scene_data": {
+                "environment": "Grand assembly hall",
+                "lighting": "Natural daylight through windows",
+            },
+            "dialog": [
+                {"speaker": "John Hancock", "line": "We must all hang together..."},
+            ],
         },
-        "character_data_json": {
-            "characters": [
-                {"name": "John Hancock", "role": "President of Congress"},
-                {"name": "Benjamin Franklin", "role": "Delegate"},
-            ]
-        },
-        "scene_data_json": {
-            "environment": "Grand assembly hall",
-            "lighting": "Natural daylight through windows",
-        },
-        "dialog_json": [
-            {"speaker": "John Hancock", "line": "We must all hang together..."},
-        ],
+        "tdf_hash": "abc123",
     }
 
 
