@@ -11,14 +11,14 @@ Run with:
 import pytest
 
 from app.schemas.dialog_arc import (
-    ArcBeat,
     BEAT_STRUCTURES,
     DEFAULT_EMOTIONAL_BEATS,
-    DialogArc,
     INTENSITY_CURVES,
+    TENSION_ARC_TO_SHAPE,
+    ArcBeat,
+    DialogArc,
     NarrativeFunction,
     NarrativeShape,
-    TENSION_ARC_TO_SHAPE,
     build_arc_from_moment,
 )
 from app.schemas.moment import MomentData
@@ -127,7 +127,7 @@ class TestDialogArc:
 
     def test_arc_requires_7_beats(self):
         """Test that arc requires exactly 7 beats."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             DialogArc(
                 shape=NarrativeShape.FREYTAG,
                 beats=[ArcBeat(position=0, narrative_function=NarrativeFunction.ESTABLISH)],

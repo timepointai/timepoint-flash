@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncGenerator, Literal
+from collections.abc import AsyncGenerator
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -36,7 +37,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.character_chat import (
     CharacterChatAgent,
     ChatInput,
-    ChatSessionManager,
     get_session_manager,
 )
 from app.agents.dialog_extension import DialogExtensionAgent, DialogExtensionInput
@@ -46,20 +46,13 @@ from app.auth.dependencies import get_current_user, require_credits
 from app.database import get_db_session
 from app.models import Timepoint, TimepointVisibility
 from app.models_auth import TransactionType, User
-from app.schemas import Character, CharacterData, DialogData, DialogLine
+from app.schemas import Character, CharacterData, DialogLine
 from app.schemas.chat import (
     ChatMessage,
-    ChatRequest,
-    ChatResponse,
-    ChatRole,
     ChatSession,
     ChatSessionSummary,
-    DialogExtensionRequest,
-    DialogExtensionResponse,
     ResponseFormat,
     SurveyMode,
-    SurveyRequest,
-    SurveyResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -290,7 +283,7 @@ async def get_timepoint_with_characters(
         char_data = CharacterData.model_validate(timepoint.tdf["character_data"])
     except Exception as e:
         logger.error(f"Failed to parse character data: {e}")
-        raise HTTPException(status_code=500, detail="Failed to parse character data")
+        raise HTTPException(status_code=500, detail="Failed to parse character data") from e
 
     return timepoint, char_data
 

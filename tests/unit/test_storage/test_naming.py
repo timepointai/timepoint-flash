@@ -9,8 +9,6 @@ Covers:
 import re
 from datetime import datetime, timezone
 
-import pytest
-
 from app.storage.naming import generate_folder_name, generate_folder_path, sanitize_slug
 
 

@@ -10,12 +10,13 @@ Tests:
 
 Run with: pytest tests/test_e2e_api.py -v
 """
-import pytest
 import asyncio
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from tests.utils.test_helpers import generate_unique_test_email
-from tests.utils.retry import retry_on_api_error
 
 
 @pytest.mark.e2e

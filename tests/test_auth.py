@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -11,8 +9,8 @@ import jwt as pyjwt
 import pytest
 from sqlalchemy import select
 
-from app.auth.apple import AppleTokenClaims, verify_apple_identity_token
-from app.auth.credits import CREDIT_COSTS, check_balance, grant_credits, spend_credits
+from app.auth.apple import verify_apple_identity_token
+from app.auth.credits import check_balance, grant_credits, spend_credits
 from app.auth.jwt_handler import (
     _hash_token,
     create_access_token,
@@ -27,7 +25,6 @@ from app.models_auth import (
     TransactionType,
     User,
 )
-
 
 # ---------------------------------------------------------------------------
 # JWT access token tests

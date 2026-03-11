@@ -32,9 +32,9 @@ from app.auth.credits import CREDIT_COSTS, spend_credits
 from app.auth.dependencies import get_current_user, require_credits
 from app.config import get_settings
 from app.core.pipeline import GenerationPipeline
-from app.core.temporal import TemporalNavigator, TemporalPoint, TimeUnit
+from app.core.temporal import TemporalPoint, TimeUnit
 from app.database import get_db_session
-from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility
+from app.models import Timepoint, TimepointVisibility
 from app.models_auth import TransactionType, User
 
 logger = logging.getLogger(__name__)

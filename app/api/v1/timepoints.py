@@ -28,12 +28,11 @@ Tests:
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import time
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -48,7 +47,7 @@ from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
 from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility
 from app.models_auth import TransactionType, User
-from app.schemas.characters import Character, CharacterData
+from app.schemas.characters import CharacterData
 
 logger = logging.getLogger(__name__)
 
@@ -488,7 +487,6 @@ async def stream_generation(
 
             # Save to database
             from app.database import get_session
-            saved = False
             try:
                 async with get_session() as session:
                     session.add(timepoint)
@@ -501,7 +499,6 @@ async def stream_generation(
                         session.add(log)
                     await session.commit()
 
-                    saved = True
                     logger.info(f"Streaming generation saved: {timepoint.id} ({timepoint.status})")
 
                     # Send done event ONLY after successful database save
@@ -848,7 +845,7 @@ async def generate_timepoint_sync(
 
     except Exception as e:
         logger.error(f"Sync generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{timepoint_id}", response_model=TimepointResponse)
@@ -958,7 +955,7 @@ async def get_character_bios(
         raise HTTPException(
             status_code=500,
             detail="Failed to parse character data",
-        )
+        ) from e
 
     # Build character bios with system prompts
     character_bios: list[CharacterBioResponse] = []
@@ -1391,6 +1388,6 @@ async def export_timepoint_blob(
         await session.refresh(timepoint)
     except Exception as e:
         logger.error(f"Blob export failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Blob export failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Blob export failed: {e}") from e
 
     return timepoint_to_response(timepoint, include_full=True)

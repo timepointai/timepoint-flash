@@ -56,7 +56,7 @@ class TimelineInput:
         query: str,
         judge: JudgeResult,
         grounded_context: GroundedContext | None = None,
-    ) -> "TimelineInput":
+    ) -> TimelineInput:
         """Create TimelineInput from JudgeResult and optional grounded context.
 
         Args:

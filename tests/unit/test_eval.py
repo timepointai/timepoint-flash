@@ -8,10 +8,16 @@ Run with:
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from app.eval.runner import (
+    ModelEvaluator,
+    format_comparison_report,
+    get_all_available_models,
+    get_preset_models,
+)
 from app.eval.schemas import (
     EvalComparison,
     EvalLatencyStats,
@@ -20,12 +26,6 @@ from app.eval.schemas import (
     EvalModelsResponse,
     EvalRequest,
     ModelPreset,
-)
-from app.eval.runner import (
-    ModelEvaluator,
-    format_comparison_report,
-    get_all_available_models,
-    get_preset_models,
 )
 
 

@@ -12,12 +12,12 @@ Run with: pytest tests/test_e2e_image.py -v
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from tests.utils.test_helpers import (
     generate_unique_test_email,
+    verify_image_data,
     wait_for_completion,
-    verify_image_data
 )
-from tests.utils.retry import retry_on_api_error
 
 
 @pytest.mark.e2e
@@ -77,6 +77,7 @@ async def test_image_has_reasonable_dimensions(
     """Test that generated images have reasonable dimensions."""
     import base64
     from io import BytesIO
+
     from PIL import Image
 
     email = generate_unique_test_email("test-image-dimensions")

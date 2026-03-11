@@ -25,9 +25,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from app.agents import (
     CameraAgent,
@@ -41,28 +42,31 @@ from app.agents import (
     SceneAgent,
     TimelineAgent,
 )
-from app.agents.character_bio import CharacterBioAgent, CharacterBioInput, create_fallback_character
-from app.agents.character_identification import CharacterIdentificationAgent, CharacterIdentificationInput
 from app.agents.camera import CameraInput
+from app.agents.character_bio import CharacterBioAgent, CharacterBioInput, create_fallback_character
+from app.agents.character_identification import (
+    CharacterIdentificationAgent,
+    CharacterIdentificationInput,
+)
 from app.agents.characters import CharactersInput
+from app.agents.critique import CritiqueAgent, CritiqueInput
 from app.agents.dialog import DialogInput
 from app.agents.graph import GraphInput
+from app.agents.grounding import (
+    GroundedContext,
+    GroundingAgent,
+    GroundingInput,
+)
 from app.agents.image_gen import ImageGenInput
 from app.agents.image_prompt import ImagePromptInput
 from app.agents.image_prompt_optimizer import (
     ImagePromptOptimizerAgent,
     ImagePromptOptimizerInput,
 )
-from app.agents.critique import CritiqueAgent, CritiqueInput
-from app.agents.grounding import (
-    GroundingAgent,
-    GroundingInput,
-    GroundedContext,
-)
 from app.agents.scene import SceneInput
 from app.agents.timeline import TimelineInput
-from app.config import ParallelismMode, QualityPreset, get_preset_parallelism
-from app.core.llm_router import LLMRouter, ModelTier, TIER_PARALLELISM
+from app.config import ParallelismMode, QualityPreset
+from app.core.llm_router import LLMRouter, ModelTier
 from app.core.providers.base import ModelCapability
 from app.models import GenerationLog, Timepoint, TimepointStatus, generate_slug
 from app.schemas import (
@@ -74,7 +78,6 @@ from app.schemas import (
     ImagePromptData,
     JudgeResult,
     MomentData,
-    QueryType,
     SceneData,
     TimelineData,
 )
@@ -273,7 +276,6 @@ class GenerationPipeline:
             image_model: Custom image model override (overrides preset)
             max_parallelism: Maximum parallel LLM calls (default from settings)
         """
-        from app.config import settings
 
         self._router = router
         self._preset = preset
@@ -550,7 +552,6 @@ class GenerationPipeline:
         - Camera starts immediately after Scene
         - CharacterID → then Graph + Moment + BioGeneration in parallel
         """
-        import time
         logger.debug("Starting optimized flow: Camera parallel with Characters")
 
         async def run_with_semaphore(coro):
@@ -910,7 +911,7 @@ class GenerationPipeline:
         state = await self._step_image_prompt(state)
         yield (PipelineStep.IMAGE_PROMPT, state.step_results[-1], state)
         if state.has_errors:
-            logger.warning(f"Pipeline has errors after image_prompt, skipping image generation")
+            logger.warning("Pipeline has errors after image_prompt, skipping image generation")
             return
 
         # Step 10: Image Generation (optional)
@@ -1370,7 +1371,7 @@ class GenerationPipeline:
                 and critique_result.content.has_critical
             ):
                 logger.info(
-                    f"Dialog critique found critical issues, re-running dialog with corrections"
+                    "Dialog critique found critical issues, re-running dialog with corrections"
                 )
                 # Re-run dialog with critique injected as additional context
                 retry_input = DialogInput.from_data(

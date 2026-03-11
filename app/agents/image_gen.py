@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.agents.base import AgentResult, BaseAgent
 from app.core.llm_router import LLMRouter

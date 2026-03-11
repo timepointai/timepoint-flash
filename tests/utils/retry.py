@@ -7,7 +7,9 @@ Useful for flaky external API calls (OpenRouter, Google AI, etc.).
 import asyncio
 import functools
 import time
-from typing import Callable, TypeVar, Any, Type
+from collections.abc import Callable
+from typing import Any, TypeVar
+
 import httpx
 from fastapi import HTTPException
 
@@ -58,7 +60,7 @@ def retry_on_api_error(
     backoff_factor: float = 2.0,
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
-    exceptions: tuple[Type[Exception], ...] = TRANSIENT_EXCEPTIONS
+    exceptions: tuple[type[Exception], ...] = TRANSIENT_EXCEPTIONS
 ):
     """
     Decorator that retries a function on transient API errors with exponential backoff.

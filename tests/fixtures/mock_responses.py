@@ -13,11 +13,12 @@ Usage:
     pytest -m e2e  # Real API calls
     USE_MOCKS=true pytest -m e2e  # Mock responses
 """
-import os
 import base64
+import os
 from io import BytesIO
+from typing import Any
+
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, Any, Optional
 
 
 def is_mocking_enabled() -> bool:
@@ -51,7 +52,7 @@ def create_mock_image(
     try:
         # Try to use a built-in font
         font = ImageFont.load_default()
-    except:
+    except Exception:
         font = None
 
     # Calculate text position (centered)
@@ -184,7 +185,7 @@ MOCK_LLM_RESPONSES = {
 }
 
 
-def get_mock_llm_response(model: str, prompt: str, response_type: str = "auto") -> Dict[str, Any]:
+def get_mock_llm_response(model: str, prompt: str, response_type: str = "auto") -> dict[str, Any]:
     """
     Get a mock LLM response for testing.
 
@@ -281,7 +282,7 @@ MOCK_TIMEPOINT_COMPLETE = {
 }
 
 
-def get_mock_timepoint(query: str, email: str = "test@example.com") -> Dict[str, Any]:
+def get_mock_timepoint(query: str, email: str = "test@example.com") -> dict[str, Any]:
     """
     Get a mock complete timepoint for testing.
 

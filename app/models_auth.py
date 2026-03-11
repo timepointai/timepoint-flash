@@ -13,12 +13,14 @@ from enum import Enum
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Integer,
     String,
     Text,
     func,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,10 +70,10 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
-    credit_account: Mapped["CreditAccount | None"] = relationship(
+    credit_account: Mapped[CreditAccount | None] = relationship(
         back_populates="user", uselist=False
     )
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
+    refresh_tokens: Mapped[list[RefreshToken]] = relationship(back_populates="user")
 
     def __repr__(self) -> str:
         return f"<User(id={self.id!r}, apple_sub={self.apple_sub!r})>"
@@ -98,8 +100,8 @@ class CreditAccount(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="credit_account")
-    transactions: Mapped[list["CreditTransaction"]] = relationship(
+    user: Mapped[User] = relationship(back_populates="credit_account")
+    transactions: Mapped[list[CreditTransaction]] = relationship(
         back_populates="credit_account"
     )
 
@@ -136,7 +138,7 @@ class CreditTransaction(Base):
     )
 
     # Relationships
-    credit_account: Mapped["CreditAccount"] = relationship(
+    credit_account: Mapped[CreditAccount] = relationship(
         back_populates="transactions"
     )
 
@@ -172,7 +174,7 @@ class RefreshToken(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="refresh_tokens")
+    user: Mapped[User] = relationship(back_populates="refresh_tokens")
 
     @property
     def is_revoked(self) -> bool:

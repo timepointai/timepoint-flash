@@ -11,11 +11,11 @@ Run with:
     pytest tests/unit/test_visibility.py -v -m fast
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from app.models import Timepoint, TimepointStatus, TimepointVisibility
+import pytest
 
+from app.models import Timepoint, TimepointStatus, TimepointVisibility
 
 # ---------------------------------------------------------------------------
 # Helpers to build mock-ish Timepoint objects without a real DB
@@ -117,6 +117,7 @@ class TestCheckVisibilityAccess:
 
     def test_private_blocks_anonymous(self):
         from fastapi import HTTPException
+
         from app.api.v1.timepoints import check_visibility_access
 
         tp = _make_timepoint(visibility=TimepointVisibility.PRIVATE, user_id="owner-1")
@@ -126,6 +127,7 @@ class TestCheckVisibilityAccess:
 
     def test_private_blocks_non_owner(self):
         from fastapi import HTTPException
+
         from app.api.v1.timepoints import check_visibility_access
 
         tp = _make_timepoint(visibility=TimepointVisibility.PRIVATE, user_id="owner-1")
