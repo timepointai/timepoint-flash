@@ -1755,8 +1755,9 @@ class GenerationPipeline:
             payload["image_model_used"] = image_model
 
         # Model provenance (Clockchain schema v0.2)
+        from app.core.model_policy import derive_model_permissiveness
         payload["model_provider"] = self.router.config.primary.value if self.router.config else "unknown"
-        payload["model_permissiveness"] = "restricted"  # Flash uses frontier models
+        payload["model_permissiveness"] = derive_model_permissiveness(text_model)
 
         # Store image generation warning in payload if applicable
         if state.image_generation_failed:
