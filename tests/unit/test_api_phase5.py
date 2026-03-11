@@ -10,23 +10,22 @@ Tests:
 import pytest
 from pydantic import ValidationError
 
-from app.api.v1.timepoints import (
-    DeleteResponse,
-    GenerateRequest,
-    StreamEvent,
+from app.api.v1.models import (
+    ModelInfo,
+    ModelListResponse,
+    ProvidersResponse,
+    ProviderStatus,
+    get_configured_models,
 )
 from app.api.v1.temporal import (
     NavigationRequest,
     NavigationResponse,
 )
-from app.api.v1.models import (
-    ModelInfo,
-    ModelListResponse,
-    ProviderStatus,
-    ProvidersResponse,
-    get_configured_models,
+from app.api.v1.timepoints import (
+    DeleteResponse,
+    GenerateRequest,
+    StreamEvent,
 )
-
 
 # GenerateRequest Tests
 

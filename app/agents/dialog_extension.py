@@ -18,15 +18,13 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
-
-from pydantic import BaseModel, Field
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Any
 
 from app.agents.base import AgentResult
 from app.core.llm_router import LLMRouter
 from app.core.model_capabilities import (
-    infer_provider_from_model_id,
     supports_structured_output,
 )
 from app.prompts import character_chat as chat_prompts
@@ -82,7 +80,7 @@ class DialogExtensionInput:
         num_lines: int = 5,
         prompt: str | None = None,
         selected_characters: list[str] | None = None,
-    ) -> "DialogExtensionInput":
+    ) -> DialogExtensionInput:
         """Create input from timepoint data.
 
         Args:
@@ -332,9 +330,9 @@ class DialogExtensionAgent:
             latency = int((time.perf_counter() - start_time) * 1000)
 
             # Get characters who spoke
-            characters_involved = list(set(
+            characters_involved = list({
                 line.get("speaker", "") for line in response.content.dialog
-            ))
+            })
 
             # Update response with characters
             result_content = DialogExtensionResponse(
@@ -499,7 +497,7 @@ Do NOT include your name, quotation marks, or stage directions."""
                     latency_ms=latency,
                 )
 
-            characters_involved = list(set(line["speaker"] for line in new_lines))
+            characters_involved = list({line["speaker"] for line in new_lines})
 
             result = DialogExtensionResponse(
                 dialog=new_lines,
@@ -640,5 +638,5 @@ What do you say in response? Give ONLY your spoken words (1-2 sentences)."""
         yield {
             "done": True,
             "total_lines": len(generated_lines),
-            "characters_involved": list(set(s for s, _ in generated_lines)),
+            "characters_involved": list({s for s, _ in generated_lines}),
         }

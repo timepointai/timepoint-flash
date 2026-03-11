@@ -20,14 +20,14 @@ Tests:
     - tests/unit/test_eval.py
 """
 
+from app.eval.runner import ModelEvaluator
 from app.eval.schemas import (
+    EvalComparison,
     EvalModelConfig,
     EvalModelResult,
-    EvalComparison,
     EvalRequest,
     ModelPreset,
 )
-from app.eval.runner import ModelEvaluator
 
 __all__ = [
     "EvalModelConfig",

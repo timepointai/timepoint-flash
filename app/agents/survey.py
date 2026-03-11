@@ -17,21 +17,18 @@ Tests:
 from __future__ import annotations
 
 import asyncio
+import json as json_module
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
-
-from pydantic import BaseModel, Field
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Any
 
 from app.agents.base import AgentResult
 from app.core.llm_router import LLMRouter
 from app.core.model_capabilities import (
-    infer_provider_from_model_id,
     supports_structured_output,
 )
-import json as json_module
-
 from app.prompts import character_chat as chat_prompts
 from app.schemas import Character, CharacterData
 from app.schemas.chat import (
@@ -85,7 +82,7 @@ class SurveyInput:
         chain_prompts: bool = False,
         include_summary: bool = True,
         selected_characters: list[str] | None = None,
-    ) -> "SurveyInput":
+    ) -> SurveyInput:
         """Create input from timepoint data.
 
         Args:

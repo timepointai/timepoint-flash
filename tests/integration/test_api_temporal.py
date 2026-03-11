@@ -13,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import Timepoint, TimepointStatus
 
 
 @pytest.fixture

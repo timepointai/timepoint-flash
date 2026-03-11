@@ -9,14 +9,9 @@ Covers:
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.storage.manifest import (
     BlobManifest,
     FileEntry,
-    ProvenanceInfo,
-    SequenceInfo,
-    TemporalInfo,
     build_manifest,
 )
 

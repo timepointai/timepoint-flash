@@ -66,7 +66,7 @@ async def compare_models(request: EvalRequest) -> EvalComparison:
 
     except Exception as e:
         logger.error(f"Eval comparison failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post(
@@ -100,7 +100,7 @@ async def compare_models_with_report(request: EvalRequest) -> dict:
 
     except Exception as e:
         logger.error(f"Eval comparison failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(

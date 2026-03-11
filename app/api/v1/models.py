@@ -23,7 +23,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from app.config import ProviderType, settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 

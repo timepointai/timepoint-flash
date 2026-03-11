@@ -10,19 +10,20 @@ Provides shared functions for:
 import asyncio
 import base64
 import time
-from typing import Dict, Any, Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from io import BytesIO
+from typing import Any
+
 from PIL import Image
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 
 async def wait_for_completion(
-    check_func: Callable[[], Awaitable[tuple[bool, Optional[Any]]]],
+    check_func: Callable[[], Awaitable[tuple[bool, Any | None]]],
     timeout_seconds: int = 120,
     poll_interval: float = 2.0,
     description: str = "operation"
-) -> Optional[Any]:
+) -> Any | None:
     """
     Smart polling helper that waits for an async operation to complete.
 
@@ -118,7 +119,7 @@ def verify_image_data(image_data: str, expected_format: str = "PNG") -> bool:
         return False
 
 
-def verify_timepoint_structure(timepoint_data: Dict[str, Any]) -> tuple[bool, list[str]]:
+def verify_timepoint_structure(timepoint_data: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     Verify that a timepoint has the expected data structure.
 
@@ -211,7 +212,7 @@ def cleanup_test_data(
         db_session: Database session
         email_pattern: Pattern to match test emails (SQL LIKE pattern)
     """
-    from app.models import Email, Timepoint, RateLimit, ProcessingSession, IPRateLimit
+    from app.models import Email, IPRateLimit, ProcessingSession, RateLimit, Timepoint
 
     try:
         # Delete in reverse dependency order

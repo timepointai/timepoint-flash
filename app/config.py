@@ -662,6 +662,6 @@ def validate_presets_or_raise() -> None:
     errors = validate_presets()
     if errors:
         raise ValueError(
-            f"Preset configuration errors (models not in VerifiedModels):\n"
+            "Preset configuration errors (models not in VerifiedModels):\n"
             + "\n".join(f"  - {e}" for e in errors)
         )

@@ -18,8 +18,8 @@ Tests:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
@@ -142,8 +142,8 @@ async def init_db() -> None:
     Examples:
         >>> await init_db()
     """
-    from app.models import Base
     import app.models_auth  # noqa: F401 — register auth models with Base.metadata
+    from app.models import Base
 
     engine = get_engine()
 

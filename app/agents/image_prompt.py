@@ -17,7 +17,6 @@ Tests:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
 from typing import TYPE_CHECKING
 
 from app.agents.base import AgentResult, BaseAgent
@@ -89,8 +88,8 @@ class ImagePromptInput:
         graph: GraphData | None = None,
         moment: MomentData | None = None,
         camera: CameraData | None = None,
-        grounded_context: "GroundedContext | None" = None,
-    ) -> "ImagePromptInput":
+        grounded_context: GroundedContext | None = None,
+    ) -> ImagePromptInput:
         """Create ImagePromptInput from ALL previous agent data.
 
         Args:

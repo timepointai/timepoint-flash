@@ -27,6 +27,11 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from app.config import ProviderType
+from app.core.model_capabilities import (
+    build_image_config_params,
+    get_image_model_config,
+    is_imagen_model,
+)
 
 # Import from base module directly to avoid circular import
 from app.core.providers.base import (
@@ -36,12 +41,6 @@ from app.core.providers.base import (
     ProviderError,
     QuotaExhaustedError,
     RateLimitError,
-)
-from app.core.model_capabilities import (
-    build_image_config_params,
-    get_fallback_models,
-    get_image_model_config,
-    is_imagen_model,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,7 +68,6 @@ def _get_genai_client(api_key: str) -> Any:
     if _genai_client is None:
         try:
             from google import genai
-            from google.genai import types
 
             _genai_client = genai.Client(api_key=api_key)
         except ImportError as e:
@@ -250,7 +248,6 @@ class GoogleProvider(LLMProvider):
 
             # Parse response
             if response_model is not None and response.text:
-                import json
 
                 parsed = response_model.model_validate_json(response.text)
                 content = parsed
@@ -714,7 +711,7 @@ class GoogleProvider(LLMProvider):
             # gemini-2.5-flash may return empty text, but that's OK for health check
             from google.genai import types
 
-            response = await self.client.aio.models.generate_content(
+            await self.client.aio.models.generate_content(
                 model="gemini-2.5-flash",
                 contents="ping",
                 config=types.GenerateContentConfig(max_output_tokens=10),

@@ -7,7 +7,7 @@ so existing unauthenticated access continues to work.
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -82,7 +82,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

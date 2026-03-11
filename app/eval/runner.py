@@ -21,10 +21,8 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any
 
 from app.config import ProviderType, VerifiedModels, get_settings
-from app.core.providers import ModelCapability
 from app.core.providers.google import GoogleProvider
 from app.core.providers.openrouter import OpenRouterProvider
 from app.eval.schemas import (

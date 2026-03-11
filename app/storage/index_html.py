@@ -119,7 +119,7 @@ def _format_bytes(n: int) -> str:
         return f"{n / (1024 * 1024):.1f} MB"
 
 
-def generate_index_html(manifest: "BlobManifest") -> str:
+def generate_index_html(manifest: BlobManifest) -> str:
     """Generate a self-contained HTML index page from a manifest.
 
     Args:

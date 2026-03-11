@@ -8,33 +8,29 @@ Tests each agent's:
     - Session management
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from app.config import ProviderType
+import pytest
+
 from app.agents import (
     CharacterChatAgent,
     ChatInput,
-    ChatOutput,
     ChatSessionManager,
-    get_session_manager,
     DialogExtensionAgent,
     DialogExtensionInput,
     SurveyAgent,
     SurveyInput,
+    get_session_manager,
 )
+from app.config import ProviderType
 from app.core.providers import LLMResponse
 from app.schemas import Character, CharacterRole, DialogLine
 from app.schemas.chat import (
-    ChatSession,
     ChatMessage,
     ChatRole,
-    SurveyMode,
-    CharacterSurveyResponse,
-    SurveyResult,
     DialogExtensionResponse,
+    SurveyMode,
 )
-
 
 # =============================================================================
 # CharacterChatAgent Tests

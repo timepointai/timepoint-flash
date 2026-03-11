@@ -10,8 +10,6 @@ Tests for:
 
 import pytest
 
-from app.schemas import CharacterRole
-from app.schemas.character_identification import CharacterIdentification, CharacterStub
 from app.agents.character_bio import (
     CharacterBioAgent,
     CharacterBioInput,
@@ -21,7 +19,8 @@ from app.agents.character_identification import (
     CharacterIdentificationAgent,
     CharacterIdentificationInput,
 )
-
+from app.schemas import CharacterRole
+from app.schemas.character_identification import CharacterIdentification, CharacterStub
 
 # CharacterStub Tests
 
