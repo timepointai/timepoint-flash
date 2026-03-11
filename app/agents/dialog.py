@@ -21,13 +21,21 @@ import logging
 from dataclasses import dataclass, field
 
 from app.agents.base import AgentResult, BaseAgent
-
-logger = logging.getLogger(__name__)
 from app.core.llm_router import LLMRouter
 from app.prompts import dialog as dialog_prompts
-from app.schemas import Character, CharacterData, DialogData, DialogLine, MomentData, SceneData, TimelineData
+from app.schemas import (
+    Character,
+    CharacterData,
+    DialogData,
+    DialogLine,
+    MomentData,
+    SceneData,
+    TimelineData,
+)
 from app.schemas.dialog_arc import ArcBeat, DialogArc, NarrativeFunction, build_arc_from_moment
 from app.schemas.graph import GraphData, Relationship
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -71,7 +79,7 @@ class DialogInput:
         characters: CharacterData,
         graph: GraphData | None = None,
         moment: MomentData | None = None,
-    ) -> "DialogInput":
+    ) -> DialogInput:
         """Create DialogInput from previous agent data.
 
         Args:
@@ -547,7 +555,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             metadata={
                 "generation_mode": "sequential",
                 "line_count": len(lines),
-                "speakers": list(set(line.speaker for line in lines)),
+                "speakers": list({line.speaker for line in lines}),
                 "llm_calls": len(lines),
             },
         )

@@ -6,13 +6,14 @@ Tests:
     - AgentChain execution
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.agents.base import AgentResult, BaseAgent, AgentChain
-from app.config import ProviderType
-from app.core.providers import LLMResponse, ModelCapability
+import pytest
 from pydantic import BaseModel
+
+from app.agents.base import AgentChain, AgentResult, BaseAgent
+from app.config import ProviderType
+from app.core.providers import LLMResponse
 
 
 # Test models

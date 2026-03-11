@@ -28,7 +28,7 @@ Examples:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, model_validator
 

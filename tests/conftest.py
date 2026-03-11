@@ -16,7 +16,7 @@ Usage:
 """
 
 import os
-from typing import Any, AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -94,7 +94,7 @@ def provider_config():
 @pytest_asyncio.fixture
 async def test_db():
     """Create test database and clean up after."""
-    from app.database import close_db, drop_db, get_engine, init_db
+    from app.database import close_db, drop_db, init_db
 
     # Initialize test database
     await init_db()

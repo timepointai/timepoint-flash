@@ -60,7 +60,7 @@ class SceneInput:
         query: str,
         timeline: TimelineData,
         grounded_context: GroundedContext | None = None,
-    ) -> "SceneInput":
+    ) -> SceneInput:
         """Create SceneInput from TimelineData and optional grounded context.
 
         Args:

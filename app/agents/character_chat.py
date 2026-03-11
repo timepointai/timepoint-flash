@@ -19,23 +19,21 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
 
 from pydantic import BaseModel, Field
 
 from app.agents.base import AgentResult
 from app.core.llm_router import LLMRouter
 from app.core.model_capabilities import (
-    get_text_model_config,
     infer_provider_from_model_id,
     supports_structured_output,
 )
 from app.prompts import character_chat as chat_prompts
-from app.schemas import Character, CharacterData
+from app.schemas import Character
 from app.schemas.chat import (
     ChatMessage,
-    ChatResponse,
     ChatRole,
     ChatSession,
     ResponseFormat,
@@ -81,7 +79,7 @@ class ChatInput:
         era: str | None = None,
         scene_context: str = "",
         history: list[ChatMessage] | None = None,
-    ) -> "ChatInput":
+    ) -> ChatInput:
         """Create ChatInput from timepoint data.
 
         Args:

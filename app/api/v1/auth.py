@@ -62,14 +62,13 @@ async def apple_sign_in(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
-        )
+        ) from e
 
     # Find or create user
     result = await session.execute(
         select(User).where(User.apple_sub == claims.sub)
     )
     user = result.scalar_one_or_none()
-    is_new_user = user is None
 
     if user is None:
         user = User(
@@ -134,7 +133,6 @@ async def dev_token(
         select(User).where(User.apple_sub == synthetic_sub)
     )
     user = result.scalar_one_or_none()
-    is_new_user = user is None
 
     if user is None:
         user = User(
@@ -274,7 +272,7 @@ async def refresh_tokens(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
-        )
+        ) from e
 
     # Retrieve user_id from the new token record
     from app.models_auth import RefreshToken

@@ -14,26 +14,26 @@ Tests for:
 - LLMRouter.get_parallelism_mode() method (Phase 14)
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from app.core.llm_router import (
-    ModelTier,
-    TIER_PARALLELISM,
-    is_free_model,
-    LLMRouter,
-)
+import pytest
+
 from app.config import (
-    ParallelismMode,
-    ProviderType,
-    QualityPreset,
     PRESET_PARALLELISM,
     PROVIDER_RATE_LIMITS,
     TIER_CONCURRENT_LIMITS,
+    ParallelismMode,
+    ProviderType,
+    QualityPreset,
     get_preset_parallelism,
     get_tier_max_concurrent,
 )
-
+from app.core.llm_router import (
+    TIER_PARALLELISM,
+    LLMRouter,
+    ModelTier,
+    is_free_model,
+)
 
 # ModelTier Tests
 

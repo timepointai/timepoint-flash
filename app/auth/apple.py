@@ -10,7 +10,6 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
 import jwt
 from jwt import PyJWKClient
 
@@ -77,15 +76,15 @@ def verify_apple_identity_token(identity_token: str) -> AppleTokenClaims:
             audience=bundle_id,
             issuer=APPLE_ISSUER,
         )
-    except jwt.ExpiredSignatureError:
-        raise ValueError("Apple identity token has expired")
-    except jwt.InvalidAudienceError:
-        raise ValueError("Apple identity token audience mismatch")
-    except jwt.InvalidIssuerError:
-        raise ValueError("Apple identity token issuer mismatch")
+    except jwt.ExpiredSignatureError as e:
+        raise ValueError("Apple identity token has expired") from e
+    except jwt.InvalidAudienceError as e:
+        raise ValueError("Apple identity token audience mismatch") from e
+    except jwt.InvalidIssuerError as e:
+        raise ValueError("Apple identity token issuer mismatch") from e
     except Exception as e:
         logger.error(f"Apple token verification failed: {e}")
-        raise ValueError(f"Invalid Apple identity token: {e}")
+        raise ValueError(f"Invalid Apple identity token: {e}") from e
 
     return AppleTokenClaims(
         sub=payload["sub"],

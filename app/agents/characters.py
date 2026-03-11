@@ -56,7 +56,7 @@ class CharactersInput:
         timeline: TimelineData,
         scene: SceneData,
         detected_figures: list[str] | None = None,
-    ) -> "CharactersInput":
+    ) -> CharactersInput:
         """Create CharactersInput from previous agent data.
 
         Args:

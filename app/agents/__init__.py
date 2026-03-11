@@ -26,33 +26,8 @@ Tests:
 """
 
 from app.agents.base import BaseAgent
-from app.agents.judge import JudgeAgent
-from app.agents.timeline import TimelineAgent
-from app.agents.scene import SceneAgent
-from app.agents.characters import CharactersAgent
-from app.agents.character_identification import CharacterIdentificationAgent
-from app.agents.character_bio import CharacterBioAgent
-from app.agents.moment import MomentAgent
-from app.agents.dialog import DialogAgent
 from app.agents.camera import CameraAgent
-from app.agents.graph import GraphAgent
-from app.agents.image_prompt import ImagePromptAgent
-from app.agents.image_gen import ImageGenAgent
-from app.agents.image_prompt_optimizer import (
-    ImagePromptOptimizerAgent,
-    ImagePromptOptimizerInput,
-    ImagePromptOptimizerOutput,
-)
-from app.agents.critique import (
-    CritiqueAgent,
-    CritiqueInput,
-    CritiqueOutput,
-)
-from app.agents.grounding import (
-    GroundingAgent,
-    GroundingInput,
-    GroundedContext,
-)
+from app.agents.character_bio import CharacterBioAgent
 from app.agents.character_chat import (
     CharacterChatAgent,
     ChatInput,
@@ -60,14 +35,39 @@ from app.agents.character_chat import (
     ChatSessionManager,
     get_session_manager,
 )
+from app.agents.character_identification import CharacterIdentificationAgent
+from app.agents.characters import CharactersAgent
+from app.agents.critique import (
+    CritiqueAgent,
+    CritiqueInput,
+    CritiqueOutput,
+)
+from app.agents.dialog import DialogAgent
 from app.agents.dialog_extension import (
     DialogExtensionAgent,
     DialogExtensionInput,
 )
+from app.agents.graph import GraphAgent
+from app.agents.grounding import (
+    GroundedContext,
+    GroundingAgent,
+    GroundingInput,
+)
+from app.agents.image_gen import ImageGenAgent
+from app.agents.image_prompt import ImagePromptAgent
+from app.agents.image_prompt_optimizer import (
+    ImagePromptOptimizerAgent,
+    ImagePromptOptimizerInput,
+    ImagePromptOptimizerOutput,
+)
+from app.agents.judge import JudgeAgent
+from app.agents.moment import MomentAgent
+from app.agents.scene import SceneAgent
 from app.agents.survey import (
     SurveyAgent,
     SurveyInput,
 )
+from app.agents.timeline import TimelineAgent
 
 __all__ = [
     "BaseAgent",

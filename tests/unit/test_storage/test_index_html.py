@@ -6,9 +6,8 @@ Covers:
     - Image section presence
 """
 
-import pytest
 
-from app.storage.index_html import generate_index_html, _format_bytes
+from app.storage.index_html import _format_bytes, generate_index_html
 from app.storage.manifest import (
     BlobManifest,
     FileEntry,
@@ -18,25 +17,25 @@ from app.storage.manifest import (
 
 
 def _make_manifest(**overrides):
-    defaults = dict(
-        timepoint_id="tp-test",
-        slug="test-slug",
-        query="Tesla's Hotel 1943",
-        folder_name="teslas-hotel-1943_20260209_abc123",
-        full_path="/tmp/test",
-        temporal=TemporalInfo(year=1943, era="WWII", location="New York"),
-        provenance=ProvenanceInfo(
+    defaults = {
+        "timepoint_id": "tp-test",
+        "slug": "test-slug",
+        "query": "Tesla's Hotel 1943",
+        "folder_name": "teslas-hotel-1943_20260209_abc123",
+        "full_path": "/tmp/test",
+        "temporal": TemporalInfo(year=1943, era="WWII", location="New York"),
+        "provenance": ProvenanceInfo(
             text_model="gemini-2.5-flash",
             image_model="gemini-2.5-flash-image",
             generator_version="2.3.3",
             generated_at="2026-02-09T14:00:00Z",
         ),
-        files=[
+        "files": [
             FileEntry(filename="image.png", mime_type="image/png", size_bytes=50000),
             FileEntry(filename="metadata.json", mime_type="application/json", size_bytes=200),
         ],
-        total_size_bytes=50200,
-    )
+        "total_size_bytes": 50200,
+    }
     defaults.update(overrides)
     return BlobManifest(**defaults)
 

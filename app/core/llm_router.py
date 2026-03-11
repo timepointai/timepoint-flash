@@ -30,8 +30,8 @@ import asyncio
 import base64
 import logging
 import time
-from enum import Enum
 from collections.abc import AsyncIterator
+from enum import Enum
 from typing import Any, TypeVar
 from urllib.parse import quote
 
@@ -40,7 +40,6 @@ from pydantic import BaseModel
 
 from app.config import (
     PRESET_CONFIGS,
-    PRESET_PARALLELISM,
     PROVIDER_RATE_LIMITS,
     ParallelismMode,
     ProviderType,
@@ -50,7 +49,6 @@ from app.config import (
     get_settings,
     get_tier_max_concurrent,
 )
-from app.core.rate_limiter import acquire_rate_limit, get_tier_from_model
 from app.core.providers import (
     LLMProvider,
     LLMResponse,
@@ -62,6 +60,7 @@ from app.core.providers import (
 )
 from app.core.providers.google import GoogleProvider
 from app.core.providers.openrouter import OpenRouterProvider
+from app.core.rate_limiter import acquire_rate_limit, get_tier_from_model
 
 logger = logging.getLogger(__name__)
 

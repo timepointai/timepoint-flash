@@ -21,7 +21,7 @@ from app.storage.backends.base import StorageBackend
 from app.storage.backends.local import LocalStorageBackend
 from app.storage.config import StorageConfig
 from app.storage.index_html import generate_index_html
-from app.storage.manifest import BlobManifest, FileEntry, build_manifest
+from app.storage.manifest import FileEntry, build_manifest
 from app.storage.naming import generate_folder_path
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class StorageService:
         self.backend = backend or LocalStorageBackend()
 
     @classmethod
-    def from_config(cls, config: StorageConfig) -> "StorageService":
+    def from_config(cls, config: StorageConfig) -> StorageService:
         """Create a StorageService from config."""
         return cls(config=config, backend=LocalStorageBackend())
 
@@ -200,7 +200,7 @@ class StorageService:
         )
 
         manifest_text = manifest.model_dump_json(indent=2)
-        manifest_bytes = manifest_text.encode("utf-8")
+        manifest_text.encode("utf-8")
         await self.backend.write_text(f"{full_path}/manifest.json", manifest_text)
 
         # Add manifest itself to entries (for completeness, but it won't be in its own listing)
