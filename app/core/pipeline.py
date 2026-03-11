@@ -194,10 +194,15 @@ class PipelineState:
         """Check if any critical step failed.
 
         Non-critical steps (failures don't block the pipeline):
-        - IMAGE_GENERATION: User still gets all valuable text content
+        - IMAGE_PROMPT / IMAGE_PROMPT_OPTIMIZE / IMAGE_GENERATION: User still gets all text content
         - GROUNDING: Pipeline continues without verified facts (falls back to LLM knowledge)
         """
-        non_critical_steps = {PipelineStep.IMAGE_GENERATION, PipelineStep.GROUNDING}
+        non_critical_steps = {
+            PipelineStep.IMAGE_PROMPT,
+            PipelineStep.IMAGE_PROMPT_OPTIMIZE,
+            PipelineStep.IMAGE_GENERATION,
+            PipelineStep.GROUNDING,
+        }
         return any(
             not r.success and r.step not in non_critical_steps
             for r in self.step_results
@@ -909,16 +914,15 @@ class GenerationPipeline:
         # Step 9: Image Prompt (uses ALL data)
         state = await self._step_image_prompt(state)
         yield (PipelineStep.IMAGE_PROMPT, state.step_results[-1], state)
-        if state.has_errors:
-            logger.warning(f"Pipeline has errors after image_prompt, skipping image generation")
-            return
 
-        # Step 10: Image Generation (optional)
+        # Step 10: Image Generation (optional, never blocks the stream)
         logger.info(f"Image generation check: generate_image={generate_image}")
-        if generate_image:
+        if generate_image and not state.has_critical_errors:
             logger.info("Running image generation step...")
             state = await self._step_image_generation(state)
             yield (PipelineStep.IMAGE_GENERATION, state.step_results[-1], state)
+        elif generate_image and state.has_critical_errors:
+            logger.warning("Skipping image generation due to critical pipeline errors")
         else:
             logger.info("Skipping image generation (not requested)")
 
