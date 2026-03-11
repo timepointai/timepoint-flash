@@ -485,6 +485,7 @@ async def stream_generation(
     preset: QualityPreset | None = None,
     text_model: str | None = None,
     image_model: str | None = None,
+    model_policy: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -497,6 +498,7 @@ async def stream_generation(
         preset: Quality preset (HD, HYPER, BALANCED)
         text_model: Custom text model override
         image_model: Custom image model override
+        model_policy: Model licensing policy (e.g. "permissive")
 
     Yields:
         SSE-formatted event strings
@@ -526,6 +528,7 @@ async def stream_generation(
         preset=preset,
         text_model=text_model,
         image_model=image_model,
+        model_policy=model_policy,
     )
     state = None
     start_time = time.perf_counter()
@@ -644,6 +647,7 @@ async def run_generation_task(
     image_model: str | None = None,
     callback_url: str | None = None,
     request_context: dict[str, Any] | None = None,
+    model_policy: str | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -657,6 +661,7 @@ async def run_generation_task(
         image_model: Custom image model override
         callback_url: URL to POST results to on completion
         request_context: Opaque context to pass through to callback
+        model_policy: Model licensing policy (e.g. "permissive")
     """
     from app.database import get_session
 
@@ -677,6 +682,7 @@ async def run_generation_task(
             preset=parsed_preset,
             text_model=text_model,
             image_model=image_model,
+            model_policy=model_policy,
         )
         state = await pipeline.run(query, generate_image)
 
@@ -826,6 +832,7 @@ async def generate_timepoint(
         image_model=image_model,
         callback_url=request.callback_url,
         request_context=request.request_context,
+        model_policy=request.model_policy,
     )
 
     return GenerateResponse(
@@ -887,6 +894,7 @@ async def generate_timepoint_sync(
             preset=preset,
             text_model=text_model,
             image_model=image_model,
+            model_policy=request.model_policy,
         )
         state = await pipeline.run(request.query, request.generate_image)
 
@@ -1270,6 +1278,7 @@ async def generate_timepoint_stream(
             preset,
             text_model=text_model,
             image_model=image_model,
+            model_policy=request.model_policy,
         ),
         media_type="text/event-stream",
         headers={
