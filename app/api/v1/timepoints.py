@@ -55,6 +55,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/timepoints", tags=["timepoints"])
 
 
+# ---------------------------------------------------------------------------
+# Model provenance helpers (Clockchain schema v0.2)
+# ---------------------------------------------------------------------------
+
+_GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
+_OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/")
+
+
+def _derive_model_provider(model_id: str | None) -> str:
+    """Derive the routing provider from a model ID string."""
+    if not model_id:
+        return "unknown"
+    lower = model_id.lower()
+    if any(lower.startswith(p) for p in _GOOGLE_MODEL_PREFIXES):
+        return "google"
+    if any(lower.startswith(p) for p in _OPENROUTER_PREFIXES):
+        return "openrouter"
+    if "pollinations" in lower:
+        return "pollinations"
+    # Flash defaults to Google for all generation
+    return "google"
+
+
+def _derive_model_permissiveness(model_id: str | None) -> str:
+    """Derive distillation licensing permissiveness from a model ID.
+
+    Flash uses frontier models (Google Gemini) for quality — these are
+    'restricted' for distillation.  Open-weight models routed through
+    OpenRouter (e.g. Llama) are 'permissive'.
+    """
+    if not model_id:
+        return "unknown"
+    lower = model_id.lower()
+    if any(lower.startswith(p) for p in ("meta-llama/",)):
+        return "permissive"
+    # Google Gemini, Imagen, Anthropic, OpenAI, Mistral — all restricted
+    return "restricted"
+
+
 # Request/Response Models
 
 
@@ -246,6 +285,10 @@ class TimepointResponse(BaseModel):
     preset_used: str | None = None
     generation_time_ms: int | None = None
 
+    # Model provenance (Clockchain v0.2)
+    model_provider: str | None = None
+    model_permissiveness: str | None = None
+
     # Passthrough context from caller
     request_context: dict[str, Any] | None = None
 
@@ -340,6 +383,8 @@ def timepoint_to_response(
         image_base64=tp.image_base64 if include_image else None,
         text_model_used=tp.text_model_used,
         image_model_used=tp.image_model_used,
+        model_provider=_derive_model_provider(tp.text_model_used),
+        model_permissiveness=_derive_model_permissiveness(tp.text_model_used),
         created_at=tp.created_at.isoformat() if tp.created_at else None,
         error=tp.error_message,
         # Blob storage fields
@@ -383,6 +428,8 @@ def timepoint_to_response(
             response.image_prompt = None
             response.text_model_used = None
             response.image_model_used = None
+            response.model_provider = None
+            response.model_permissiveness = None
             response.has_image = False
 
     return response
