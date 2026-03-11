@@ -23,26 +23,25 @@ Time Estimate:
 import pytest
 
 from app.agents import (
-    JudgeAgent,
-    TimelineAgent,
-    SceneAgent,
-    CharactersAgent,
-    MomentAgent,
-    DialogAgent,
     CameraAgent,
+    CharactersAgent,
+    DialogAgent,
     GraphAgent,
     ImagePromptAgent,
+    JudgeAgent,
+    MomentAgent,
+    SceneAgent,
+    TimelineAgent,
 )
-from app.agents.timeline import TimelineInput
-from app.agents.scene import SceneInput
-from app.agents.characters import CharactersInput
-from app.agents.moment import MomentInput
-from app.agents.dialog import DialogInput
 from app.agents.camera import CameraInput
+from app.agents.characters import CharactersInput
+from app.agents.dialog import DialogInput
 from app.agents.graph import GraphInput
 from app.agents.image_prompt import ImagePromptInput
+from app.agents.moment import MomentInput
+from app.agents.scene import SceneInput
+from app.agents.timeline import TimelineInput
 from app.schemas import QueryType
-
 
 # ============================================================================
 # Provider Health Check Tests

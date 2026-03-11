@@ -18,7 +18,6 @@ from app.core.temporal import (
     TimeUnit,
 )
 
-
 # TemporalPoint Tests
 
 

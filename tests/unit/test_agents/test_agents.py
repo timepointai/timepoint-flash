@@ -7,48 +7,48 @@ Tests each agent's:
     - Metadata handling
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.config import ProviderType
+import pytest
+
 from app.agents import (
-    JudgeAgent,
-    TimelineAgent,
-    SceneAgent,
-    CharactersAgent,
-    MomentAgent,
-    DialogAgent,
     CameraAgent,
+    CharactersAgent,
+    DialogAgent,
     GraphAgent,
-    ImagePromptAgent,
     ImageGenAgent,
+    ImagePromptAgent,
+    JudgeAgent,
+    MomentAgent,
+    SceneAgent,
+    TimelineAgent,
 )
-from app.agents.timeline import TimelineInput
-from app.agents.scene import SceneInput
-from app.agents.characters import CharactersInput
-from app.agents.moment import MomentInput
-from app.agents.dialog import DialogInput
 from app.agents.camera import CameraInput
+from app.agents.characters import CharactersInput
+from app.agents.dialog import DialogInput
 from app.agents.graph import GraphInput
+from app.agents.image_gen import ImageGenInput
 from app.agents.image_prompt import ImagePromptInput
-from app.agents.image_gen import ImageGenInput, ImageGenResult
+from app.agents.moment import MomentInput
+from app.agents.scene import SceneInput
+from app.agents.timeline import TimelineInput
+from app.config import ProviderType
 from app.core.providers import LLMResponse
 from app.schemas import (
-    JudgeResult,
-    QueryType,
-    TimelineData,
-    SceneData,
-    CharacterData,
+    CameraData,
     Character,
+    CharacterData,
     CharacterRole,
     DialogData,
     DialogLine,
-    ImagePromptData,
-    MomentData,
-    CameraData,
     GraphData,
+    ImagePromptData,
+    JudgeResult,
+    MomentData,
+    QueryType,
+    SceneData,
+    TimelineData,
 )
-
 
 # Judge Agent Tests
 

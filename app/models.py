@@ -26,15 +26,17 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
-    Boolean,
-    Integer,
     JSON,
+    Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
+    Integer,
     String,
     Text,
     func,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -215,13 +217,13 @@ class Timepoint(Base):
         ForeignKey("timepoints.id"),
         default=None,
     )
-    parent: Mapped["Timepoint | None"] = relationship(
+    parent: Mapped[Timepoint | None] = relationship(
         "Timepoint",
         remote_side=[id],
         back_populates="children",
         foreign_keys=[parent_id],
     )
-    children: Mapped[list["Timepoint"]] = relationship(
+    children: Mapped[list[Timepoint]] = relationship(
         "Timepoint",
         back_populates="parent",
         foreign_keys=[parent_id],
@@ -287,7 +289,7 @@ class Timepoint(Base):
         return f"<Timepoint(slug='{self.slug}', status={status_val})>"
 
     @classmethod
-    def create(cls, query: str, **kwargs: Any) -> "Timepoint":
+    def create(cls, query: str, **kwargs: Any) -> Timepoint:
         """Factory method to create a timepoint with slug.
 
         Args:
@@ -491,7 +493,7 @@ class ChatSessionModel(Base):
     )
 
     # Relationship to timepoint
-    timepoint: Mapped["Timepoint"] = relationship(
+    timepoint: Mapped[Timepoint] = relationship(
         "Timepoint",
         foreign_keys=[timepoint_id],
     )

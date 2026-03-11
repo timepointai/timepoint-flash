@@ -60,7 +60,7 @@ class CharacterIdentificationInput:
         scene: SceneData,
         detected_figures: list[str] | None = None,
         grounded_context: object | None = None,
-    ) -> "CharacterIdentificationInput":
+    ) -> CharacterIdentificationInput:
         """Create input from previous agent data.
 
         Args:

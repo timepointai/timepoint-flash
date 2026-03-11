@@ -12,8 +12,8 @@ Run with: pytest tests/test_e2e_agents.py -v
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from tests.utils.test_helpers import generate_unique_test_email, verify_timepoint_structure
-from tests.utils.retry import retry_on_api_error
+
+from tests.utils.test_helpers import generate_unique_test_email
 
 
 @pytest.mark.e2e
@@ -99,7 +99,6 @@ async def test_timeline_agent_extracts_correct_year(
     openrouter_api_key: str
 ):
     """Test that timeline agent extracts year correctly."""
-    import asyncio
     from tests.utils.test_helpers import wait_for_completion
 
     email = generate_unique_test_email("test-timeline")
@@ -148,7 +147,6 @@ async def test_character_agent_generates_appropriate_count(
     openrouter_api_key: str
 ):
     """Test that character agent generates 1-12 characters."""
-    import asyncio
     from tests.utils.test_helpers import wait_for_completion
 
     email = generate_unique_test_email("test-characters")
@@ -207,7 +205,6 @@ async def test_dialog_agent_uses_period_language(
     openrouter_api_key: str
 ):
     """Test that dialog agent generates period-appropriate language."""
-    import asyncio
     from tests.utils.test_helpers import wait_for_completion
 
     email = generate_unique_test_email("test-dialog")

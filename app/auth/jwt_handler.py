@@ -58,10 +58,10 @@ def decode_access_token(token: str) -> str:
         payload = jwt.decode(
             token, settings.JWT_SECRET_KEY, algorithms=["HS256"]
         )
-    except jwt.ExpiredSignatureError:
-        raise ValueError("Access token has expired")
+    except jwt.ExpiredSignatureError as e:
+        raise ValueError("Access token has expired") from e
     except jwt.InvalidTokenError as e:
-        raise ValueError(f"Invalid access token: {e}")
+        raise ValueError(f"Invalid access token: {e}") from e
 
     if payload.get("type") != "access":
         raise ValueError("Token is not an access token")

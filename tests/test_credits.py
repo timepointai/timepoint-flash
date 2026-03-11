@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.auth.credits import CREDIT_COSTS, check_balance, grant_credits, spend_credits
+from app.auth.credits import CREDIT_COSTS, grant_credits, spend_credits
 from app.models_auth import (
     CreditAccount,
     CreditTransaction,

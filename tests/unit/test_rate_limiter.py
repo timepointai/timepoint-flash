@@ -18,7 +18,6 @@ from app.core.rate_limiter import (
     reset_rate_limiters,
 )
 
-
 # Mark all tests as fast
 pytestmark = pytest.mark.fast
 
@@ -218,7 +217,7 @@ class TestTierRateLimits:
 
     def test_native_tier_has_highest_limits(self) -> None:
         """Native tier has the most generous limits."""
-        free = TIER_RATE_LIMITS["free"]
+        TIER_RATE_LIMITS["free"]
         paid = TIER_RATE_LIMITS["paid"]
         native = TIER_RATE_LIMITS["native"]
 

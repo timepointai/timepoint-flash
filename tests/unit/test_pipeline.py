@@ -9,13 +9,13 @@ Tests:
 
 import pytest
 
+from app.agents.grounding import GroundedContext, GroundingInput
 from app.core.pipeline import (
     GenerationPipeline,
     PipelineState,
     PipelineStep,
     StepResult,
 )
-from app.agents.grounding import GroundedContext, GroundingInput
 from app.schemas import (
     Character,
     CharacterData,
@@ -29,7 +29,6 @@ from app.schemas import (
     SceneData,
     TimelineData,
 )
-
 
 # PipelineState Tests
 

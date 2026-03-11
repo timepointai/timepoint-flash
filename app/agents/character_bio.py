@@ -50,7 +50,7 @@ class CharacterBioInput:
     setting: str = ""
     atmosphere: str = ""
     tension_level: str = "medium"
-    graph_data: "GraphData | None" = None  # Relationships for this character
+    graph_data: GraphData | None = None  # Relationships for this character
 
     @classmethod
     def from_identification(
@@ -64,8 +64,8 @@ class CharacterBioInput:
         setting: str,
         atmosphere: str,
         tension_level: str,
-        graph_data: "GraphData | None" = None,
-    ) -> "CharacterBioInput":
+        graph_data: GraphData | None = None,
+    ) -> CharacterBioInput:
         """Create input for a specific character bio.
 
         Args:
