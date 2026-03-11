@@ -271,6 +271,7 @@ class GenerationPipeline:
         text_model: str | None = None,
         image_model: str | None = None,
         max_parallelism: int | None = None,
+        model_policy: str | None = None,
     ) -> None:
         """Initialize pipeline.
 
@@ -280,12 +281,14 @@ class GenerationPipeline:
             text_model: Custom text model override (overrides preset)
             image_model: Custom image model override (overrides preset)
             max_parallelism: Maximum parallel LLM calls (default from settings)
+            model_policy: Model licensing policy (e.g. "permissive" for Google-free)
         """
 
         self._router = router
         self._preset = preset
         self._text_model = text_model
         self._image_model = image_model
+        self._model_policy = model_policy
         self._max_parallelism_override = max_parallelism
         self._max_parallelism: int | None = None  # Set during execution planning
         self._semaphore: asyncio.Semaphore | None = None
@@ -978,6 +981,19 @@ class GenerationPipeline:
                     step=step,
                     success=False,
                     error="Judge result required for grounding",
+                )
+            )
+            return state
+
+        # Skip grounding in permissive mode (Google-free)
+        if self._model_policy and self._model_policy.lower() == "permissive":
+            logger.info("Skipping grounding: model_policy=permissive (Google-free mode)")
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=True,
+                    data={"skipped": True, "reason": "model_policy=permissive"},
+                    latency_ms=0,
                 )
             )
             return state
