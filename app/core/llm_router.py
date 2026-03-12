@@ -81,12 +81,16 @@ def get_paid_fallback_model() -> str:
     return _PAID_FALLBACK_DEFAULT
 
 
-def get_image_fallback_model() -> str:
-    """Get the best image fallback model, consulting the registry first."""
+def get_image_fallback_model(permissive_only: bool = False) -> str:
+    """Get the best image fallback model, consulting the registry first.
+
+    Args:
+        permissive_only: If True, only return open-weight image models.
+    """
     try:
         from app.core.model_registry import OpenRouterModelRegistry
         registry = OpenRouterModelRegistry.get_instance()
-        best = registry.get_best_image_model()
+        best = registry.get_best_image_model(permissive_only=permissive_only)
         if best:
             return best
     except Exception:

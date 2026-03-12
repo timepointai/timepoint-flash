@@ -35,6 +35,14 @@ def derive_model_provider(model_id: str | None) -> str:
     return "google"
 
 
+def is_model_permissive(model_id: str | None) -> bool:
+    """Check if a model ID is open-weight / permissively licensed."""
+    if not model_id:
+        return False
+    lower = model_id.lower()
+    return any(lower.startswith(p) for p in PERMISSIVE_PREFIXES)
+
+
 def derive_model_permissiveness(model_id: str | None) -> str:
     """Derive distillation licensing permissiveness from a model ID.
 
@@ -44,7 +52,4 @@ def derive_model_permissiveness(model_id: str | None) -> str:
     """
     if not model_id:
         return "unknown"
-    lower = model_id.lower()
-    if any(lower.startswith(p) for p in PERMISSIVE_PREFIXES):
-        return "permissive"
-    return "restricted"
+    return "permissive" if is_model_permissive(model_id) else "restricted"
