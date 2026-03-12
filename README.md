@@ -206,6 +206,18 @@ curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
 
 ---
 
+## Model Control
+
+Downstream apps can control model selection and generation behavior per-request:
+
+- **`model_policy: "permissive"`** — Routes all generation through open-weight models (DeepSeek, Llama, Qwen, Mistral) via OpenRouter, uses Pollinations for images, and skips Google grounding. Fully Google-free.
+- **`text_model` / `image_model`** — Override preset models with any OpenRouter-compatible model ID (e.g. `qwen/qwen3-235b-a22b`) or Google native model.
+- **`llm_params`** — Fine-grained control over temperature, max_tokens, top_p, top_k, penalties, stop sequences, and system prompt injection. Applied to all 14 pipeline agents.
+
+All three are composable: `model_policy` + explicit models + `llm_params` work together with clear priority ordering. See [docs/API.md](docs/API.md) for the full parameter reference.
+
+---
+
 ## API
 
 | Endpoint | Description |
@@ -279,6 +291,7 @@ python3.10 -m pytest tests/ -v              # 522 fast + integration, 11 skipped
 - [iOS Integration](docs/IOS_INTEGRATION.md) — Auth flow, credit system, endpoint map for iOS client
 - [Agent Architecture](docs/AGENTS.md) — Pipeline breakdown with example output
 - [Temporal Navigation](docs/TEMPORAL.md) — Time travel mechanics
+- [Downstream Model Control](docs/DOWNSTREAM_MODEL_CONTROL.md) — Model policy, LLM params, and per-request control for downstream apps
 - [Eval Roadmap](docs/EVAL_ROADMAP.md) — Quality scoring and benchmark plans
 - [Deployment](docs/DEPLOY.md) — Local, Replit, and production deployment
 

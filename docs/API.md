@@ -62,6 +62,77 @@ Override preset models for custom configurations:
 }
 ```
 
+**Permissive Mode (Google-Free):**
+
+Use only open-weight, distillable models — zero Google API calls:
+```json
+{
+  "query": "The signing of the Magna Carta, 1215",
+  "generate_image": true,
+  "model_policy": "permissive"
+}
+```
+Text routes to DeepSeek/Llama/Qwen via OpenRouter, images route to Pollinations, and Google grounding is skipped. Response metadata reflects the actual models used:
+```json
+{
+  "text_model_used": "deepseek/deepseek-r1-0528",
+  "image_model_used": "pollinations",
+  "model_provider": "openrouter",
+  "model_permissiveness": "permissive"
+}
+```
+
+**Composing model_policy with explicit models:**
+
+`model_policy` and explicit model names are composable — explicit models take priority:
+```json
+{
+  "query": "Apollo 11 Moon Landing, 1969",
+  "model_policy": "permissive",
+  "text_model": "qwen/qwen3-235b-a22b",
+  "generate_image": true
+}
+```
+This uses the specified Qwen model for text, Pollinations for images (from permissive policy), and skips Google grounding.
+
+---
+
+## LLM Parameters
+
+The `llm_params` object gives downstream callers fine-grained control over generation hyperparameters. All fields are optional — unset fields use agent/preset defaults. These parameters are applied to every agent in the 14-step pipeline.
+
+```json
+{
+  "query": "Turing breaks Enigma, 1941",
+  "text_model": "deepseek/deepseek-r1-0528",
+  "llm_params": {
+    "temperature": 0.5,
+    "max_tokens": 4096,
+    "top_p": 0.9,
+    "system_prompt_suffix": "Keep all descriptions under 200 words. Use British English."
+  }
+}
+```
+
+| Parameter | Type | Range | Providers | Description |
+|-----------|------|-------|-----------|-------------|
+| `temperature` | float | 0.0–2.0 | All | Sampling temperature. Overrides per-agent defaults (which range from 0.2 for factual agents to 0.85 for creative agents). |
+| `max_tokens` | int | 1–32768 | All | Maximum output tokens per agent call. Preset defaults: hyper=1024, balanced=2048, hd=8192. |
+| `top_p` | float | 0.0–1.0 | All | Nucleus sampling — only consider tokens whose cumulative probability is <= top_p. |
+| `top_k` | int | >= 1 | All | Top-k sampling — only consider the k most likely tokens at each step. |
+| `frequency_penalty` | float | -2.0–2.0 | OpenRouter | Penalize tokens proportionally to how often they've appeared in the output. |
+| `presence_penalty` | float | -2.0–2.0 | OpenRouter | Penalize tokens that have appeared at all in the output so far. |
+| `repetition_penalty` | float | 0.0–2.0 | OpenRouter | Multiplicative penalty for repeated tokens. |
+| `stop` | string[] | max 4 | All | Stop sequences — generation halts when any of these strings is produced. |
+| `thinking_level` | string | — | Google | Reasoning depth for thinking models: `"none"`, `"low"`, `"medium"`, `"high"`. |
+| `system_prompt_prefix` | string | max 2000 | All | Text prepended to every agent's system prompt. Use for tone, persona, or style injection. |
+| `system_prompt_suffix` | string | max 2000 | All | Text appended to every agent's system prompt. Use for constraints, formatting rules, or output instructions. |
+
+**Notes:**
+- Parameters marked "OpenRouter" are silently ignored when the request routes to Google (and vice versa for `thinking_level`).
+- `system_prompt_prefix` and `system_prompt_suffix` affect all 14 pipeline agents. Use these to inject cross-cutting concerns (e.g., language, tone, verbosity constraints).
+- Request-level `llm_params` override per-agent defaults. For example, if `llm_params.temperature` is set, it overrides the judge agent's default of 0.3, the scene agent's default of 0.7, etc.
+
 ---
 
 ## Endpoints Overview
@@ -120,11 +191,19 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 | query | string | Yes | Historical moment (3-500 chars) |
 | generate_image | boolean | No | Generate AI image (default: false) |
 | preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default), `gemini3` |
-| text_model | string | No | Override text model (ignores preset) |
-| image_model | string | No | Override image model (ignores preset) |
+| text_model | string | No | Text model ID — OpenRouter format (`org/model`) or Google native (`gemini-*`). Overrides preset. |
+| image_model | string | No | Image model ID — `pollinations` for free open-source, or Google native. Overrides preset. |
+| model_policy | string | No | `"permissive"` — selects only open-weight models (Llama, DeepSeek, Qwen) and skips Google-dependent steps. Fully Google-free. Works alongside explicit model overrides. |
+| llm_params | object | No | Fine-grained LLM parameters applied to all pipeline agents. See **LLM Parameters** below. |
 | visibility | string | No | `public` (default) or `private` — controls who can see full data |
 | callback_url | string | No | URL to POST results to when generation completes (async endpoint only) |
 | request_context | object | No | Opaque context passed through to response (e.g. `{"source": "clockchain", "job_id": "..."}`) |
+
+**Model selection priority** (highest first):
+1. Explicit `text_model` / `image_model` — use exactly these models
+2. `model_policy: "permissive"` — auto-select open-weight models, skip Google grounding
+3. `preset` — use preset's default models
+4. Server defaults
 
 **Response:** SSE stream with events:
 
@@ -1036,4 +1115,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-03-11*
