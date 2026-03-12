@@ -258,20 +258,47 @@ def resolve_model_policy(
       2. model_policy="permissive"  → auto-select open-weight models
       3. None → let preset / settings defaults handle it
 
+    When model_policy="permissive", explicit models are validated against
+    the PERMISSIVE_PREFIXES allowlist. Proprietary models (OpenAI, Anthropic,
+    Google Gemini) are rejected with 422.
+
     Returns:
         (text_model, image_model) to pass to the pipeline.
+
+    Raises:
+        HTTPException: 422 if explicit models violate permissive policy.
     """
+    from app.core.model_policy import is_model_permissive
+
     text_model = request.text_model
     image_model = request.image_model
 
     if request.model_policy and request.model_policy.lower() == "permissive":
+        # Validate explicit models against permissive allowlist
+        if text_model and not is_model_permissive(text_model):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"model_policy='permissive' requires open-weight models. "
+                    f"'{text_model}' is proprietary. Use models from: "
+                    f"meta-llama/, deepseek/, qwen/, mistralai/, microsoft/, google/gemma, allenai/, nvidia/"
+                ),
+            )
+        if image_model and not is_model_permissive(image_model):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"model_policy='permissive' requires open-weight models. "
+                    f"'{image_model}' is proprietary."
+                ),
+            )
+
         if not text_model:
             text_model = _get_permissive_text_model()
             logger.info("model_policy=permissive → text_model=%s", text_model)
         if not image_model:
-            # Use the best available OpenRouter image model (no Pollinations)
             from app.core.llm_router import get_image_fallback_model
-            image_model = get_image_fallback_model()
+            image_model = get_image_fallback_model(permissive_only=True)
             logger.info("model_policy=permissive → image_model=%s", image_model)
 
     return text_model, image_model
