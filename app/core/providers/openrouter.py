@@ -248,10 +248,12 @@ class OpenRouterProvider(LLMProvider):
             "messages": messages,
         }
 
-        if "temperature" in kwargs:
-            payload["temperature"] = kwargs["temperature"]
-        if "max_tokens" in kwargs:
-            payload["max_tokens"] = kwargs["max_tokens"]
+        # Standard OpenRouter parameters
+        for param in ("temperature", "max_tokens", "top_p", "top_k",
+                      "frequency_penalty", "presence_penalty",
+                      "repetition_penalty", "stop"):
+            if param in kwargs:
+                payload[param] = kwargs[param]
 
         # Add response format for structured output
         if response_model is not None:

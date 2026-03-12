@@ -1,0 +1,54 @@
+"""Model policy helpers — permissiveness classification and default selection.
+
+Used by both the API layer (timepoints.py) and the pipeline (pipeline.py)
+to keep provenance logic in one place.
+"""
+
+# Prefixes for open-weight / distillable model families on OpenRouter
+PERMISSIVE_PREFIXES = (
+    "meta-llama/",
+    "deepseek/",
+    "qwen/",
+    "mistralai/",       # Mistral open-weight models (Apache 2.0)
+    "microsoft/",       # Phi family
+    "google/gemma",     # Gemma open-weight
+    "allenai/",
+    "nvidia/",
+)
+
+# Google-native model prefixes (always restricted)
+GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
+
+# Prefixes routed through OpenRouter (may be restricted or permissive)
+OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/")
+
+
+def derive_model_provider(model_id: str | None) -> str:
+    """Derive the routing provider from a model ID string."""
+    if not model_id:
+        return "unknown"
+    lower = model_id.lower()
+    if any(lower.startswith(p) for p in GOOGLE_MODEL_PREFIXES):
+        return "google"
+    if any(lower.startswith(p) for p in OPENROUTER_PREFIXES):
+        return "openrouter"
+    if "pollinations" in lower:
+        return "pollinations"
+    return "google"
+
+
+def derive_model_permissiveness(model_id: str | None) -> str:
+    """Derive distillation licensing permissiveness from a model ID.
+
+    Open-weight models (Llama, DeepSeek, Qwen, Mistral, Phi, Gemma) are
+    'permissive' — safe for distillation and derivative works.
+    Frontier models (Google Gemini, Anthropic, OpenAI) are 'restricted'.
+    """
+    if not model_id:
+        return "unknown"
+    lower = model_id.lower()
+    if any(lower.startswith(p) for p in PERMISSIVE_PREFIXES):
+        return "permissive"
+    if "pollinations" in lower:
+        return "permissive"  # Pollinations uses open models
+    return "restricted"
