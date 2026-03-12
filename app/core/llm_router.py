@@ -195,6 +195,7 @@ class LLMRouter:
         preset: QualityPreset | None = None,
         text_model: str | None = None,
         image_model: str | None = None,
+        model_policy: str | None = None,
     ) -> None:
         """Initialize LLM router.
 
@@ -203,12 +204,14 @@ class LLMRouter:
             preset: Quality preset (HD, HYPER, BALANCED). Overrides config models.
             text_model: Custom text model override (overrides preset).
             image_model: Custom image model override (overrides preset).
+            model_policy: Model policy (e.g. "permissive" blocks Google fallback).
         """
         settings = get_settings()
         self.preset = preset
         self._preset_config = PRESET_CONFIGS.get(preset) if preset else None
         self._custom_text_model = text_model
         self._custom_image_model = image_model
+        self._model_policy = model_policy
 
         # Build config from settings if not provided
         if config is None:
@@ -624,7 +627,15 @@ class LLMRouter:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
-            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+            # (blocked in permissive mode — must stay Google-free)
+            is_permissive = bool(
+                self._model_policy and self._model_policy.lower() == "permissive"
+            )
+            if (
+                ProviderType.GOOGLE in self.providers
+                and self.config.primary != ProviderType.GOOGLE
+                and not is_permissive
+            ):
                 logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
@@ -635,6 +646,8 @@ class LLMRouter:
                     )
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
+            elif is_permissive:
+                logger.info("Skipping Google fallback: model_policy=permissive")
 
             # All fallbacks exhausted
             raise ProviderError(
@@ -749,7 +762,15 @@ class LLMRouter:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
-            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+            # (blocked in permissive mode — must stay Google-free)
+            is_permissive = bool(
+                self._model_policy and self._model_policy.lower() == "permissive"
+            )
+            if (
+                ProviderType.GOOGLE in self.providers
+                and self.config.primary != ProviderType.GOOGLE
+                and not is_permissive
+            ):
                 logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
@@ -761,6 +782,8 @@ class LLMRouter:
                     )
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
+            elif is_permissive:
+                logger.info("Skipping Google fallback: model_policy=permissive")
 
             # All fallbacks exhausted
             raise ProviderError(
