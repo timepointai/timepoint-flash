@@ -32,9 +32,15 @@ def derive_model_provider(model_id: str | None) -> str:
         return "google"
     if any(lower.startswith(p) for p in OPENROUTER_PREFIXES):
         return "openrouter"
-    if "pollinations" in lower:
-        return "pollinations"
     return "google"
+
+
+def is_model_permissive(model_id: str | None) -> bool:
+    """Check if a model ID is open-weight / permissively licensed."""
+    if not model_id:
+        return False
+    lower = model_id.lower()
+    return any(lower.startswith(p) for p in PERMISSIVE_PREFIXES)
 
 
 def derive_model_permissiveness(model_id: str | None) -> str:
@@ -46,9 +52,4 @@ def derive_model_permissiveness(model_id: str | None) -> str:
     """
     if not model_id:
         return "unknown"
-    lower = model_id.lower()
-    if any(lower.startswith(p) for p in PERMISSIVE_PREFIXES):
-        return "permissive"
-    if "pollinations" in lower:
-        return "permissive"  # Pollinations uses open models
-    return "restricted"
+    return "permissive" if is_model_permissive(model_id) else "restricted"

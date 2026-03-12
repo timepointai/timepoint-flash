@@ -173,8 +173,12 @@ class GenerateRequest(BaseModel):
     )
     image_model: str | None = Field(
         default=None,
-        description="Custom image model override (e.g., 'google/imagen-3'). Overrides preset.",
-        examples=["google/imagen-3", "black-forest-labs/flux-1.1-pro"],
+        description=(
+            "Image model ID. OpenRouter format ('org/model') or Google native "
+            "(gemini-2.5-flash-image, gemini-3-pro-image-preview)."
+        ),
+        examples=["gemini-2.5-flash-image", "gemini-3-pro-image-preview",
+                   "google/gemini-2.5-flash-image-preview"],
     )
     write_blob: bool = Field(
         default=False,
@@ -210,12 +214,10 @@ class GenerateRequest(BaseModel):
     )
 
 
-# Default permissive models — used when model_policy="permissive" and no
-# explicit text_model/image_model is provided.  These must be open-weight
-# models available on OpenRouter (or Pollinations for images).
+# Default permissive text model — used when model_policy="permissive" and no
+# explicit text_model is provided.  Must be an open-weight model on OpenRouter.
+# Image model is resolved at runtime via get_image_fallback_model().
 _DEFAULT_PERMISSIVE_TEXT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-_DEFAULT_PERMISSIVE_IMAGE_MODEL = "pollinations"  # Free, open, always available
-
 
 def _get_permissive_text_model() -> str:
     """Pick the best available permissive text model from the registry."""
@@ -226,15 +228,17 @@ def _get_permissive_text_model() -> str:
         if registry.model_count == 0:
             return _DEFAULT_PERMISSIVE_TEXT_MODEL
 
-        # Walk preference list; return first that's in the live registry
+        # Walk preference list; return first that's in the live registry.
+        # Prioritize fast non-thinking models — DeepSeek R1 is a thinking
+        # model that takes 30-60s per call and causes pipeline timeouts.
         preference = [
             "meta-llama/llama-4-scout-17b-16e-instruct",
             "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "deepseek/deepseek-r1-0528",
-            "deepseek/deepseek-chat-v3-0324",
-            "qwen/qwen3-235b-a22b",
-            "qwen/qwen3-30b-a3b",
+            "deepseek/deepseek-chat-v3-0324",       # Fast chat model
+            "qwen/qwen3-30b-a3b",                   # Fast MoE model
             "mistralai/mistral-small-3.2-24b-instruct",
+            "qwen/qwen3-235b-a22b",                 # Large but non-thinking
+            "deepseek/deepseek-r1-0528",             # Thinking model — slow, last resort
         ]
         for model_id in preference:
             if registry.is_model_available(model_id):
@@ -254,18 +258,47 @@ def resolve_model_policy(
       2. model_policy="permissive"  → auto-select open-weight models
       3. None → let preset / settings defaults handle it
 
+    When model_policy="permissive", explicit models are validated against
+    the PERMISSIVE_PREFIXES allowlist. Proprietary models (OpenAI, Anthropic,
+    Google Gemini) are rejected with 422.
+
     Returns:
         (text_model, image_model) to pass to the pipeline.
+
+    Raises:
+        HTTPException: 422 if explicit models violate permissive policy.
     """
+    from app.core.model_policy import is_model_permissive
+
     text_model = request.text_model
     image_model = request.image_model
 
     if request.model_policy and request.model_policy.lower() == "permissive":
+        # Validate explicit models against permissive allowlist
+        if text_model and not is_model_permissive(text_model):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"model_policy='permissive' requires open-weight models. "
+                    f"'{text_model}' is proprietary. Use models from: "
+                    f"meta-llama/, deepseek/, qwen/, mistralai/, microsoft/, google/gemma, allenai/, nvidia/"
+                ),
+            )
+        if image_model and not is_model_permissive(image_model):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"model_policy='permissive' requires open-weight models. "
+                    f"'{image_model}' is proprietary."
+                ),
+            )
+
         if not text_model:
             text_model = _get_permissive_text_model()
             logger.info("model_policy=permissive → text_model=%s", text_model)
         if not image_model:
-            image_model = _DEFAULT_PERMISSIVE_IMAGE_MODEL
+            from app.core.llm_router import get_image_fallback_model
+            image_model = get_image_fallback_model(permissive_only=True)
             logger.info("model_policy=permissive → image_model=%s", image_model)
 
     return text_model, image_model
