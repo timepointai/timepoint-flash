@@ -221,6 +221,12 @@ class GoogleProvider(LLMProvider):
                 config_params["temperature"] = kwargs["temperature"]
             if "max_tokens" in kwargs:
                 config_params["max_output_tokens"] = kwargs["max_tokens"]
+            if "top_p" in kwargs:
+                config_params["top_p"] = kwargs["top_p"]
+            if "top_k" in kwargs:
+                config_params["top_k"] = kwargs["top_k"]
+            if "stop" in kwargs:
+                config_params["stop_sequences"] = kwargs["stop"]
             if "thinking_level" in kwargs:
                 config_params["thinking_config"] = types.ThinkingConfig(
                     thinking_budget=kwargs["thinking_level"]

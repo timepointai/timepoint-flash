@@ -68,15 +68,86 @@ router = APIRouter(prefix="/timepoints", tags=["timepoints"])
 # Request/Response Models
 
 
+class LLMParams(BaseModel):
+    """LLM generation parameters for fine-grained control.
+
+    All fields are optional — unset fields use agent/preset defaults.
+    These parameters flow through to the underlying provider (OpenRouter or Google).
+    """
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature. Lower = more deterministic, higher = more creative. Agent defaults range 0.2-0.85.",
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        le=32768,
+        description="Maximum output tokens per agent call. Preset defaults: hyper=1024, balanced=2048, hd=8192.",
+    )
+    top_p: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling: only consider tokens with cumulative probability <= top_p.",
+    )
+    top_k: int | None = Field(
+        default=None,
+        ge=1,
+        description="Top-k sampling: only consider the k most likely tokens.",
+    )
+    frequency_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        description="Penalize tokens by their frequency in the output so far. OpenRouter only.",
+    )
+    presence_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        description="Penalize tokens that have appeared at all in the output. OpenRouter only.",
+    )
+    repetition_penalty: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Multiplicative penalty for repeated tokens. OpenRouter only.",
+    )
+    stop: list[str] | None = Field(
+        default=None,
+        max_length=4,
+        description="Stop sequences — generation stops when any of these strings is produced.",
+    )
+    thinking_level: str | None = Field(
+        default=None,
+        description="Reasoning depth for thinking models: 'none', 'low', 'medium', 'high'. Google Gemini only.",
+        examples=["medium", "high"],
+    )
+    system_prompt_prefix: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Text prepended to every agent's system prompt. Use for tone/style injection.",
+    )
+    system_prompt_suffix: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Text appended to every agent's system prompt. Use for constraints/instructions.",
+    )
+
+
 class GenerateRequest(BaseModel):
     """Request to generate a timepoint.
 
-    Attributes:
-        query: The temporal query to generate
-        generate_image: Whether to generate the image
-        preset: Quality preset (hd, hyper, balanced)
-        text_model: Custom text model override (ignores preset)
-        image_model: Custom image model override (ignores preset)
+    Model selection priority (highest first):
+      1. Explicit text_model/image_model — use exactly these models
+      2. model_policy="permissive" — auto-select open-weight models
+      3. preset (hd/hyper/balanced) — use preset's default models
+      4. Settings defaults — server-configured defaults
+
+    llm_params override generation hyperparameters across all pipeline agents.
     """
 
     query: str = Field(
@@ -125,6 +196,13 @@ class GenerateRequest(BaseModel):
             "but not explicit text_model/image_model."
         ),
         examples=["permissive"],
+    )
+    llm_params: LLMParams | None = Field(
+        default=None,
+        description=(
+            "Fine-grained LLM parameters applied to all pipeline agents. "
+            "Overrides preset and agent defaults. Unset fields keep defaults."
+        ),
     )
     request_context: dict[str, Any] | None = Field(
         default=None,
@@ -486,6 +564,7 @@ async def stream_generation(
     text_model: str | None = None,
     image_model: str | None = None,
     model_policy: str | None = None,
+    llm_params: dict[str, Any] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -529,6 +608,7 @@ async def stream_generation(
         text_model=text_model,
         image_model=image_model,
         model_policy=model_policy,
+        llm_params=llm_params,
     )
     state = None
     start_time = time.perf_counter()
@@ -648,6 +728,7 @@ async def run_generation_task(
     callback_url: str | None = None,
     request_context: dict[str, Any] | None = None,
     model_policy: str | None = None,
+    llm_params: dict[str, Any] | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -683,6 +764,7 @@ async def run_generation_task(
             text_model=text_model,
             image_model=image_model,
             model_policy=model_policy,
+            llm_params=llm_params,
         )
         state = await pipeline.run(query, generate_image)
 
@@ -833,6 +915,7 @@ async def generate_timepoint(
         callback_url=request.callback_url,
         request_context=request.request_context,
         model_policy=request.model_policy,
+        llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
     )
 
     return GenerateResponse(
@@ -895,6 +978,7 @@ async def generate_timepoint_sync(
             text_model=text_model,
             image_model=image_model,
             model_policy=request.model_policy,
+            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         )
         state = await pipeline.run(request.query, request.generate_image)
 
@@ -1279,6 +1363,7 @@ async def generate_timepoint_stream(
             text_model=text_model,
             image_model=image_model,
             model_policy=request.model_policy,
+            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         ),
         media_type="text/event-stream",
         headers={
