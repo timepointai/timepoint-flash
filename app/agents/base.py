@@ -108,15 +108,18 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         self,
         router: LLMRouter | None = None,
         name: str | None = None,
+        llm_params: dict[str, Any] | None = None,
     ) -> None:
         """Initialize agent.
 
         Args:
             router: LLM router (creates one if not provided)
             name: Agent name for logging (defaults to class name)
+            llm_params: Request-level LLM params that override agent defaults
         """
         self.router = router or LLMRouter()
         self.name = name or self.__class__.__name__
+        self._llm_params: dict[str, Any] = llm_params or {}
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -161,6 +164,10 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         Uses the router to call the LLM with structured output
         and handles errors gracefully.
 
+        Merging priority (highest first):
+          1. self._llm_params (request-level overrides from caller)
+          2. kwargs (agent-level defaults like temperature=0.3)
+
         Args:
             input_data: Input data for prompt generation
             **kwargs: Additional parameters for the LLM call
@@ -178,6 +185,16 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
             prompt = self.get_prompt(input_data)
             system = self.get_system_prompt()
 
+            # Apply request-level llm_params (overrides agent defaults)
+            merged = {**kwargs}  # Start with agent defaults
+            for k, v in self._llm_params.items():
+                if k == "system_prompt_prefix" and v:
+                    system = v + "\n\n" + system
+                elif k == "system_prompt_suffix" and v:
+                    system = system + "\n\n" + v
+                elif k not in ("system_prompt_prefix", "system_prompt_suffix") and v is not None:
+                    merged[k] = v  # Request params override agent defaults
+
             logger.debug(f"{self.name}: calling LLM")
 
             response = await self.router.call_structured(
@@ -185,7 +202,7 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
                 response_model=self.response_model,
                 capability=self.capability,
                 system=system,
-                **kwargs,
+                **merged,
             )
 
             latency = int((time.perf_counter() - start_time) * 1000)
