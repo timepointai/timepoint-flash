@@ -391,7 +391,8 @@ class OpenRouterProvider(LLMProvider):
                     "content": f"Generate an image: {prompt}",
                 }
             ],
-            "modalities": ["image", "text"],  # Request image output
+            # Image-only models (FLUX) need ["image"]; multimodal models need both
+            "modalities": ["image"] if "flux" in model.lower() else ["image", "text"],
         }
 
         try:

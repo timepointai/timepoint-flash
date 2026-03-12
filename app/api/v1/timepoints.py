@@ -1063,6 +1063,8 @@ async def generate_timepoint_sync(
         resp.request_context = request.request_context
         return resp
 
+    except HTTPException:
+        raise  # Let validation errors (e.g. 422 from model policy) pass through
     except Exception as e:
         logger.error(f"Sync generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

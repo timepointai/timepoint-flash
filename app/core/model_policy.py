@@ -9,18 +9,19 @@ PERMISSIVE_PREFIXES = (
     "meta-llama/",
     "deepseek/",
     "qwen/",
-    "mistralai/",       # Mistral open-weight models (Apache 2.0)
-    "microsoft/",       # Phi family
-    "google/gemma",     # Gemma open-weight
+    "mistralai/",           # Mistral open-weight models (Apache 2.0)
+    "microsoft/",           # Phi family
+    "google/gemma",         # Gemma open-weight
     "allenai/",
     "nvidia/",
+    "black-forest-labs/",   # FLUX open-weight image models
 )
 
 # Google-native model prefixes (always restricted)
 GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
 
 # Prefixes routed through OpenRouter (may be restricted or permissive)
-OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/")
+OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/", "black-forest-labs/")
 
 
 def derive_model_provider(model_id: str | None) -> str:

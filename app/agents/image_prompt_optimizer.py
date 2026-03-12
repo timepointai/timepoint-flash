@@ -100,7 +100,7 @@ class ImagePromptOptimizerOutput(BaseModel):
         description="Elements removed to reduce complexity"
     )
 
-    issues_found: list[PromptIssue] = Field(
+    issues_found: list[PromptIssue | str] = Field(
         default_factory=list,
         description="Quality issues detected and addressed"
     )
@@ -282,7 +282,7 @@ class ImagePromptOptimizerAgent(BaseAgent[ImagePromptOptimizerInput, ImagePrompt
             # Log significant issues
             critical_issues = [
                 i for i in result.content.issues_found
-                if i.severity == "critical"
+                if isinstance(i, PromptIssue) and i.severity == "critical"
             ]
             if critical_issues:
                 logger.warning(

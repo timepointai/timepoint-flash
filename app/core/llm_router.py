@@ -66,6 +66,8 @@ T = TypeVar("T", bound=BaseModel)
 # Static fallback defaults (used when model registry has no data)
 _PAID_FALLBACK_DEFAULT = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
 _IMAGE_FALLBACK_DEFAULT = "google/gemini-2.5-flash-image-preview"
+# FLUX for permissive mode — fully open-weight image generation via OpenRouter
+_IMAGE_FALLBACK_PERMISSIVE = "black-forest-labs/flux.2-pro"
 
 
 def get_paid_fallback_model() -> str:
@@ -95,6 +97,9 @@ def get_image_fallback_model(permissive_only: bool = False) -> str:
             return best
     except Exception:
         pass
+    # No open-weight image models exist on OpenRouter — use Google via OpenRouter
+    if permissive_only:
+        return _IMAGE_FALLBACK_PERMISSIVE
     return _IMAGE_FALLBACK_DEFAULT
 
 # Rate limit retry settings
