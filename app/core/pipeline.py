@@ -271,6 +271,8 @@ class GenerationPipeline:
         text_model: str | None = None,
         image_model: str | None = None,
         max_parallelism: int | None = None,
+        model_policy: str | None = None,
+        llm_params: dict[str, Any] | None = None,
     ) -> None:
         """Initialize pipeline.
 
@@ -280,12 +282,16 @@ class GenerationPipeline:
             text_model: Custom text model override (overrides preset)
             image_model: Custom image model override (overrides preset)
             max_parallelism: Maximum parallel LLM calls (default from settings)
+            model_policy: Model licensing policy (e.g. "permissive" for Google-free)
+            llm_params: LLM hyperparameters that override agent/preset defaults
         """
 
         self._router = router
         self._preset = preset
         self._text_model = text_model
         self._image_model = image_model
+        self._model_policy = model_policy
+        self._llm_params: dict[str, Any] = llm_params or {}
         self._max_parallelism_override = max_parallelism
         self._max_parallelism: int | None = None  # Set during execution planning
         self._semaphore: asyncio.Semaphore | None = None
@@ -322,7 +328,7 @@ class GenerationPipeline:
         return self._router
 
     def _init_agents(self) -> None:
-        """Initialize all agents with the router."""
+        """Initialize all agents with the router and optional llm_params."""
         if self._agents_initialized:
             return
 
@@ -342,6 +348,18 @@ class GenerationPipeline:
         self._image_prompt_optimizer_agent = ImagePromptOptimizerAgent(router=router)
         self._image_gen_agent = ImageGenAgent(router=router)
         self._critique_agent = CritiqueAgent(router=router)
+
+        # Inject request-level llm_params into all agents
+        if self._llm_params:
+            for agent in [
+                self._judge_agent, self._timeline_agent, self._scene_agent,
+                self._characters_agent, self._char_id_agent, self._char_bio_agent,
+                self._moment_agent, self._dialog_agent, self._camera_agent,
+                self._graph_agent, self._image_prompt_agent,
+                self._image_prompt_optimizer_agent, self._critique_agent,
+            ]:
+                agent._llm_params = self._llm_params  # noqa: SLF001
+
         self._agents_initialized = True
 
     def _plan_execution(self) -> None:
@@ -978,6 +996,19 @@ class GenerationPipeline:
                     step=step,
                     success=False,
                     error="Judge result required for grounding",
+                )
+            )
+            return state
+
+        # Skip grounding in permissive mode (Google-free)
+        if self._model_policy and self._model_policy.lower() == "permissive":
+            logger.info("Skipping grounding: model_policy=permissive (Google-free mode)")
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=True,
+                    data={"skipped": True, "reason": "model_policy=permissive"},
+                    latency_ms=0,
                 )
             )
             return state
@@ -1755,8 +1786,9 @@ class GenerationPipeline:
             payload["image_model_used"] = image_model
 
         # Model provenance (Clockchain schema v0.2)
+        from app.core.model_policy import derive_model_permissiveness
         payload["model_provider"] = self.router.config.primary.value if self.router.config else "unknown"
-        payload["model_permissiveness"] = "restricted"  # Flash uses frontier models
+        payload["model_permissiveness"] = derive_model_permissiveness(text_model)
 
         # Store image generation warning in payload if applicable
         if state.image_generation_failed:

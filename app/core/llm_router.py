@@ -972,6 +972,13 @@ class LLMRouter:
         Raises:
             ProviderError: If image generation fails after all retries and fallbacks.
         """
+        # Direct Pollinations path — when caller explicitly requests it
+        # (e.g. model_policy="permissive" sets image_model="pollinations")
+        image_model_id = self._get_model_for_capability(ModelCapability.IMAGE, self.config.primary)
+        if image_model_id and "pollinations" in image_model_id.lower():
+            logger.info("Image model is Pollinations — using direct Pollinations path")
+            return await self._generate_image_pollinations(prompt)
+
         # Determine provider for image generation
         # Prefer preset's image_provider, then Google native, then fallback
         if self._preset_config and "image_provider" in self._preset_config:

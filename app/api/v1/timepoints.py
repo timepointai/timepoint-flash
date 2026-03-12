@@ -43,6 +43,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.credits import CREDIT_COSTS, spend_credits
 from app.auth.dependencies import get_current_user, require_credits
 from app.config import QualityPreset, get_settings
+from app.core.model_policy import (
+    derive_model_permissiveness as _derive_model_permissiveness,
+)
+from app.core.model_policy import (
+    derive_model_provider as _derive_model_provider,
+)
 from app.core.pipeline import GenerationPipeline, PipelineStep
 from app.database import get_db_session
 from app.models import GenerationLog, Timepoint, TimepointStatus, TimepointVisibility
@@ -58,53 +64,90 @@ router = APIRouter(prefix="/timepoints", tags=["timepoints"])
 # Model provenance helpers (Clockchain schema v0.2)
 # ---------------------------------------------------------------------------
 
-_GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
-_OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/")
-
-
-def _derive_model_provider(model_id: str | None) -> str:
-    """Derive the routing provider from a model ID string."""
-    if not model_id:
-        return "unknown"
-    lower = model_id.lower()
-    if any(lower.startswith(p) for p in _GOOGLE_MODEL_PREFIXES):
-        return "google"
-    if any(lower.startswith(p) for p in _OPENROUTER_PREFIXES):
-        return "openrouter"
-    if "pollinations" in lower:
-        return "pollinations"
-    # Flash defaults to Google for all generation
-    return "google"
-
-
-def _derive_model_permissiveness(model_id: str | None) -> str:
-    """Derive distillation licensing permissiveness from a model ID.
-
-    Flash uses frontier models (Google Gemini) for quality — these are
-    'restricted' for distillation.  Open-weight models routed through
-    OpenRouter (e.g. Llama) are 'permissive'.
-    """
-    if not model_id:
-        return "unknown"
-    lower = model_id.lower()
-    if any(lower.startswith(p) for p in ("meta-llama/",)):
-        return "permissive"
-    # Google Gemini, Imagen, Anthropic, OpenAI, Mistral — all restricted
-    return "restricted"
-
 
 # Request/Response Models
+
+
+class LLMParams(BaseModel):
+    """LLM generation parameters for fine-grained control.
+
+    All fields are optional — unset fields use agent/preset defaults.
+    These parameters flow through to the underlying provider (OpenRouter or Google).
+    """
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature. Lower = more deterministic, higher = more creative. Agent defaults range 0.2-0.85.",
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        le=32768,
+        description="Maximum output tokens per agent call. Preset defaults: hyper=1024, balanced=2048, hd=8192.",
+    )
+    top_p: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling: only consider tokens with cumulative probability <= top_p.",
+    )
+    top_k: int | None = Field(
+        default=None,
+        ge=1,
+        description="Top-k sampling: only consider the k most likely tokens.",
+    )
+    frequency_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        description="Penalize tokens by their frequency in the output so far. OpenRouter only.",
+    )
+    presence_penalty: float | None = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+        description="Penalize tokens that have appeared at all in the output. OpenRouter only.",
+    )
+    repetition_penalty: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Multiplicative penalty for repeated tokens. OpenRouter only.",
+    )
+    stop: list[str] | None = Field(
+        default=None,
+        max_length=4,
+        description="Stop sequences — generation stops when any of these strings is produced.",
+    )
+    thinking_level: str | None = Field(
+        default=None,
+        description="Reasoning depth for thinking models: 'none', 'low', 'medium', 'high'. Google Gemini only.",
+        examples=["medium", "high"],
+    )
+    system_prompt_prefix: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Text prepended to every agent's system prompt. Use for tone/style injection.",
+    )
+    system_prompt_suffix: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Text appended to every agent's system prompt. Use for constraints/instructions.",
+    )
 
 
 class GenerateRequest(BaseModel):
     """Request to generate a timepoint.
 
-    Attributes:
-        query: The temporal query to generate
-        generate_image: Whether to generate the image
-        preset: Quality preset (hd, hyper, balanced)
-        text_model: Custom text model override (ignores preset)
-        image_model: Custom image model override (ignores preset)
+    Model selection priority (highest first):
+      1. Explicit text_model/image_model — use exactly these models
+      2. model_policy="permissive" — auto-select open-weight models
+      3. preset (hd/hyper/balanced) — use preset's default models
+      4. Settings defaults — server-configured defaults
+
+    llm_params override generation hyperparameters across all pipeline agents.
     """
 
     query: str = Field(
@@ -145,10 +188,87 @@ class GenerateRequest(BaseModel):
         default=None,
         description="URL to POST results to when generation completes (async only)",
     )
+    model_policy: str | None = Field(
+        default=None,
+        description=(
+            "Model licensing policy: 'permissive' selects only open-weight, "
+            "distillable models (e.g. Llama, DeepSeek, Qwen). Overrides preset "
+            "but not explicit text_model/image_model."
+        ),
+        examples=["permissive"],
+    )
+    llm_params: LLMParams | None = Field(
+        default=None,
+        description=(
+            "Fine-grained LLM parameters applied to all pipeline agents. "
+            "Overrides preset and agent defaults. Unset fields keep defaults."
+        ),
+    )
     request_context: dict[str, Any] | None = Field(
         default=None,
         description="Opaque context passed through to response (e.g. source, job_id, user_id)",
     )
+
+
+# Default permissive models — used when model_policy="permissive" and no
+# explicit text_model/image_model is provided.  These must be open-weight
+# models available on OpenRouter (or Pollinations for images).
+_DEFAULT_PERMISSIVE_TEXT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+_DEFAULT_PERMISSIVE_IMAGE_MODEL = "pollinations"  # Free, open, always available
+
+
+def _get_permissive_text_model() -> str:
+    """Pick the best available permissive text model from the registry."""
+    try:
+        from app.core.model_registry import OpenRouterModelRegistry
+
+        registry = OpenRouterModelRegistry.get_instance()
+        if registry.model_count == 0:
+            return _DEFAULT_PERMISSIVE_TEXT_MODEL
+
+        # Walk preference list; return first that's in the live registry
+        preference = [
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "meta-llama/llama-4-maverick-17b-128e-instruct",
+            "deepseek/deepseek-r1-0528",
+            "deepseek/deepseek-chat-v3-0324",
+            "qwen/qwen3-235b-a22b",
+            "qwen/qwen3-30b-a3b",
+            "mistralai/mistral-small-3.2-24b-instruct",
+        ]
+        for model_id in preference:
+            if registry.is_model_available(model_id):
+                return model_id
+    except Exception:
+        pass
+    return _DEFAULT_PERMISSIVE_TEXT_MODEL
+
+
+def resolve_model_policy(
+    request: GenerateRequest,
+) -> tuple[str | None, str | None]:
+    """Resolve model_policy into concrete text_model / image_model.
+
+    Priority (highest first):
+      1. Explicit text_model / image_model on the request  (pass-through)
+      2. model_policy="permissive"  → auto-select open-weight models
+      3. None → let preset / settings defaults handle it
+
+    Returns:
+        (text_model, image_model) to pass to the pipeline.
+    """
+    text_model = request.text_model
+    image_model = request.image_model
+
+    if request.model_policy and request.model_policy.lower() == "permissive":
+        if not text_model:
+            text_model = _get_permissive_text_model()
+            logger.info("model_policy=permissive → text_model=%s", text_model)
+        if not image_model:
+            image_model = _DEFAULT_PERMISSIVE_IMAGE_MODEL
+            logger.info("model_policy=permissive → image_model=%s", image_model)
+
+    return text_model, image_model
 
 
 class StreamEvent(BaseModel):
@@ -443,6 +563,8 @@ async def stream_generation(
     preset: QualityPreset | None = None,
     text_model: str | None = None,
     image_model: str | None = None,
+    model_policy: str | None = None,
+    llm_params: dict[str, Any] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -455,6 +577,7 @@ async def stream_generation(
         preset: Quality preset (HD, HYPER, BALANCED)
         text_model: Custom text model override
         image_model: Custom image model override
+        model_policy: Model licensing policy (e.g. "permissive")
 
     Yields:
         SSE-formatted event strings
@@ -484,6 +607,8 @@ async def stream_generation(
         preset=preset,
         text_model=text_model,
         image_model=image_model,
+        model_policy=model_policy,
+        llm_params=llm_params,
     )
     state = None
     start_time = time.perf_counter()
@@ -602,6 +727,8 @@ async def run_generation_task(
     image_model: str | None = None,
     callback_url: str | None = None,
     request_context: dict[str, Any] | None = None,
+    model_policy: str | None = None,
+    llm_params: dict[str, Any] | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -615,6 +742,7 @@ async def run_generation_task(
         image_model: Custom image model override
         callback_url: URL to POST results to on completion
         request_context: Opaque context to pass through to callback
+        model_policy: Model licensing policy (e.g. "permissive")
     """
     from app.database import get_session
 
@@ -635,6 +763,8 @@ async def run_generation_task(
             preset=parsed_preset,
             text_model=text_model,
             image_model=image_model,
+            model_policy=model_policy,
+            llm_params=llm_params,
         )
         state = await pipeline.run(query, generate_image)
 
@@ -769,6 +899,9 @@ async def generate_timepoint(
     await session.commit()
     await session.refresh(timepoint)
 
+    # Resolve model_policy → concrete models
+    text_model, image_model = resolve_model_policy(request)
+
     # Start background generation
     background_tasks.add_task(
         run_generation_task,
@@ -777,10 +910,12 @@ async def generate_timepoint(
         None,  # session_factory not needed with get_session()
         generate_image=request.generate_image,
         preset=request.preset,
-        text_model=request.text_model,
-        image_model=request.image_model,
+        text_model=text_model,
+        image_model=image_model,
         callback_url=request.callback_url,
         request_context=request.request_context,
+        model_policy=request.model_policy,
+        llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
     )
 
     return GenerateResponse(
@@ -834,11 +969,16 @@ async def generate_timepoint_sync(
             except ValueError:
                 logger.warning(f"Invalid preset '{request.preset}', using default")
 
+        # Resolve model_policy → concrete models
+        text_model, image_model = resolve_model_policy(request)
+
         # Run pipeline
         pipeline = GenerationPipeline(
             preset=preset,
-            text_model=request.text_model,
-            image_model=request.image_model,
+            text_model=text_model,
+            image_model=image_model,
+            model_policy=request.model_policy,
+            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         )
         state = await pipeline.run(request.query, request.generate_image)
 
@@ -1212,13 +1352,18 @@ async def generate_timepoint_stream(
     else:
         logger.info(f"Stream generate request: {request.query}")
 
+    # Resolve model_policy → concrete models
+    text_model, image_model = resolve_model_policy(request)
+
     return StreamingResponse(
         stream_generation(
             request.query,
             request.generate_image,
             preset,
-            text_model=request.text_model,
-            image_model=request.image_model,
+            text_model=text_model,
+            image_model=image_model,
+            model_policy=request.model_policy,
+            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         ),
         media_type="text/event-stream",
         headers={
