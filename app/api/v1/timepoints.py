@@ -226,15 +226,17 @@ def _get_permissive_text_model() -> str:
         if registry.model_count == 0:
             return _DEFAULT_PERMISSIVE_TEXT_MODEL
 
-        # Walk preference list; return first that's in the live registry
+        # Walk preference list; return first that's in the live registry.
+        # Prioritize fast non-thinking models — DeepSeek R1 is a thinking
+        # model that takes 30-60s per call and causes pipeline timeouts.
         preference = [
             "meta-llama/llama-4-scout-17b-16e-instruct",
             "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "deepseek/deepseek-r1-0528",
-            "deepseek/deepseek-chat-v3-0324",
-            "qwen/qwen3-235b-a22b",
-            "qwen/qwen3-30b-a3b",
+            "deepseek/deepseek-chat-v3-0324",       # Fast chat model
+            "qwen/qwen3-30b-a3b",                   # Fast MoE model
             "mistralai/mistral-small-3.2-24b-instruct",
+            "qwen/qwen3-235b-a22b",                 # Large but non-thinking
+            "deepseek/deepseek-r1-0528",             # Thinking model — slow, last resort
         ]
         for model_id in preference:
             if registry.is_model_available(model_id):
