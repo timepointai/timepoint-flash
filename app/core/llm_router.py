@@ -27,15 +27,11 @@ Tests:
 """
 
 import asyncio
-import base64
 import logging
-import time
 from collections.abc import AsyncIterator
 from enum import Enum
 from typing import Any, TypeVar
-from urllib.parse import quote
 
-import httpx
 from pydantic import BaseModel
 
 from app.config import (
@@ -85,23 +81,21 @@ def get_paid_fallback_model() -> str:
     return _PAID_FALLBACK_DEFAULT
 
 
-def get_image_fallback_model() -> str:
-    """Get the best image fallback model, consulting the registry first."""
+def get_image_fallback_model(permissive_only: bool = False) -> str:
+    """Get the best image fallback model, consulting the registry first.
+
+    Args:
+        permissive_only: If True, only return open-weight image models.
+    """
     try:
         from app.core.model_registry import OpenRouterModelRegistry
         registry = OpenRouterModelRegistry.get_instance()
-        best = registry.get_best_image_model()
+        best = registry.get_best_image_model(permissive_only=permissive_only)
         if best:
             return best
     except Exception:
         pass
     return _IMAGE_FALLBACK_DEFAULT
-
-# Pollinations.ai - Ultimate free fallback for image generation
-# No API key required, always available, decent quality
-# NOTE: URL changed from image.pollinations.ai to gen.pollinations.ai in early 2026
-POLLINATIONS_URL = "https://gen.pollinations.ai/image/{prompt}"
-POLLINATIONS_TIMEOUT = 60.0  # Image generation can take time
 
 # Rate limit retry settings
 MAX_RETRIES = 5
@@ -195,6 +189,7 @@ class LLMRouter:
         preset: QualityPreset | None = None,
         text_model: str | None = None,
         image_model: str | None = None,
+        model_policy: str | None = None,
     ) -> None:
         """Initialize LLM router.
 
@@ -203,12 +198,14 @@ class LLMRouter:
             preset: Quality preset (HD, HYPER, BALANCED). Overrides config models.
             text_model: Custom text model override (overrides preset).
             image_model: Custom image model override (overrides preset).
+            model_policy: Model policy (e.g. "permissive" blocks Google fallback).
         """
         settings = get_settings()
         self.preset = preset
         self._preset_config = PRESET_CONFIGS.get(preset) if preset else None
         self._custom_text_model = text_model
         self._custom_image_model = image_model
+        self._model_policy = model_policy
 
         # Build config from settings if not provided
         if config is None:
@@ -624,7 +621,15 @@ class LLMRouter:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
-            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+            # (blocked in permissive mode — must stay Google-free)
+            is_permissive = bool(
+                self._model_policy and self._model_policy.lower() == "permissive"
+            )
+            if (
+                ProviderType.GOOGLE in self.providers
+                and self.config.primary != ProviderType.GOOGLE
+                and not is_permissive
+            ):
                 logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
@@ -635,6 +640,8 @@ class LLMRouter:
                     )
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
+            elif is_permissive:
+                logger.info("Skipping Google fallback: model_policy=permissive")
 
             # All fallbacks exhausted
             raise ProviderError(
@@ -749,7 +756,15 @@ class LLMRouter:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
-            if ProviderType.GOOGLE in self.providers and self.config.primary != ProviderType.GOOGLE:
+            # (blocked in permissive mode — must stay Google-free)
+            is_permissive = bool(
+                self._model_policy and self._model_policy.lower() == "permissive"
+            )
+            if (
+                ProviderType.GOOGLE in self.providers
+                and self.config.primary != ProviderType.GOOGLE
+                and not is_permissive
+            ):
                 logger.info("Falling back to Google provider with verified model")
                 try:
                     provider = self._get_provider(ProviderType.GOOGLE)
@@ -761,6 +776,8 @@ class LLMRouter:
                     )
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
+            elif is_permissive:
+                logger.info("Skipping Google fallback: model_policy=permissive")
 
             # All fallbacks exhausted
             raise ProviderError(
@@ -785,73 +802,6 @@ class LLMRouter:
                     logger.warning(f"Fallback provider also failed: {e2}")
 
             raise
-
-    async def _generate_image_pollinations(
-        self,
-        prompt: str,
-        **kwargs: Any,
-    ) -> LLMResponse[str]:
-        """Generate image using Pollinations.ai (free, no API key required).
-
-        This is the ultimate fallback for image generation. Pollinations.ai
-        provides free image generation with no API key, no rate limits,
-        and decent quality using Stable Diffusion models.
-
-        Args:
-            prompt: The image generation prompt.
-            **kwargs: Additional parameters (currently unused).
-
-        Returns:
-            LLMResponse containing base64-encoded image.
-
-        Raises:
-            ProviderError: If the request fails.
-        """
-        start_time = time.perf_counter()
-
-        # URL-encode the prompt for safe embedding in URL
-        encoded_prompt = quote(prompt, safe="")
-        url = POLLINATIONS_URL.format(prompt=encoded_prompt)
-
-        # Add parameters for better quality
-        # nologo=true removes watermark, width/height for resolution, model=flux for best quality
-        url += "?nologo=true&width=1024&height=1024&model=flux"
-
-        logger.info(f"Pollinations.ai fallback: generating image for prompt (first 50 chars): {prompt[:50]}...")
-
-        try:
-            async with httpx.AsyncClient(timeout=POLLINATIONS_TIMEOUT) as client:
-                response = await client.get(url)
-
-                if response.status_code != 200:
-                    raise ProviderError(
-                        message=f"Pollinations.ai returned status {response.status_code}",
-                        provider=ProviderType.OPENROUTER,  # Use OPENROUTER as proxy
-                        status_code=response.status_code,
-                        retryable=response.status_code >= 500,
-                    )
-
-                # Response is raw image bytes (JPEG)
-                image_bytes = response.content
-                image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-
-                latency_ms = int((time.perf_counter() - start_time) * 1000)
-                logger.info(f"Pollinations.ai image generated successfully in {latency_ms}ms")
-
-                return LLMResponse(
-                    content=image_b64,
-                    model="pollinations-ai",
-                    provider=ProviderType.OPENROUTER,  # Use OPENROUTER as proxy type
-                    latency_ms=latency_ms,
-                )
-
-        except httpx.HTTPError as e:
-            logger.error(f"Pollinations.ai request failed: {e}")
-            raise ProviderError(
-                message=f"Pollinations.ai request failed: {e}",
-                provider=ProviderType.OPENROUTER,
-                retryable=True,
-            ) from e
 
     async def _generate_image_with_retry(
         self,
@@ -972,16 +922,15 @@ class LLMRouter:
         Raises:
             ProviderError: If image generation fails after all retries and fallbacks.
         """
-        # Direct Pollinations path — when caller explicitly requests it
-        # (e.g. model_policy="permissive" sets image_model="pollinations")
-        image_model_id = self._get_model_for_capability(ModelCapability.IMAGE, self.config.primary)
-        if image_model_id and "pollinations" in image_model_id.lower():
-            logger.info("Image model is Pollinations — using direct Pollinations path")
-            return await self._generate_image_pollinations(prompt)
-
         # Determine provider for image generation
-        # Prefer preset's image_provider, then Google native, then fallback
-        if self._preset_config and "image_provider" in self._preset_config:
+        # Prefer preset's image_provider, then Google native, then OpenRouter
+        is_permissive = bool(
+            self._model_policy and self._model_policy.lower() == "permissive"
+        )
+        if is_permissive and ProviderType.OPENROUTER in self.providers:
+            # Permissive mode: always use OpenRouter for images (Google-free)
+            image_provider = ProviderType.OPENROUTER
+        elif self._preset_config and "image_provider" in self._preset_config:
             image_provider = self._preset_config["image_provider"]
         elif ProviderType.GOOGLE in self.providers:
             image_provider = ProviderType.GOOGLE
@@ -1010,20 +959,15 @@ class LLMRouter:
             should_fallback = (
                 image_provider != ProviderType.OPENROUTER
                 and ProviderType.OPENROUTER in self.providers
+                and not is_permissive  # Already on OpenRouter in permissive mode
             )
 
             if not should_fallback:
-                # No OpenRouter fallback, but try Pollinations.ai as ultimate fallback
-                logger.info("No OpenRouter configured, falling back to Pollinations.ai")
-                try:
-                    return await self._generate_image_pollinations(prompt)
-                except ProviderError as e2:
-                    logger.error(f"Pollinations.ai fallback failed: {e2}")
-                    raise ProviderError(
-                        message=f"Image generation failed. Primary: {e}, Pollinations: {e2}",
-                        provider=image_provider,
-                        retryable=False,
-                    ) from e
+                raise ProviderError(
+                    message=f"Image generation failed: {e}",
+                    provider=image_provider,
+                    retryable=False,
+                ) from e
 
             # Log appropriately based on error type
             image_fallback = get_image_fallback_model()
@@ -1053,17 +997,11 @@ class LLMRouter:
                 )
             except (RateLimitError, ProviderError) as e2:
                 logger.warning(f"OpenRouter image fallback also failed: {e2}")
-                # Try Pollinations.ai as ultimate free fallback
-                logger.info("Falling back to Pollinations.ai (free, no API key required)")
-                try:
-                    return await self._generate_image_pollinations(prompt)
-                except ProviderError as e3:
-                    logger.error(f"Pollinations.ai fallback also failed: {e3}")
-                    raise ProviderError(
-                        message=f"All image providers failed. Primary: {e}, OpenRouter: {e2}, Pollinations: {e3}",
-                        provider=image_provider,
-                        retryable=False,
-                    ) from e
+                raise ProviderError(
+                    message=f"All image providers failed. Primary: {e}, OpenRouter: {e2}",
+                    provider=image_provider,
+                    retryable=False,
+                ) from e
 
     async def analyze_image(
         self,

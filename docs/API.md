@@ -72,11 +72,11 @@ Use only open-weight, distillable models — zero Google API calls:
   "model_policy": "permissive"
 }
 ```
-Text routes to DeepSeek/Llama/Qwen via OpenRouter, images route to Pollinations, and Google grounding is skipped. Response metadata reflects the actual models used:
+Text routes to DeepSeek/Llama/Qwen via OpenRouter, images route to OpenRouter (Flux/Gemini), and Google grounding is skipped. Response metadata reflects the actual models used:
 ```json
 {
-  "text_model_used": "deepseek/deepseek-r1-0528",
-  "image_model_used": "pollinations",
+  "text_model_used": "deepseek/deepseek-chat-v3-0324",
+  "image_model_used": "google/gemini-2.5-flash-image-preview",
   "model_provider": "openrouter",
   "model_permissiveness": "permissive"
 }
@@ -93,7 +93,7 @@ Text routes to DeepSeek/Llama/Qwen via OpenRouter, images route to Pollinations,
   "generate_image": true
 }
 ```
-This uses the specified Qwen model for text, Pollinations for images (from permissive policy), and skips Google grounding.
+This uses the specified Qwen model for text, OpenRouter for images (from permissive policy), and skips Google grounding.
 
 ---
 
@@ -192,7 +192,7 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 | generate_image | boolean | No | Generate AI image (default: false) |
 | preset | string | No | Quality preset: `hd`, `hyper`, `balanced` (default), `gemini3` |
 | text_model | string | No | Text model ID — OpenRouter format (`org/model`) or Google native (`gemini-*`). Overrides preset. |
-| image_model | string | No | Image model ID — `pollinations` for free open-source, or Google native. Overrides preset. |
+| image_model | string | No | Image model ID — OpenRouter format (`org/model`) or Google native. Overrides preset. |
 | model_policy | string | No | `"permissive"` — selects only open-weight models (Llama, DeepSeek, Qwen) and skips Google-dependent steps. Fully Google-free. Works alongside explicit model overrides. |
 | llm_params | object | No | Fine-grained LLM parameters applied to all pipeline agents. See **LLM Parameters** below. |
 | visibility | string | No | `public` (default) or `private` — controls who can see full data |
@@ -1069,18 +1069,16 @@ When Google API quota is exhausted or rate-limited:
 
 ### Image Generation
 
-Image generation uses a resilient 3-tier fallback chain:
+Image generation uses a 2-tier fallback chain:
 
 | Priority | Provider | Details |
 |----------|----------|---------|
 | 1 | **Google Imagen** | Native API, highest quality. Quota exhaustion = instant fallback. |
-| 2 | **OpenRouter Flux** | Via `/chat/completions` with `modalities: ["image", "text"]` |
-| 3 | **Pollinations.ai** | Free, no API key required. Ultimate fallback, never fails. |
+| 2 | **OpenRouter** | Via `/chat/completions` with `modalities: ["image", "text"]`. Best available model auto-selected. |
 
 **Behavior:**
-- Quota exhaustion on Google = immediate fallback (no retries wasted)
-- OpenRouter failure = fallback to Pollinations.ai
-- Pollinations.ai = always succeeds (free API, no rate limits)
+- Quota exhaustion on Google = immediate fallback to OpenRouter (no retries wasted)
+- In permissive mode, images route directly to OpenRouter (Google-free)
 - Scene completes with image from whichever provider succeeds
 
 ---

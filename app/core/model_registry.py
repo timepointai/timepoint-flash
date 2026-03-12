@@ -166,15 +166,21 @@ class OpenRouterModelRegistry:
         candidates.sort(key=lambda x: x[1], reverse=True)
         return candidates[0][0]
 
-    def get_best_image_model(self) -> str | None:
+    def get_best_image_model(self, permissive_only: bool = False) -> str | None:
         """Find the best available image generation model.
 
         Heuristic: filter to models with "image" in output_modalities,
-        prefer gemini models.
+        prefer gemini models (unless permissive_only is set).
+
+        Args:
+            permissive_only: If True, only return open-weight models
+                (no Google, OpenAI, Anthropic).
 
         Returns:
             Model ID or None if cache is empty.
         """
+        from app.core.model_policy import is_model_permissive
+
         if not self._models:
             return None
 
@@ -187,18 +193,29 @@ class OpenRouterModelRegistry:
             if not isinstance(output_mods, list) or "image" not in output_mods:
                 continue
 
+            if permissive_only and not is_model_permissive(model_id):
+                continue
+
             ctx = info.get("context_length", 0)
             if "gemini" in model_id.lower():
                 gemini_candidates.append((model_id, ctx))
             else:
                 other_candidates.append((model_id, ctx))
 
-        # Prefer gemini models, sorted by context_length desc
-        if gemini_candidates:
-            gemini_candidates.sort(key=lambda x: x[1], reverse=True)
-            return gemini_candidates[0][0]
+        if not permissive_only:
+            # Prefer gemini models, sorted by context_length desc
+            if gemini_candidates:
+                gemini_candidates.sort(key=lambda x: x[1], reverse=True)
+                return gemini_candidates[0][0]
+
         if other_candidates:
             other_candidates.sort(key=lambda x: x[1], reverse=True)
             return other_candidates[0][0]
+
+        # Fallback: if permissive_only but no permissive image models found,
+        # return gemini via OpenRouter (still better than nothing)
+        if gemini_candidates:
+            gemini_candidates.sort(key=lambda x: x[1], reverse=True)
+            return gemini_candidates[0][0]
 
         return None

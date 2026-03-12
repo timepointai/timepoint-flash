@@ -291,7 +291,20 @@ class GenerationPipeline:
         self._text_model = text_model
         self._image_model = image_model
         self._model_policy = model_policy
-        self._llm_params: dict[str, Any] = llm_params or {}
+
+        # Build effective llm_params: apply permissive speed defaults
+        # when no preset is set and caller hasn't specified max_tokens.
+        effective_params = dict(llm_params or {})
+        if (
+            model_policy
+            and model_policy.lower() == "permissive"
+            and preset is None
+            and "max_tokens" not in effective_params
+        ):
+            effective_params["max_tokens"] = 2048
+            logger.info("model_policy=permissive: defaulting max_tokens=2048 for speed")
+
+        self._llm_params: dict[str, Any] = effective_params
         self._max_parallelism_override = max_parallelism
         self._max_parallelism: int | None = None  # Set during execution planning
         self._semaphore: asyncio.Semaphore | None = None
@@ -324,6 +337,7 @@ class GenerationPipeline:
                 preset=self._preset,
                 text_model=self._text_model,
                 image_model=self._image_model,
+                model_policy=self._model_policy,
             )
         return self._router
 
@@ -341,7 +355,15 @@ class GenerationPipeline:
         self._char_id_agent = CharacterIdentificationAgent(router=router)
         self._char_bio_agent = CharacterBioAgent(router=router)
         self._moment_agent = MomentAgent(router=router)
-        self._dialog_agent = DialogAgent(router=router)
+        # Permissive mode: use batch dialog (1 LLM call) instead of
+        # sequential roleplay (7 calls) to cut latency dramatically.
+        is_permissive = bool(
+            self._model_policy and self._model_policy.lower() == "permissive"
+        )
+        self._dialog_agent = DialogAgent(
+            router=router,
+            use_sequential=not is_permissive,
+        )
         self._camera_agent = CameraAgent(router=router)
         self._graph_agent = GraphAgent(router=router)
         self._image_prompt_agent = ImagePromptAgent(router=router)
@@ -1390,6 +1412,27 @@ class GenerationPipeline:
             state.dialog_data = result.content
 
             # === CRITIQUE LOOP (one pass max) ===
+            # Skip critique in permissive mode — saves 1-8 LLM calls and the
+            # batch dialog output is already quality-constrained by the prompt.
+            is_permissive = bool(
+                self._model_policy and self._model_policy.lower() == "permissive"
+            )
+            if is_permissive:
+                logger.info("Skipping dialog critique: model_policy=permissive (speed mode)")
+                state.step_results.append(
+                    StepResult(
+                        step=step,
+                        success=result.success,
+                        data=state.dialog_data,
+                        error=result.error,
+                        latency_ms=result.latency_ms,
+                        model_used=result.model_used,
+                    )
+                )
+                if state.dialog_data:
+                    logger.debug(f"Dialog: {len(state.dialog_data.lines)} lines")
+                return state
+
             critique_input = CritiqueInput(
                 step_name="dialog",
                 output_json=result.content.model_dump_json(),
