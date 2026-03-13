@@ -2,7 +2,7 @@
 
 You're an AI agent with access to a running TIMEPOINT Flash server. This guide shows you how to use it.
 
-**Base URL:** `https://timepoint-flash-deploy-production.up.railway.app`
+**Base URL:** `https://flash.timepointai.com`
 
 No authentication is required (AUTH_ENABLED=false). All endpoints are open-access.
 
@@ -11,7 +11,7 @@ No authentication is required (AUTH_ENABLED=false). All endpoints are open-acces
 ## 1. Check the Server
 
 ```bash
-curl https://timepoint-flash-deploy-production.up.railway.app/health
+curl https://flash.timepointai.com/health
 ```
 
 Expected:
@@ -30,7 +30,7 @@ The core operation. Give it a historical moment, get back characters, dialog, re
 ### Synchronous (simplest)
 
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/timepoints/generate/sync \
+curl -X POST https://flash.timepointai.com/api/v1/timepoints/generate/sync \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Alan Turing breaks Enigma at Bletchley Park Hut 8, winter 1941",
@@ -44,7 +44,7 @@ This blocks for 30-120 seconds and returns the complete scene.
 ### Streaming (recommended for UIs)
 
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/timepoints/generate/stream \
+curl -X POST https://flash.timepointai.com/api/v1/timepoints/generate/stream \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Oppenheimer watches the Trinity test, 5:29 AM July 16 1945",
@@ -64,7 +64,7 @@ data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123", ...}
 ### Background (fire and forget)
 
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/timepoints/generate \
+curl -X POST https://flash.timepointai.com/api/v1/timepoints/generate \
   -H "Content-Type: application/json" \
   -d '{"query": "Gavrilo Princip at Schiller Deli Sarajevo June 28 1914", "preset": "balanced"}'
 ```
@@ -96,7 +96,7 @@ Returns immediately with a timepoint ID. Poll `GET /api/v1/timepoints/{id}` unti
 ## 3. Retrieve a Scene
 
 ```bash
-curl "https://timepoint-flash-deploy-production.up.railway.app/api/v1/timepoints/{id}?full=true&include_image=true"
+curl "https://flash.timepointai.com/api/v1/timepoints/{id}?full=true&include_image=true"
 ```
 
 - `full=true` — include scene, characters, dialog, relationships
@@ -129,7 +129,7 @@ When `AUTH_ENABLED=true`, interaction endpoints require a Bearer JWT and deduct 
 After generating a scene, chat with any character in it:
 
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/interactions/{timepoint_id}/chat \
+curl -X POST https://flash.timepointai.com/api/v1/interactions/{timepoint_id}/chat \
   -H "Content-Type: application/json" \
   -d '{
     "character": "Oppenheimer",
@@ -171,14 +171,14 @@ Jump forward or backward from any scene. The new scene preserves characters and 
 
 **Jump forward:**
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/temporal/{timepoint_id}/next \
+curl -X POST https://flash.timepointai.com/api/v1/temporal/{timepoint_id}/next \
   -H "Content-Type: application/json" \
   -d '{"units": 1, "unit": "hour"}'
 ```
 
 **Jump backward:**
 ```bash
-curl -X POST https://timepoint-flash-deploy-production.up.railway.app/api/v1/temporal/{timepoint_id}/prior \
+curl -X POST https://flash.timepointai.com/api/v1/temporal/{timepoint_id}/prior \
   -H "Content-Type: application/json" \
   -d '{"units": 30, "unit": "minute"}'
 ```
@@ -205,7 +205,7 @@ GET /api/v1/timepoints?visibility=public
 GET /api/v1/timepoints?visibility=private   # owner only (requires auth)
 
 # Set a scene to private
-curl -X PATCH https://timepoint-flash-deploy-production.up.railway.app/api/v1/timepoints/{id}/visibility \
+curl -X PATCH https://flash.timepointai.com/api/v1/timepoints/{id}/visibility \
   -H "Content-Type: application/json" \
   -d '{"visibility": "private"}'
 
@@ -269,7 +269,7 @@ All errors return `{"detail": "Error message"}`.
 
 For complete endpoint documentation including auth, credits, and eval: [API.md](API.md)
 
-OpenAPI schema available at: `https://timepoint-flash-deploy-production.up.railway.app/openapi.json`
+OpenAPI schema available at: `https://flash.timepointai.com/openapi.json`
 
 ---
 

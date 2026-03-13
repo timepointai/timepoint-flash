@@ -63,14 +63,14 @@ Railway auto-detects the `Dockerfile` and deploys with PostgreSQL, health checks
 ### Verify
 
 ```bash
-curl https://your-app.up.railway.app/health
+curl https://your-domain.example.com/health
 # → {"status":"healthy","version":"2.4.0","database":true,"providers":{"google":true,"openrouter":true}}
 ```
 
 ### Generate a Scene
 
 ```bash
-curl -X POST https://your-app.up.railway.app/api/v1/timepoints/generate/sync \
+curl -X POST https://your-domain.example.com/api/v1/timepoints/generate/sync \
   -H "Content-Type: application/json" \
   -d '{"query": "Alan Turing breaks Enigma at Bletchley Park Hut 8, winter 1941", "preset": "balanced", "generate_image": true}'
 ```
@@ -80,7 +80,7 @@ curl -X POST https://your-app.up.railway.app/api/v1/timepoints/generate/sync \
 Run the smoke test workflow manually from GitHub Actions:
 
 ```bash
-gh workflow run smoke.yml -f target_url=https://your-app.up.railway.app
+gh workflow run smoke.yml -f target_url=https://your-domain.example.com
 ```
 
 ---
@@ -150,7 +150,7 @@ Set `CORS_ENABLED=false` when Flash is internal-only and never called from brows
 
 The open-source app ships with `NoOpBilling` — all credit checks pass and access is unlimited. The `BillingProvider` protocol in `app/services/billing.py` provides hooks for custom billing integrations.
 
-The deployed version (`timepoint-flash-deploy`) uses a separate billing microservice (`timepoint-billing`) that handles Apple IAP and Stripe payments as its own Railway service with its own PostgreSQL database. The main app proxies billing requests and exposes an internal credits API for the billing service to grant/spend credits after purchases.
+The deployed version uses a separate billing microservice that handles Apple IAP and Stripe payments as its own service with its own PostgreSQL database. The main app proxies billing requests and exposes an internal credits API for the billing service to grant/spend credits after purchases.
 
 ---
 

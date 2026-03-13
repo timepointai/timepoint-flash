@@ -444,7 +444,7 @@ class Settings(BaseSettings):
     )
     CORS_ORIGINS: str = Field(
         default="",
-        description="Comma-separated additional CORS origins (e.g. https://your-app.up.railway.app)",
+        description="Comma-separated additional CORS origins (e.g. https://your-domain.example.com)",
     )
 
     # Share URL
