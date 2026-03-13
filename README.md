@@ -289,7 +289,6 @@ Open-source engines for temporal AI. Render the past. Simulate the future. Score
 | Service | Type | Repo | Role |
 |---------|------|------|------|
 | **Flash** | **Open Source** | **timepoint-flash** | **Reality Writer — renders grounded historical moments (Synthetic Time Travel)** |
-| **Pro** | Open Source | timepoint-pro | Rendering Engine — SNAG-powered simulation, TDF output, training data |
 | **Clockchain** | Open Source | timepoint-clockchain | Temporal Causal Graph — Rendered Past + Rendered Future, growing 24/7 |
 | **SNAG Bench** | Open Source | timepoint-snag-bench | Quality Certifier — measures Causal Resolution across renderings |
 | **Proteus** | Open Source | proteus | Settlement Layer — prediction markets that validate Rendered Futures |
