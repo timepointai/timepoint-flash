@@ -234,10 +234,14 @@ def _get_permissive_text_model() -> str:
         preference = [
             "meta-llama/llama-4-scout-17b-16e-instruct",
             "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "deepseek/deepseek-chat-v3-0324",       # Fast chat model
-            "qwen/qwen3-30b-a3b",                   # Fast MoE model
+            "nvidia/llama-3.3-nemotron-super-49b-v1.5",  # Nemotron Super, fast MoE
+            "nousresearch/hermes-4-70b",             # Hermes 4 70B, strong reasoning
+            "deepseek/deepseek-chat-v3-0324",        # Fast chat model
+            "qwen/qwen3-30b-a3b",                    # Fast MoE model
+            "nvidia/nemotron-3-nano-30b-a3b",        # Nemotron Nano, very fast
+            "nousresearch/hermes-3-llama-3.1-70b",   # Hermes 3 70B fallback
             "mistralai/mistral-small-3.2-24b-instruct",
-            "qwen/qwen3-235b-a22b",                 # Large but non-thinking
+            "qwen/qwen3-235b-a22b",                  # Large but non-thinking
             "deepseek/deepseek-r1-0528",             # Thinking model — slow, last resort
         ]
         for model_id in preference:

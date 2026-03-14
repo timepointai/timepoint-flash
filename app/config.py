@@ -104,6 +104,23 @@ class VerifiedModels:
         "google/gemini-2.0-flash-001",        # Fast, handles JSON well
         "google/gemini-2.0-flash-001:free",   # Free tier (rate limited)
         "google/gemini-3-flash-preview",      # Latest thinking model, agentic workflows
+        # NVIDIA Nemotron family
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3-nano-30b-a3b",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-nano-12b-v2-vl",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "nvidia/nemotron-nano-9b-v2",
+        "nvidia/nemotron-nano-9b-v2:free",
+        # NousResearch Hermes family
+        "nousresearch/hermes-2-pro-llama-3-8b",
+        "nousresearch/hermes-3-llama-3.1-405b",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "nousresearch/hermes-3-llama-3.1-70b",
+        "nousresearch/hermes-4-405b",
+        "nousresearch/hermes-4-70b",
     ]
 
     # Fallback chains - ordered by preference
