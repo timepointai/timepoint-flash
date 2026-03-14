@@ -141,6 +141,36 @@ def get_configured_models() -> list[ModelInfo]:
                 capabilities=["image_generation"],
                 pricing={"prompt": 0.00012, "completion": 0.0},
             ),
+            # NVIDIA Nemotron
+            ModelInfo(
+                id="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                name="Nemotron Super 49B v1.5",
+                provider="openrouter",
+                capabilities=["text"],
+                context_length=131072,
+            ),
+            ModelInfo(
+                id="nvidia/llama-3.1-nemotron-70b-instruct",
+                name="Nemotron 70B Instruct",
+                provider="openrouter",
+                capabilities=["text"],
+                context_length=131072,
+            ),
+            # NousResearch Hermes
+            ModelInfo(
+                id="nousresearch/hermes-4-70b",
+                name="Hermes 4 70B",
+                provider="openrouter",
+                capabilities=["text"],
+                context_length=131072,
+            ),
+            ModelInfo(
+                id="nousresearch/hermes-3-llama-3.1-405b",
+                name="Hermes 3 405B",
+                provider="openrouter",
+                capabilities=["text"],
+                context_length=131072,
+            ),
         ])
 
     return models

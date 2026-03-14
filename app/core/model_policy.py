@@ -13,7 +13,8 @@ PERMISSIVE_PREFIXES = (
     "microsoft/",           # Phi family
     "google/gemma",         # Gemma open-weight
     "allenai/",
-    "nvidia/",
+    "nvidia/",              # Nemotron family
+    "nousresearch/",        # Hermes family (open-weight)
     "black-forest-labs/",   # FLUX open-weight image models
 )
 
@@ -21,7 +22,7 @@ PERMISSIVE_PREFIXES = (
 GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
 
 # Prefixes routed through OpenRouter (may be restricted or permissive)
-OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/", "black-forest-labs/")
+OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/", "nvidia/", "nousresearch/", "black-forest-labs/")
 
 
 def derive_model_provider(model_id: str | None) -> str:
@@ -47,8 +48,9 @@ def is_model_permissive(model_id: str | None) -> bool:
 def derive_model_permissiveness(model_id: str | None) -> str:
     """Derive distillation licensing permissiveness from a model ID.
 
-    Open-weight models (Llama, DeepSeek, Qwen, Mistral, Phi, Gemma) are
-    'permissive' — safe for distillation and derivative works.
+    Open-weight models (Llama, DeepSeek, Qwen, Mistral, Phi, Gemma,
+    Nemotron, Hermes) are 'permissive' — safe for distillation and
+    derivative works.
     Frontier models (Google Gemini, Anthropic, OpenAI) are 'restricted'.
     """
     if not model_id:
