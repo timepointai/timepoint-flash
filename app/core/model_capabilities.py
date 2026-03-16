@@ -25,6 +25,7 @@ class ImageModelType(str, Enum):
     GEMINI_NATIVE = "gemini_native"  # Gemini with native image gen (Nano Banana)
     GEMINI_PRO = "gemini_pro"  # Gemini 3 Pro Image (Nano Banana Pro)
     IMAGEN = "imagen"  # Legacy Imagen API
+    STABILITY = "stability"  # Stability AI SD3.5 REST API
 
 
 @dataclass
@@ -94,6 +95,20 @@ IMAGE_MODEL_REGISTRY: dict[str, ImageModelConfig] = {
         fallback_models=["gemini-2.5-flash-image"],
         timeout_multiplier=3.0,  # Higher quality takes longer
         notes="Preview model, best quality. Supports 1K/2K/4K.",
+    ),
+    # Stability AI SD3.5 Large - Distillation-permissive
+    "stability-ai/sd3.5-large": ImageModelConfig(
+        model_id="stability-ai/sd3.5-large",
+        model_type=ImageModelType.STABILITY,
+        response_modalities=[],  # Not applicable - uses Stability REST API
+        supports_image_size=False,
+        supported_sizes=[],
+        max_resolution=1024,
+        supports_aspect_ratio=True,
+        use_camel_case_params=False,  # Stability uses snake_case
+        fallback_models=["black-forest-labs/flux.2-pro"],
+        timeout_multiplier=2.0,
+        notes="Stability AI SD3.5 Large. Distillation-permissive license. Uses REST API.",
     ),
     # Legacy Imagen - Uses different API
     "imagen-3.0-generate-002": ImageModelConfig(
@@ -230,6 +245,19 @@ def is_imagen_model(model_id: str) -> bool:
     """
     config = get_image_model_config(model_id)
     return config.model_type == ImageModelType.IMAGEN
+
+
+def is_stability_model(model_id: str) -> bool:
+    """Check if model uses Stability AI API.
+
+    Args:
+        model_id: The model identifier.
+
+    Returns:
+        True if model uses Stability AI REST API.
+    """
+    config = get_image_model_config(model_id)
+    return config.model_type == ImageModelType.STABILITY
 
 
 def is_gemini_image_model(model_id: str) -> bool:
@@ -711,7 +739,9 @@ def infer_provider_from_model_id(model_id: str) -> str:
         return TEXT_MODEL_REGISTRY[model_id].provider
 
     # Infer from model ID pattern
-    if "/" in model_id:
+    if model_id.startswith("stability-ai/"):
+        return "stability"
+    elif "/" in model_id:
         # OpenRouter format: provider/model-name
         return "openrouter"
     elif model_id.startswith("gemini-"):

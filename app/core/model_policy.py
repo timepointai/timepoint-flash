@@ -17,6 +17,7 @@ PERMISSIVE_PREFIXES = (
     "nousresearch/",        # Hermes family (open-weight)
     "black-forest-labs/",   # FLUX open-weight image models
     "openrouter/",          # OpenRouter free distillable models (Hunter, Healer)
+    "stability-ai/",        # Stability AI SD3.5 (distillation-permissive)
 )
 
 # Google-native model prefixes (always restricted)
@@ -31,6 +32,8 @@ def derive_model_provider(model_id: str | None) -> str:
     if not model_id:
         return "unknown"
     lower = model_id.lower()
+    if lower.startswith("stability-ai/"):
+        return "stability"
     if any(lower.startswith(p) for p in GOOGLE_MODEL_PREFIXES):
         return "google"
     if any(lower.startswith(p) for p in OPENROUTER_PREFIXES):

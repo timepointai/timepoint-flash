@@ -56,6 +56,7 @@ from app.core.providers import (
 )
 from app.core.providers.google import GoogleProvider
 from app.core.providers.openrouter import OpenRouterProvider
+from app.core.providers.stability import StabilityProvider
 from app.core.rate_limiter import acquire_rate_limit, get_tier_from_model
 
 logger = logging.getLogger(__name__)
@@ -280,6 +281,12 @@ class LLMRouter:
                 api_key=settings.OPENROUTER_API_KEY
             )
             logger.info("Initialized OpenRouter provider")
+
+        if settings.has_provider(ProviderType.STABILITY):
+            self.providers[ProviderType.STABILITY] = StabilityProvider(
+                api_key=settings.STABILITY_API_KEY
+            )
+            logger.info("Initialized Stability AI provider")
 
     def _get_provider(self, provider_type: ProviderType) -> LLMProvider:
         """Get provider instance by type.
@@ -941,11 +948,23 @@ class LLMRouter:
         is_permissive = bool(
             self._model_policy and self._model_policy.lower() == "permissive"
         )
-        if is_permissive and ProviderType.OPENROUTER in self.providers:
-            # Permissive mode: always use OpenRouter for images (Google-free)
+        if is_permissive and ProviderType.STABILITY in self.providers:
+            # Permissive mode: prefer Stability AI for distillation-safe images
+            image_provider = ProviderType.STABILITY
+        elif is_permissive and ProviderType.OPENROUTER in self.providers:
+            # Permissive mode fallback: use OpenRouter (Google-free)
             image_provider = ProviderType.OPENROUTER
         elif self._preset_config and "image_provider" in self._preset_config:
-            image_provider = self._preset_config["image_provider"]
+            preset_image_provider = self._preset_config["image_provider"]
+            # Use preset provider if available, otherwise fall through
+            if preset_image_provider and preset_image_provider in self.providers:
+                image_provider = preset_image_provider
+            elif ProviderType.GOOGLE in self.providers:
+                image_provider = ProviderType.GOOGLE
+            elif ProviderType.OPENROUTER in self.providers:
+                image_provider = ProviderType.OPENROUTER
+            else:
+                image_provider = self.config.primary
         elif ProviderType.GOOGLE in self.providers:
             image_provider = ProviderType.GOOGLE
         elif ProviderType.OPENROUTER in self.providers:
@@ -973,7 +992,6 @@ class LLMRouter:
             should_fallback = (
                 image_provider != ProviderType.OPENROUTER
                 and ProviderType.OPENROUTER in self.providers
-                and not is_permissive  # Already on OpenRouter in permissive mode
             )
 
             if not should_fallback:
@@ -984,11 +1002,11 @@ class LLMRouter:
                 ) from e
 
             # Log appropriately based on error type
-            image_fallback = get_image_fallback_model()
+            image_fallback = get_image_fallback_model(permissive_only=is_permissive)
             if isinstance(e, QuotaExhaustedError):
                 logger.warning(
-                    f"Google quota exhausted - immediately falling back to OpenRouter "
-                    f"with {image_fallback}"
+                    f"Quota exhausted on {image_provider.value} - falling back to "
+                    f"OpenRouter with {image_fallback}"
                 )
             else:
                 logger.warning(
@@ -998,7 +1016,7 @@ class LLMRouter:
 
             try:
                 fallback_provider = self._get_provider(ProviderType.OPENROUTER)
-                # Remove Google-specific params that may not work with Flux
+                # Remove provider-specific params that may not work with fallback
                 fallback_kwargs = {
                     k: v for k, v in image_kwargs.items()
                     if k not in ("image_size",)  # Flux uses different params
