@@ -134,7 +134,7 @@ When receiving a 402:
 
 ## 4. Endpoint Map for iOS MVP
 
-All endpoints are under `/api/v1`. Prefix with your Railway base URL (e.g. `https://your-app.up.railway.app`).
+All endpoints are under `/api/v1`. Prefix with your deployment base URL (e.g. `https://your-domain.example.com`).
 
 ### Auth (requires `AUTH_ENABLED=true`)
 
@@ -362,7 +362,7 @@ The admin grant endpoint (`POST /credits/admin/grant`) now accepts an optional `
 
 ## 13. Billing Hooks
 
-The open-source app includes a `BillingProvider` protocol (`app/services/billing.py`) with a default `NoOpBilling` implementation (unlimited access). The deployed version (`timepoint-flash-deploy`) uses a separate billing microservice that handles Apple IAP and Stripe payments, proxying billing requests through the main app.
+The open-source app includes a `BillingProvider` protocol (`app/services/billing.py`) with a default `NoOpBilling` implementation (unlimited access). The deployed version uses a separate billing microservice that handles Apple IAP and Stripe payments, proxying billing requests through the main app.
 
 The billing hooks provide:
 - `check_credits(user_id, cost)` — called before credit-consuming operations

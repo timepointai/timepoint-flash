@@ -307,10 +307,10 @@ Open-source engines for temporal AI. Render the past. Simulate the future. Score
 | **SNAG Bench** | Open Source | timepoint-snag-bench | Quality Certifier — measures Causal Resolution across renderings |
 | **Proteus** | Open Source | proteus | Settlement Layer — prediction markets that validate Rendered Futures |
 | **TDF** | Open Source | timepoint-tdf | Data Format — JSON-LD interchange across all services |
-| **Web App** | Private | timepoint-web-app | Browser client at app.timepointai.com |
-| **iPhone App** | Private | timepoint-iphone-app | iOS client — Synthetic Time Travel on mobile |
-| **Billing** | Private | timepoint-billing | Payment processing — Apple IAP + Stripe |
-| **Landing** | Private | timepoint-landing | Marketing site at timepointai.com |
+| **Web App** | — | — | Browser client at app.timepointai.com |
+| **iPhone App** | — | — | iOS client — Synthetic Time Travel on mobile |
+| **Billing** | — | — | Payment processing — Apple IAP + Stripe |
+| **Landing** | — | — | Marketing site at timepointai.com |
 
 ---
 

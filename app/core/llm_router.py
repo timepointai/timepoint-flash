@@ -134,6 +134,13 @@ TIER_PARALLELISM = {
 }
 
 
+# Known free distillable models (no :free suffix but still free)
+FREE_DISTILLABLE_MODELS = {
+    "openrouter/hunter-alpha",
+    "openrouter/healer-alpha",
+}
+
+
 def is_free_model(model_id: str) -> bool:
     """Check if a model is a free tier model on OpenRouter.
 
@@ -146,7 +153,9 @@ def is_free_model(model_id: str) -> bool:
     if not model_id:
         return False
     model_lower = model_id.lower()
-    return ":free" in model_lower or "/free" in model_lower
+    if ":free" in model_lower or "/free" in model_lower:
+        return True
+    return model_lower in FREE_DISTILLABLE_MODELS
 
 
 class LLMRouter:

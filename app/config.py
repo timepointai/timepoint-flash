@@ -54,12 +54,14 @@ class QualityPreset(str, Enum):
     - HYPER: Fastest speed with Gemini 2.0 Flash via OpenRouter
     - BALANCED: Default balance of quality and speed
     - GEMINI3: Latest Gemini 3 Flash Preview via OpenRouter (thinking model)
+    - FREE_DISTILLABLE: Free distillable models — $0 cost, outputs usable for training/distillation
     """
 
     HD = "hd"
     HYPER = "hyper"
     BALANCED = "balanced"
     GEMINI3 = "gemini3"
+    FREE_DISTILLABLE = "free_distillable"
 
 
 class Environment(str, Enum):
@@ -104,6 +106,26 @@ class VerifiedModels:
         "google/gemini-2.0-flash-001",        # Fast, handles JSON well
         "google/gemini-2.0-flash-001:free",   # Free tier (rate limited)
         "google/gemini-3-flash-preview",      # Latest thinking model, agentic workflows
+        # NVIDIA Nemotron family
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3-nano-30b-a3b",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-nano-12b-v2-vl",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "nvidia/nemotron-nano-9b-v2",
+        "nvidia/nemotron-nano-9b-v2:free",
+        # NousResearch Hermes family
+        "nousresearch/hermes-2-pro-llama-3-8b",
+        "nousresearch/hermes-3-llama-3.1-405b",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "nousresearch/hermes-3-llama-3.1-70b",
+        "nousresearch/hermes-4-405b",
+        "nousresearch/hermes-4-70b",
+        # OpenRouter free distillable models
+        "openrouter/hunter-alpha",
+        "openrouter/healer-alpha",
     ]
 
     # Fallback chains - ordered by preference
@@ -228,6 +250,18 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "thinking_level": "medium",  # Gemini 3 supports configurable thinking
         "image_supported": True,
     },
+    QualityPreset.FREE_DISTILLABLE: {
+        "name": "Free Distillable",
+        "description": "Free models with distillation rights — $0 cost, text-only (no image gen)",
+        "text_model": "openrouter/hunter-alpha",
+        "judge_model": "openrouter/healer-alpha",
+        "image_model": None,  # No free distillable image models available yet
+        "image_provider": None,
+        "text_provider": ProviderType.OPENROUTER,
+        "max_tokens": 4096,
+        "thinking_level": None,
+        "image_supported": False,  # Text-only mode
+    },
 }
 
 
@@ -238,6 +272,7 @@ PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
     QualityPreset.BALANCED: ParallelismMode.NORMAL, # Default behavior
     QualityPreset.HYPER: ParallelismMode.MAX,       # Speed focus, maximum parallelism
     QualityPreset.GEMINI3: ParallelismMode.AGGRESSIVE,  # Thinking model, moderate parallelism
+    QualityPreset.FREE_DISTILLABLE: ParallelismMode.SEQUENTIAL,  # Free models need sequential
 }
 
 # Provider rate limits (requests per minute and safe concurrent calls)
@@ -444,7 +479,7 @@ class Settings(BaseSettings):
     )
     CORS_ORIGINS: str = Field(
         default="",
-        description="Comma-separated additional CORS origins (e.g. https://your-app.up.railway.app)",
+        description="Comma-separated additional CORS origins (e.g. https://your-domain.example.com)",
     )
 
     # Share URL
