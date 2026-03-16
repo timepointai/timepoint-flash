@@ -30,6 +30,7 @@ class ProviderType(str, Enum):
 
     GOOGLE = "google"
     OPENROUTER = "openrouter"
+    STABILITY = "stability"
 
 
 class ParallelismMode(str, Enum):
@@ -100,6 +101,10 @@ class VerifiedModels:
         "gemini-3-pro-image-preview",   # Nano Banana Pro - 2K/4K, best quality
     ]
 
+    STABILITY_IMAGE = [
+        "stability-ai/sd3.5-large",     # SD3.5 Large - distillation-permissive
+    ]
+
     # OpenRouter API (via openrouter.ai)
     # These work with OPENROUTER_API_KEY
     OPENROUTER_TEXT = [
@@ -147,7 +152,7 @@ class VerifiedModels:
     @classmethod
     def is_verified_image_model(cls, model: str) -> bool:
         """Check if an image model is verified."""
-        return model in cls.GOOGLE_IMAGE
+        return model in cls.GOOGLE_IMAGE or model in cls.STABILITY_IMAGE
 
     @classmethod
     def get_safe_text_model(cls, provider: "ProviderType") -> str:
@@ -176,6 +181,9 @@ class VerifiedModels:
         # Check static verified lists first
         if provider == ProviderType.GOOGLE:
             if model in cls.GOOGLE_TEXT or model in cls.GOOGLE_IMAGE:
+                return True
+        elif provider == ProviderType.STABILITY:
+            if model in cls.STABILITY_IMAGE:
                 return True
         else:
             if model in cls.OPENROUTER_TEXT:
@@ -252,15 +260,15 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     },
     QualityPreset.FREE_DISTILLABLE: {
         "name": "Free Distillable",
-        "description": "Free models with distillation rights — $0 cost, text-only (no image gen)",
+        "description": "Free distillable models — text via OpenRouter, images via Stability AI SD3.5",
         "text_model": "openrouter/hunter-alpha",
         "judge_model": "openrouter/healer-alpha",
-        "image_model": None,  # No free distillable image models available yet
-        "image_provider": None,
+        "image_model": "stability-ai/sd3.5-large",
+        "image_provider": ProviderType.STABILITY,
         "text_provider": ProviderType.OPENROUTER,
         "max_tokens": 4096,
         "thinking_level": None,
-        "image_supported": False,  # Text-only mode
+        "image_supported": True,
     },
 }
 
@@ -285,6 +293,10 @@ PROVIDER_RATE_LIMITS: dict[ProviderType, dict[str, int]] = {
     ProviderType.OPENROUTER: {
         "rpm": 30,              # Conservative default (varies by model)
         "max_concurrent": 5,    # Safe concurrent calls
+    },
+    ProviderType.STABILITY: {
+        "rpm": 10,              # Stability AI conservative default
+        "max_concurrent": 3,    # Image gen is resource-heavy
     },
 }
 
@@ -376,6 +388,10 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None = Field(
         default=None,
         description="OpenRouter API key",
+    )
+    STABILITY_API_KEY: str | None = Field(
+        default=None,
+        description="Stability AI API key for SD3.5 image generation",
     )
 
     # Provider Selection
@@ -527,13 +543,13 @@ class Settings(BaseSettings):
         """
         # Soft validation - just track if any providers are available
         # The app will start but providers will be marked as unavailable
-        self._has_any_provider = bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY)
+        self._has_any_provider = bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY)
         return self
 
     @property
     def has_any_provider(self) -> bool:
         """Check if any provider API key is configured."""
-        return bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY)
+        return bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY)
 
     @property
     def is_production(self) -> bool:
@@ -574,6 +590,8 @@ class Settings(BaseSettings):
             return bool(self.GOOGLE_API_KEY)
         elif provider == ProviderType.OPENROUTER:
             return bool(self.OPENROUTER_API_KEY)
+        elif provider == ProviderType.STABILITY:
+            return bool(self.STABILITY_API_KEY)
         return False
 
     def get_api_key(self, provider: ProviderType) -> str:
@@ -596,6 +614,10 @@ class Settings(BaseSettings):
             if not self.OPENROUTER_API_KEY:
                 raise ValueError("OPENROUTER_API_KEY not configured")
             return self.OPENROUTER_API_KEY
+        elif provider == ProviderType.STABILITY:
+            if not self.STABILITY_API_KEY:
+                raise ValueError("STABILITY_API_KEY not configured")
+            return self.STABILITY_API_KEY
         raise ValueError(f"Unknown provider: {provider}")
 
     def get_model_config(self) -> dict[str, Any]:

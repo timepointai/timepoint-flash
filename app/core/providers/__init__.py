@@ -19,6 +19,7 @@ from app.core.providers.base import (
 # Provider implementations - lazy imports to avoid circular issues
 from app.core.providers.google import GoogleProvider
 from app.core.providers.openrouter import OpenRouterProvider
+from app.core.providers.stability import StabilityProvider
 
 __all__ = [
     # Base classes
@@ -34,4 +35,5 @@ __all__ = [
     # Implementations
     "GoogleProvider",
     "OpenRouterProvider",
+    "StabilityProvider",
 ]
