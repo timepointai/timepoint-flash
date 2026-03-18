@@ -6,6 +6,7 @@ Contains all v1 API routes.
 from fastapi import APIRouter
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.content import router as content_router
 from app.api.v1.credits import router as credits_router
 from app.api.v1.eval import router as eval_router
 from app.api.v1.interactions import router as interactions_router
@@ -18,6 +19,7 @@ from app.api.v1.users import router as users_router
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(auth_router)
+router.include_router(content_router)
 router.include_router(credits_router)
 router.include_router(users_router)
 router.include_router(timepoints_router)
