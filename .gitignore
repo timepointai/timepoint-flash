@@ -95,3 +95,5 @@ images/
 tmp/
 temp/
 *.tmp
+
+.stoneforge/
