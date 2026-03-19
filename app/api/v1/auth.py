@@ -1,7 +1,8 @@
-"""Auth API endpoints — Apple Sign-In, token refresh, user profile, logout, account deletion.
+"""Auth API endpoints — Apple Sign-In, Google Sign-In, token refresh, user profile, logout, account deletion.
 
 Endpoints:
     POST   /api/v1/auth/apple   — Verify Apple token, find-or-create user, return JWTs
+    POST   /api/v1/auth/google  — Verify Google ID token, find-or-create user, return JWTs
     POST   /api/v1/auth/service-token — Mint JWT for user (requires X-Service-Key)
     POST   /api/v1/auth/demo    — Demo sign-in for App Store review (no auth)
     POST   /api/v1/auth/refresh  — Rotate refresh token, return new JWT pair
@@ -23,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.apple import verify_apple_identity_token
 from app.auth.credits import grant_credits
 from app.auth.dependencies import get_current_user, require_admin_key, require_service_key
+from app.auth.google import verify_google_id_token
 from app.auth.jwt_handler import (
     create_access_token,
     create_refresh_token,
@@ -31,6 +33,7 @@ from app.auth.jwt_handler import (
 from app.auth.schemas import (
     AppleSignInRequest,
     DevTokenRequest,
+    GoogleSignInRequest,
     LogoutRequest,
     RefreshRequest,
     ServiceTokenRequest,
@@ -100,6 +103,78 @@ async def apple_sign_in(
         user.last_login_at = datetime.now(timezone.utc)
         if claims.email and claims.email_verified and not user.email:
             user.email = claims.email
+
+    # Issue tokens
+    access_token = create_access_token(user.id)
+    raw_refresh, _ = await create_refresh_token(session, user.id)
+
+    await session.commit()
+
+    settings = get_settings()
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh,
+        expires_in=settings.JWT_ACCESS_EXPIRE_MINUTES * 60,
+    )
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_sign_in(
+    request: GoogleSignInRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> TokenResponse:
+    """Verify Google ID token and return JWT pair.
+
+    On first sign-in, creates a new user and grants signup credits.
+    """
+    try:
+        claims = verify_google_id_token(request.id_token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        ) from e
+
+    google_external_id = f"google:{claims.sub}"
+
+    # Find existing user by external_id
+    result = await session.execute(
+        select(User).where(User.external_id == google_external_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            apple_sub=google_external_id,  # satisfies NOT NULL constraint
+            external_id=google_external_id,
+            email=claims.email if claims.email_verified else None,
+            display_name=claims.name,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        session.add(user)
+        await session.flush()  # get user.id
+
+        # Create credit account
+        account = CreditAccount(user_id=user.id, balance=0, lifetime_earned=0, lifetime_spent=0)
+        session.add(account)
+        await session.flush()
+
+        # Grant signup bonus
+        settings = get_settings()
+        await grant_credits(
+            session,
+            user.id,
+            settings.SIGNUP_CREDITS,
+            TransactionType.SIGNUP_BONUS,
+            description="Welcome bonus",
+        )
+    else:
+        # Update last login and email if newly verified
+        user.last_login_at = datetime.now(timezone.utc)
+        if claims.email and claims.email_verified and not user.email:
+            user.email = claims.email
+        if claims.name and not user.display_name:
+            user.display_name = claims.name
 
     # Issue tokens
     access_token = create_access_token(user.id)

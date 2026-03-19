@@ -467,6 +467,10 @@ class Settings(BaseSettings):
         default="",
         description="iOS app bundle ID for Apple Sign-In token validation",
     )
+    GOOGLE_OAUTH_CLIENT_ID: str = Field(
+        default="",
+        description="Google OAuth client ID for Google Sign-In token validation. Empty = disabled.",
+    )
     SIGNUP_CREDITS: int = Field(
         default=50,
         description="Free credits granted on first sign-in",

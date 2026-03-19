@@ -15,6 +15,14 @@ class AppleSignInRequest(BaseModel):
     )
 
 
+class GoogleSignInRequest(BaseModel):
+    """Request body for Google Sign-In."""
+
+    id_token: str = Field(
+        ..., description="Google ID token JWT from Google Sign-In"
+    )
+
+
 class TokenResponse(BaseModel):
     """JWT token pair returned on sign-in or refresh."""
 
