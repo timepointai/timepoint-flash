@@ -4,7 +4,7 @@ You're an AI agent with access to a running TIMEPOINT Flash server. This guide s
 
 **Base URL:** `https://flash.timepointai.com`
 
-No authentication is required (AUTH_ENABLED=false). All endpoints are open-access.
+When `AUTH_ENABLED=true`, endpoints require a Bearer JWT. See the Configuration section in the main README for auth setup.
 
 ---
 
@@ -124,7 +124,7 @@ A scene contains:
 
 ## 4. Talk to Characters
 
-When `AUTH_ENABLED=true`, interaction endpoints require a Bearer JWT and deduct credits. Private timepoints block interactions for non-owners (403).
+Interaction endpoints require a Bearer JWT and deduct credits. Private timepoints block interactions for non-owners (403).
 
 After generating a scene, chat with any character in it:
 
@@ -253,7 +253,7 @@ POST /api/v1/eval/compare
 | Code | Meaning |
 |------|---------|
 | 400 | Invalid request (bad query, invalid preset) |
-| 401 | Unauthorized — missing/invalid JWT (when `AUTH_ENABLED=true`) |
+| 401 | Unauthorized — missing or invalid JWT |
 | 402 | Payment Required — insufficient credits |
 | 403 | Forbidden — private timepoint, not the owner |
 | 404 | Timepoint not found |

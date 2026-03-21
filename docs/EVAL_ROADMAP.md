@@ -12,7 +12,7 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 - Metrics: latency (min/max/avg/median), success rate, ranking
 - 522 fast tests + integration tests + e2e tests (600+ total)
 - Google Search grounding for historical accuracy
-- 3-tier image fallback (Google → OpenRouter → Pollinations.ai)
+- 3-tier image fallback (Google Imagen → Stability AI → OpenRouter)
 - Physical presence detection for accurate image generation
 - Model tracking (`text_model_used`, `image_model_used` in responses)
 - Image URL populated as data URI when image generation succeeds
@@ -24,7 +24,7 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 - Character cap reduced to 6 for higher per-character quality
 - Visibility system: public/private timepoints with server-enforced access control
 - Share URLs: configurable `SHARE_URL_BASE` generates shareable links for public scenes
-- Auth-gated interactions: chat, dialog, survey endpoints require JWT when `AUTH_ENABLED=true`
+- Auth-gated interactions: chat, dialog, survey endpoints require JWT
 
 **Gap**: Measures speed only, not quality.
 

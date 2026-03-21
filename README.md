@@ -138,7 +138,7 @@ Judge → Timeline → Grounding (Google Search) → Scene
 - **Emotional transfer** — The image prompt optimizer translates narrative tension into physicalized body language instead of discarding it. "Climactic tension" becomes "wide eyes, dropped objects, body recoiling."
 - **Entity representation** — Non-human entities (Deep Blue, AlphaGo, HAL 9000) are shown through their physical representatives (IBM operator, monitor display, red camera lens).
 - **Anachronism prevention** — Era-specific exclusion lists, mutual exclusion rules (Roman toga + tricorn hat), famous painting drift detection.
-- **3-tier image fallback** — Google Imagen → OpenRouter Flux → Pollinations.ai. Image generation never fails.
+- **3-tier image fallback** — Google Imagen → Stability AI → OpenRouter. Image generation never fails.
 
 **The Clockchain Connection** — Flash is the Reality Writer for the Clockchain. Every scene becomes a verified anchor point in the temporal causal graph, strengthening the Bayesian prior for all future renderings. Flash's Google Search grounding ensures historical accuracy today; as the Clockchain accumulates validated causal paths, it becomes a complementary grounding source. Flash scenes can be exported as TDF records for use across the Timepoint suite.
 
@@ -210,7 +210,7 @@ curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
 
 Downstream apps can control model selection and generation behavior per-request:
 
-- **`model_policy: "permissive"`** — Routes all generation through open-weight models (DeepSeek, Llama, Qwen, Mistral) via OpenRouter, uses Pollinations for images, and skips Google grounding. Fully Google-free.
+- **`model_policy: "permissive"`** — Routes all generation through open-weight models (DeepSeek, Llama, Qwen, Mistral) via OpenRouter, uses open-weight image models, and skips Google grounding. Fully Google-free.
 - **`text_model` / `image_model`** — Override preset models with any OpenRouter-compatible model ID (e.g. `qwen/qwen3-235b-a22b`) or Google native model.
 - **`llm_params`** — Fine-grained control over temperature, max_tokens, top_p, top_k, penalties, stop sequences, and system prompt injection. Applied to all 14 pipeline agents.
 
