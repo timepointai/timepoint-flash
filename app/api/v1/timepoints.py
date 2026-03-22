@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.credits import CREDIT_COSTS, spend_credits
+from app.auth.credits import CREDIT_COSTS, grant_credits, spend_credits
 from app.auth.dependencies import get_current_user, require_credits
 from app.config import QualityPreset, get_settings
 from app.core.model_policy import (
@@ -859,7 +859,7 @@ async def run_generation_task(
 
     except Exception as e:
         logger.error(f"Background generation failed for {timepoint_id}: {e}")
-        # Update status to failed
+        # Update status to failed and refund credits
         async with get_session() as session:
             result = await session.execute(
                 select(Timepoint).where(Timepoint.id == timepoint_id)
@@ -868,6 +868,20 @@ async def run_generation_task(
             if tp:
                 tp.status = TimepointStatus.FAILED
                 tp.error_message = str(e)
+
+                # Refund credits if this was a user-initiated generation
+                if tp.user_id:
+                    try:
+                        preset_key = f"generate_{preset or 'balanced'}"
+                        cost = CREDIT_COSTS.get(preset_key, CREDIT_COSTS["generate_balanced"])
+                        await grant_credits(
+                            session, tp.user_id, cost, TransactionType.REFUND,
+                            description=f"Refund (background generation failed): {query[:60]}",
+                        )
+                        logger.info(f"Refunded {cost} credits to user {tp.user_id} after background failure")
+                    except Exception as refund_err:
+                        logger.error(f"Credit refund failed after background generation error: {refund_err}")
+
                 await session.commit()
 
         # Fire callback with error if requested
@@ -1079,6 +1093,16 @@ async def generate_timepoint_sync(
             )
         except asyncio.TimeoutError:
             logger.error(f"Sync generation timed out after 300s: {request.query}")
+            if user is not None:
+                try:
+                    await grant_credits(
+                        session, user.id, cost, TransactionType.REFUND,
+                        description=f"Refund (timeout): {request.query[:60]}",
+                    )
+                    await session.commit()
+                    logger.info(f"Refunded {cost} credits to user {user.id} after timeout")
+                except Exception as refund_err:
+                    logger.error(f"Credit refund failed after timeout: {refund_err}")
             raise HTTPException(status_code=504, detail="Generation timed out after 300 seconds")
 
         # Convert to timepoint
@@ -1133,6 +1157,16 @@ async def generate_timepoint_sync(
         raise  # Let validation errors (e.g. 422 from model policy) pass through
     except Exception as e:
         logger.error(f"Sync generation failed: {e}")
+        if user is not None:
+            try:
+                await grant_credits(
+                    session, user.id, cost, TransactionType.REFUND,
+                    description=f"Refund (generation failed): {request.query[:60]}",
+                )
+                await session.commit()
+                logger.info(f"Refunded {cost} credits to user {user.id} after generation failure")
+            except Exception as refund_err:
+                logger.error(f"Credit refund failed after generation error: {refund_err}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
