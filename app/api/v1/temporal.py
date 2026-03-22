@@ -18,6 +18,7 @@ Tests:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -223,13 +224,20 @@ async def generate_next_moment(
     time_unit = get_time_unit(request.unit)
     target_point = source_point.step(request.units, time_unit)
 
-    # Generate new moment
-    new_tp = await generate_moment_from_context(
-        source_tp=source_tp,
-        target_point=target_point,
-        direction="next",
-        session=session,
-    )
+    # Generate new moment with request-level timeout
+    try:
+        new_tp = await asyncio.wait_for(
+            generate_moment_from_context(
+                source_tp=source_tp,
+                target_point=target_point,
+                direction="next",
+                session=session,
+            ),
+            timeout=300,
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"Temporal next timed out after 300s: {timepoint_id}")
+        raise HTTPException(status_code=504, detail="Temporal generation timed out after 300 seconds")
 
     # Assign sequence_id to both source and target
     seq_id = source_tp.sequence_id or str(uuid.uuid4())
@@ -331,12 +339,19 @@ async def generate_prior_moment(
     target_point = source_point.step(-request.units, time_unit)
 
     # Generate new moment
-    new_tp = await generate_moment_from_context(
-        source_tp=source_tp,
-        target_point=target_point,
-        direction="prior",
-        session=session,
-    )
+    try:
+        new_tp = await asyncio.wait_for(
+            generate_moment_from_context(
+                source_tp=source_tp,
+                target_point=target_point,
+                direction="prior",
+                session=session,
+            ),
+            timeout=300,
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"Temporal prior timed out after 300s: {timepoint_id}")
+        raise HTTPException(status_code=504, detail="Temporal generation timed out after 300 seconds")
 
     # For prior, the new timepoint should be the parent
     source_tp.parent_id = new_tp.id

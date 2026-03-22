@@ -18,6 +18,7 @@ Tests:
     - tests/integration/test_api.py::test_api_routes
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -219,8 +220,12 @@ async def health_check() -> HealthResponse:
     Returns:
         HealthResponse with status information.
     """
-    # Check database
-    db_healthy = await check_db_connection()
+    # Check database with timeout so health endpoint always responds quickly
+    try:
+        db_healthy = await asyncio.wait_for(check_db_connection(), timeout=5)
+    except asyncio.TimeoutError:
+        logging.getLogger(__name__).error("Health check: database connection timed out after 5s")
+        db_healthy = False
 
     # Check providers (basic check - just if configured)
     providers = {
