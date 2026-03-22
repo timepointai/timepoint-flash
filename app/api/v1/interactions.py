@@ -23,6 +23,7 @@ Tests:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
@@ -448,7 +449,11 @@ async def chat_with_character(
         model=request.model,
         response_format=request.response_format,
     )
-    result = await agent.chat(chat_input)
+    try:
+        result = await asyncio.wait_for(agent.chat(chat_input), timeout=60)
+    except asyncio.TimeoutError:
+        logger.error(f"Chat timed out after 60s: character={request.character}, timepoint={timepoint_id}")
+        raise HTTPException(status_code=408, detail="Chat request timed out after 60 seconds")
 
     if not result.success or not result.content:
         raise HTTPException(
@@ -644,10 +649,14 @@ async def extend_dialog(
         response_format=request.response_format,
     )
 
-    if request.sequential:
-        result = await agent.extend_sequential(dialog_input)
-    else:
-        result = await agent.extend(dialog_input)
+    try:
+        if request.sequential:
+            result = await asyncio.wait_for(agent.extend_sequential(dialog_input), timeout=120)
+        else:
+            result = await asyncio.wait_for(agent.extend(dialog_input), timeout=120)
+    except asyncio.TimeoutError:
+        logger.error(f"Dialog extension timed out after 120s: timepoint={timepoint_id}")
+        raise HTTPException(status_code=408, detail="Dialog generation timed out after 120 seconds")
 
     if not result.success or not result.content:
         raise HTTPException(
@@ -801,7 +810,11 @@ async def survey_characters(
         model=request.model,
         response_format=request.response_format,
     )
-    result = await agent.survey(survey_input)
+    try:
+        result = await asyncio.wait_for(agent.survey(survey_input), timeout=60)
+    except asyncio.TimeoutError:
+        logger.error(f"Survey timed out after 60s: timepoint={timepoint_id}")
+        raise HTTPException(status_code=408, detail="Survey request timed out after 60 seconds")
 
     if not result.success or not result.content:
         raise HTTPException(

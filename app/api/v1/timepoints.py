@@ -28,6 +28,7 @@ Tests:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncGenerator
@@ -654,6 +655,7 @@ async def stream_generation(
     logger.info(f"Stream generation: query='{query}', generate_image={generate_image}, preset={preset}, text_model={text_model}, image_model={image_model}")
 
     try:
+      async with asyncio.timeout(360):
         # Send start event
         yield format_sse(StreamEvent(
             event="start",
@@ -741,6 +743,14 @@ async def stream_generation(
                     },
                     progress=100,
                 ))
+
+    except TimeoutError:
+        logger.error(f"Streaming generation timed out after 360s: {query}")
+        yield format_sse(StreamEvent(
+            event="error",
+            error="Stream generation timed out after 360 seconds",
+            progress=0,
+        ))
 
     except Exception as e:
         logger.error(f"Streaming generation failed: {e}")
@@ -1054,7 +1064,7 @@ async def generate_timepoint_sync(
         # Resolve model_policy → concrete models
         text_model, image_model = resolve_model_policy(request)
 
-        # Run pipeline
+        # Run pipeline with request-level timeout
         pipeline = GenerationPipeline(
             preset=preset,
             text_model=text_model,
@@ -1062,7 +1072,14 @@ async def generate_timepoint_sync(
             model_policy=request.model_policy,
             llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         )
-        state = await pipeline.run(request.query, request.generate_image)
+        try:
+            state = await asyncio.wait_for(
+                pipeline.run(request.query, request.generate_image),
+                timeout=300,
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Sync generation timed out after 300s: {request.query}")
+            raise HTTPException(status_code=504, detail="Generation timed out after 300 seconds")
 
         # Convert to timepoint
         timepoint = pipeline.state_to_timepoint(state)
