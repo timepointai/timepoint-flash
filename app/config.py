@@ -430,7 +430,7 @@ class Settings(BaseSettings):
         description="Application environment",
     )
     DEBUG: bool = Field(
-        default=True,
+        default=False,
         description="Enable debug mode",
     )
     RATE_LIMIT: int = Field(
