@@ -35,7 +35,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, literal, or_, select
@@ -603,6 +603,7 @@ async def stream_generation(
     image_model: str | None = None,
     model_policy: str | None = None,
     llm_params: dict[str, Any] | None = None,
+    disconnect_check=None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -616,6 +617,7 @@ async def stream_generation(
         text_model: Custom text model override
         image_model: Custom image model override
         model_policy: Model licensing policy (e.g. "permissive")
+        disconnect_check: Optional async callable that returns True if client disconnected
 
     Yields:
         SSE-formatted event strings
@@ -670,6 +672,15 @@ async def stream_generation(
 
         # Stream pipeline execution - yields after each step completes
         async for step, result, current_state in pipeline.run_streaming(query, generate_image):
+            # Check if client disconnected before processing next step
+            if disconnect_check is not None:
+                try:
+                    if await disconnect_check():
+                        logger.info("Client disconnected during stream generation, aborting")
+                        return
+                except Exception:
+                    pass  # If check fails, continue generating
+
             state = current_state  # Keep reference to final state
             progress = step_progress.get(step, 0)
 
@@ -1440,6 +1451,7 @@ async def list_timepoints(
 @router.post("/generate/stream")
 async def generate_timepoint_stream(
     request: GenerateRequest,
+    raw_request: Request,
     user: User | None = Depends(get_current_user),
     _credits=Depends(require_credits(CREDIT_COSTS["generate_balanced"])),
 ) -> StreamingResponse:
@@ -1499,6 +1511,7 @@ async def generate_timepoint_stream(
             image_model=image_model,
             model_policy=request.model_policy,
             llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
+            disconnect_check=raw_request.is_disconnected,
         ),
         media_type="text/event-stream",
         headers={

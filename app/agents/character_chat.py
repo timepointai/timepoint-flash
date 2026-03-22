@@ -650,10 +650,17 @@ _session_manager: ChatSessionManager | None = None
 def get_session_manager() -> ChatSessionManager:
     """Get the global session manager instance.
 
+    Note: Sessions are in-memory only and will be lost on restart.
+    Consider implementing database-backed sessions for persistence.
+
     Returns:
         ChatSessionManager singleton
     """
     global _session_manager
     if _session_manager is None:
         _session_manager = ChatSessionManager()
+        logger.warning(
+            "Chat sessions are in-memory only and will be lost on restart. "
+            "Consider implementing database-backed sessions."
+        )
     return _session_manager
