@@ -96,4 +96,4 @@ tmp/
 temp/
 *.tmp
 
-.stoneforge/
+.local/
