@@ -258,9 +258,7 @@ async def test_dialog_agent_uses_period_language(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_minimal_query_handling(
-    test_client, db_session: Session, openrouter_api_key: str
-):
+async def test_minimal_query_handling(test_client, db_session: Session, openrouter_api_key: str):
     """Test handling of minimal/sparse queries."""
     email = generate_unique_test_email("test-minimal")
 
@@ -276,9 +274,7 @@ async def test_minimal_query_handling(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_complex_query_handling(
-    test_client, db_session: Session, openrouter_api_key: str
-):
+async def test_complex_query_handling(test_client, db_session: Session, openrouter_api_key: str):
     """Test handling of complex queries with many details."""
     email = generate_unique_test_email("test-complex")
 

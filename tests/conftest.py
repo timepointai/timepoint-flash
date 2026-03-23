@@ -434,25 +434,20 @@ async def real_openrouter_provider(real_settings):
     await provider.close()
 
 
-@pytest_asyncio.fixture
-async def e2e_test_db():
-    """Create e2e test database with cleanup.
+@pytest.fixture
+def e2e_test_db():
+    """Set up e2e test database environment.
 
-    Similar to test_db but specifically for e2e tests.
-    Uses DATABASE_URL from environment if set (e.g. CI uses PostgreSQL),
-    otherwise falls back to a separate SQLite database file.
+    Sets DATABASE_URL if not already configured (CI sets it to PostgreSQL).
+    The actual DB initialization happens via the app lifespan in test_client.
+    This fixture only ensures the env var is set before the app starts.
     """
-    from app.database import close_db, drop_db, init_db
-
     using_sqlite = False
     if "DATABASE_URL" not in os.environ or not os.environ["DATABASE_URL"]:
         os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./e2e_test_timepoint.db"
         using_sqlite = True
 
-    await init_db()
     yield
-    await drop_db()
-    await close_db()
 
     if using_sqlite and os.path.exists("./e2e_test_timepoint.db"):
         os.remove("./e2e_test_timepoint.db")
