@@ -86,92 +86,96 @@ def get_configured_models() -> list[ModelInfo]:
 
     # Google models
     if settings.GOOGLE_API_KEY:
-        models.extend([
-            ModelInfo(
-                id="gemini-2.5-flash",
-                name="Gemini 2.5 Flash",
-                provider="google",
-                capabilities=["text", "vision"],
-                context_length=1000000,
-            ),
-            ModelInfo(
-                id="gemini-3-pro-preview",
-                name="Gemini 3 Pro Preview",
-                provider="google",
-                capabilities=["text", "vision"],
-                context_length=2000000,
-            ),
-            ModelInfo(
-                id="gemini-2.5-flash-image",
-                name="Nano Banana (Gemini 2.5 Flash Image)",
-                provider="google",
-                capabilities=["image_generation"],
-            ),
-            ModelInfo(
-                id="gemini-3-pro-image-preview",
-                name="Nano Banana Pro (Gemini 3 Pro Image)",
-                provider="google",
-                capabilities=["image_generation"],
-            ),
-        ])
+        models.extend(
+            [
+                ModelInfo(
+                    id="gemini-2.5-flash",
+                    name="Gemini 2.5 Flash",
+                    provider="google",
+                    capabilities=["text", "vision"],
+                    context_length=1000000,
+                ),
+                ModelInfo(
+                    id="gemini-3-pro-preview",
+                    name="Gemini 3 Pro Preview",
+                    provider="google",
+                    capabilities=["text", "vision"],
+                    context_length=2000000,
+                ),
+                ModelInfo(
+                    id="gemini-2.5-flash-image",
+                    name="Nano Banana (Gemini 2.5 Flash Image)",
+                    provider="google",
+                    capabilities=["image_generation"],
+                ),
+                ModelInfo(
+                    id="gemini-3-pro-image-preview",
+                    name="Nano Banana Pro (Gemini 3 Pro Image)",
+                    provider="google",
+                    capabilities=["image_generation"],
+                ),
+            ]
+        )
 
     # OpenRouter models (commonly used)
     if settings.OPENROUTER_API_KEY:
-        models.extend([
-            ModelInfo(
-                id="anthropic/claude-3.5-sonnet",
-                name="Claude 3.5 Sonnet",
-                provider="openrouter",
-                capabilities=["text", "vision"],
-                context_length=200000,
-                pricing={"prompt": 0.000003, "completion": 0.000015},
-            ),
-            ModelInfo(
-                id="openai/gpt-4o",
-                name="GPT-4o",
-                provider="openrouter",
-                capabilities=["text", "vision"],
-                context_length=128000,
-                pricing={"prompt": 0.000005, "completion": 0.000015},
-            ),
-            ModelInfo(
-                id="google/gemini-3-pro-image-preview",
-                name="Nano Banana Pro (Gemini 3 Image)",
-                provider="openrouter",
-                capabilities=["image_generation"],
-                pricing={"prompt": 0.00012, "completion": 0.0},
-            ),
-            # NVIDIA Nemotron
-            ModelInfo(
-                id="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-                name="Nemotron Super 49B v1.5",
-                provider="openrouter",
-                capabilities=["text"],
-                context_length=131072,
-            ),
-            ModelInfo(
-                id="nvidia/llama-3.1-nemotron-70b-instruct",
-                name="Nemotron 70B Instruct",
-                provider="openrouter",
-                capabilities=["text"],
-                context_length=131072,
-            ),
-            # NousResearch Hermes
-            ModelInfo(
-                id="nousresearch/hermes-4-70b",
-                name="Hermes 4 70B",
-                provider="openrouter",
-                capabilities=["text"],
-                context_length=131072,
-            ),
-            ModelInfo(
-                id="nousresearch/hermes-3-llama-3.1-405b",
-                name="Hermes 3 405B",
-                provider="openrouter",
-                capabilities=["text"],
-                context_length=131072,
-            ),
-        ])
+        models.extend(
+            [
+                ModelInfo(
+                    id="anthropic/claude-3.5-sonnet",
+                    name="Claude 3.5 Sonnet",
+                    provider="openrouter",
+                    capabilities=["text", "vision"],
+                    context_length=200000,
+                    pricing={"prompt": 0.000003, "completion": 0.000015},
+                ),
+                ModelInfo(
+                    id="openai/gpt-4o",
+                    name="GPT-4o",
+                    provider="openrouter",
+                    capabilities=["text", "vision"],
+                    context_length=128000,
+                    pricing={"prompt": 0.000005, "completion": 0.000015},
+                ),
+                ModelInfo(
+                    id="google/gemini-3-pro-image-preview",
+                    name="Nano Banana Pro (Gemini 3 Image)",
+                    provider="openrouter",
+                    capabilities=["image_generation"],
+                    pricing={"prompt": 0.00012, "completion": 0.0},
+                ),
+                # NVIDIA Nemotron
+                ModelInfo(
+                    id="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                    name="Nemotron Super 49B v1.5",
+                    provider="openrouter",
+                    capabilities=["text"],
+                    context_length=131072,
+                ),
+                ModelInfo(
+                    id="nvidia/llama-3.1-nemotron-70b-instruct",
+                    name="Nemotron 70B Instruct",
+                    provider="openrouter",
+                    capabilities=["text"],
+                    context_length=131072,
+                ),
+                # NousResearch Hermes
+                ModelInfo(
+                    id="nousresearch/hermes-4-70b",
+                    name="Hermes 4 70B",
+                    provider="openrouter",
+                    capabilities=["text"],
+                    context_length=131072,
+                ),
+                ModelInfo(
+                    id="nousresearch/hermes-3-llama-3.1-405b",
+                    name="Hermes 3 405B",
+                    provider="openrouter",
+                    capabilities=["text"],
+                    context_length=131072,
+                ),
+            ]
+        )
 
     return models
 
@@ -226,19 +230,21 @@ async def fetch_openrouter_models(free_only: bool = False) -> list[ModelInfo]:
                     if free_only and not is_free:
                         continue
 
-                    models.append(ModelInfo(
-                        id=model_data["id"],
-                        name=model_data.get("name", model_data["id"]),
-                        provider="openrouter",
-                        capabilities=capabilities,
-                        context_length=model_data.get("context_length"),
-                        pricing={
-                            "prompt": prompt_price,
-                            "completion": completion_price,
-                        },
-                        is_free=is_free,
-                        modality=modality,
-                    ))
+                    models.append(
+                        ModelInfo(
+                            id=model_data["id"],
+                            name=model_data.get("name", model_data["id"]),
+                            provider="openrouter",
+                            capabilities=capabilities,
+                            context_length=model_data.get("context_length"),
+                            pricing={
+                                "prompt": prompt_price,
+                                "completion": completion_price,
+                            },
+                            is_free=is_free,
+                            modality=modality,
+                        )
+                    )
 
                 # Update cache
                 _model_cache[cache_key] = models
@@ -295,8 +301,7 @@ def get_fastest_free_model(models: list[ModelInfo]) -> ModelInfo | None:
 
     # Filter to capable models first
     capable_models = [
-        m for m in free_models
-        if (m.context_length or 0) >= MIN_CONTEXT_FOR_STRUCTURED
+        m for m in free_models if (m.context_length or 0) >= MIN_CONTEXT_FOR_STRUCTURED
     ]
 
     # If no capable models, fall back to all free but prefer larger
@@ -340,7 +345,7 @@ class FreeModelsResponse(BaseModel):
     total: int = 0
     note: str = Field(
         default="Free models rotate frequently. Always fetch fresh to get current availability.",
-        description="Important note about free model availability"
+        description="Important note about free model availability",
     )
 
 
@@ -378,7 +383,9 @@ async def get_free_models() -> FreeModelsResponse:
 @router.get("", response_model=ModelListResponse)
 async def list_models(
     provider: str | None = Query(None, description="Filter by provider (google, openrouter)"),
-    capability: str | None = Query(None, description="Filter by capability (text, vision, image_generation)"),
+    capability: str | None = Query(
+        None, description="Filter by capability (text, vision, image_generation)"
+    ),
     fetch_remote: bool = Query(False, description="Fetch remote models from OpenRouter"),
     free_only: bool = Query(False, description="Only return free models"),
 ) -> ModelListResponse:
@@ -441,23 +448,27 @@ async def get_providers() -> ProvidersResponse:
 
     # Google provider
     google_available = bool(settings.GOOGLE_API_KEY)
-    providers.append(ProviderStatus(
-        provider="google",
-        available=google_available,
-        models_count=3 if google_available else 0,
-        default_text_model=settings.JUDGE_MODEL if google_available else None,
-        default_image_model="gemini-2.5-flash-image" if google_available else None,
-    ))
+    providers.append(
+        ProviderStatus(
+            provider="google",
+            available=google_available,
+            models_count=3 if google_available else 0,
+            default_text_model=settings.JUDGE_MODEL if google_available else None,
+            default_image_model="gemini-2.5-flash-image" if google_available else None,
+        )
+    )
 
     # OpenRouter provider
     openrouter_available = bool(settings.OPENROUTER_API_KEY)
-    providers.append(ProviderStatus(
-        provider="openrouter",
-        available=openrouter_available,
-        models_count=300 if openrouter_available else 0,  # Approximate
-        default_text_model="anthropic/claude-3.5-sonnet" if openrouter_available else None,
-        default_image_model=settings.IMAGE_MODEL if openrouter_available else None,
-    ))
+    providers.append(
+        ProviderStatus(
+            provider="openrouter",
+            available=openrouter_available,
+            models_count=300 if openrouter_available else 0,  # Approximate
+            default_text_model="anthropic/claude-3.5-sonnet" if openrouter_available else None,
+            default_image_model=settings.IMAGE_MODEL if openrouter_available else None,
+        )
+    )
 
     return ProvidersResponse(providers=providers)
 

@@ -54,7 +54,9 @@ async def compare_models(request: EvalRequest) -> EvalComparison:
     Raises:
         HTTPException: If evaluation fails
     """
-    logger.info(f"Starting model comparison: query='{request.query[:50]}...', preset={request.preset}")
+    logger.info(
+        f"Starting model comparison: query='{request.query[:50]}...', preset={request.preset}"
+    )
 
     try:
         evaluator = ModelEvaluator()

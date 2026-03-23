@@ -80,14 +80,10 @@ class TestPipelineState:
         state = PipelineState(query="test")
         assert state.current_step is None
 
-        state.step_results.append(
-            StepResult(step=PipelineStep.JUDGE, success=True)
-        )
+        state.step_results.append(StepResult(step=PipelineStep.JUDGE, success=True))
         assert state.current_step == PipelineStep.JUDGE
 
-        state.step_results.append(
-            StepResult(step=PipelineStep.TIMELINE, success=True)
-        )
+        state.step_results.append(StepResult(step=PipelineStep.TIMELINE, success=True))
         assert state.current_step == PipelineStep.TIMELINE
 
     def test_get_step_result(self):
@@ -179,6 +175,7 @@ class TestGenerationPipeline:
         """Test pipeline initialization with router."""
         # Create a simple mock router
         from unittest.mock import MagicMock
+
         mock_router = MagicMock()
         pipeline = GenerationPipeline(router=mock_router)
         assert pipeline.router is mock_router
@@ -214,9 +211,7 @@ class TestGenerationPipeline:
             ]
         )
         state.dialog_data = DialogData(
-            lines=[
-                DialogLine(speaker="Hancock", text="Gentlemen, the vote is cast.")
-            ]
+            lines=[DialogLine(speaker="Hancock", text="Gentlemen, the vote is cast.")]
         )
         state.image_prompt_data = ImagePromptData(
             full_prompt="A photorealistic scene...",
@@ -337,7 +332,10 @@ class TestGenerationPipeline:
         timepoint = pipeline.state_to_timepoint(state)
 
         assert timepoint.tdf.get("grounding_data") is not None
-        assert timepoint.tdf["grounding_data"]["verified_location"] == "Equitable Center, 35th floor, Manhattan"
+        assert (
+            timepoint.tdf["grounding_data"]["verified_location"]
+            == "Equitable Center, 35th floor, Manhattan"
+        )
         assert timepoint.tdf["grounding_data"]["verified_year"] == 1997
 
     def test_state_to_timepoint_stores_moment(self):

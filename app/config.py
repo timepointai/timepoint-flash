@@ -82,6 +82,7 @@ class Environment(str, Enum):
 # Last verified: 2026-02-07
 # =============================================================================
 
+
 class VerifiedModels:
     """Verified working models for each provider.
 
@@ -92,25 +93,25 @@ class VerifiedModels:
     # Google Native API (via google-genai SDK)
     # These work with GOOGLE_API_KEY
     GOOGLE_TEXT = [
-        "gemini-2.5-flash",           # Fast, reliable, supports thinking
-        "gemini-2.0-flash",           # Older but stable
+        "gemini-2.5-flash",  # Fast, reliable, supports thinking
+        "gemini-2.0-flash",  # Older but stable
     ]
 
     GOOGLE_IMAGE = [
-        "gemini-2.5-flash-image",       # Nano Banana - fast 1K image generation
-        "gemini-3-pro-image-preview",   # Nano Banana Pro - 2K/4K, best quality
+        "gemini-2.5-flash-image",  # Nano Banana - fast 1K image generation
+        "gemini-3-pro-image-preview",  # Nano Banana Pro - 2K/4K, best quality
     ]
 
     STABILITY_IMAGE = [
-        "stability-ai/sd3.5-large",     # SD3.5 Large - distillation-permissive
+        "stability-ai/sd3.5-large",  # SD3.5 Large - distillation-permissive
     ]
 
     # OpenRouter API (via openrouter.ai)
     # These work with OPENROUTER_API_KEY
     OPENROUTER_TEXT = [
-        "google/gemini-2.0-flash-001",        # Fast, handles JSON well
-        "google/gemini-2.0-flash-001:free",   # Free tier (rate limited)
-        "google/gemini-3-flash-preview",      # Latest thinking model, agentic workflows
+        "google/gemini-2.0-flash-001",  # Fast, handles JSON well
+        "google/gemini-2.0-flash-001:free",  # Free tier (rate limited)
+        "google/gemini-3-flash-preview",  # Latest thinking model, agentic workflows
         # NVIDIA Nemotron family
         "nvidia/llama-3.1-nemotron-70b-instruct",
         "nvidia/llama-3.3-nemotron-super-49b-v1.5",
@@ -136,12 +137,12 @@ class VerifiedModels:
     # Fallback chains - ordered by preference
     # When a model fails, try the next one
     TEXT_FALLBACK_CHAIN = [
-        "gemini-2.5-flash",                   # Primary: Google native
-        "google/gemini-2.0-flash-001",        # Fallback: OpenRouter
+        "gemini-2.5-flash",  # Primary: Google native
+        "google/gemini-2.0-flash-001",  # Fallback: OpenRouter
     ]
 
     IMAGE_FALLBACK_CHAIN = [
-        "gemini-2.5-flash-image",             # Primary: Nano Banana
+        "gemini-2.5-flash-image",  # Primary: Nano Banana
     ]
 
     @classmethod
@@ -193,6 +194,7 @@ class VerifiedModels:
         if provider == ProviderType.OPENROUTER:
             try:
                 from app.core.model_registry import OpenRouterModelRegistry
+
                 registry = OpenRouterModelRegistry.get_instance()
                 if registry.is_model_available(model):
                     return True
@@ -211,22 +213,22 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "name": "HD Quality",
         "description": "Highest quality - Gemini 2.5 Flash + Nano Banana Pro (2K images)",
         # All models from VerifiedModels.GOOGLE_TEXT and GOOGLE_IMAGE
-        "text_model": "gemini-2.5-flash",         # VerifiedModels.GOOGLE_TEXT[0]
-        "judge_model": "gemini-2.5-flash",        # VerifiedModels.GOOGLE_TEXT[0]
+        "text_model": "gemini-2.5-flash",  # VerifiedModels.GOOGLE_TEXT[0]
+        "judge_model": "gemini-2.5-flash",  # VerifiedModels.GOOGLE_TEXT[0]
         "image_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - 2K/4K support
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 8192,
         "thinking_level": "high",  # Extended thinking for better quality
-        "image_size": "2K",        # Nano Banana Pro supports 1K, 2K, 4K
+        "image_size": "2K",  # Nano Banana Pro supports 1K, 2K, 4K
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
         "description": "Fastest generation - Gemini 2.0 Flash via OpenRouter",
         # All models from VerifiedModels.OPENROUTER_TEXT and GOOGLE_IMAGE
         "text_model": "google/gemini-2.0-flash-001",  # VerifiedModels.OPENROUTER_TEXT[0]
-        "judge_model": "google/gemini-2.0-flash-001", # VerifiedModels.OPENROUTER_TEXT[0]
-        "image_model": "gemini-2.5-flash-image",      # VerifiedModels.GOOGLE_IMAGE[0]
+        "judge_model": "google/gemini-2.0-flash-001",  # VerifiedModels.OPENROUTER_TEXT[0]
+        "image_model": "gemini-2.5-flash-image",  # VerifiedModels.GOOGLE_IMAGE[0]
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.OPENROUTER,
         "max_tokens": 1024,
@@ -237,9 +239,9 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "name": "Balanced",
         "description": "Balance of quality and speed - Gemini 2.5 Flash",
         # All models from VerifiedModels.GOOGLE_TEXT and GOOGLE_IMAGE
-        "text_model": "gemini-2.5-flash",       # VerifiedModels.GOOGLE_TEXT[0]
-        "judge_model": "gemini-2.5-flash",      # VerifiedModels.GOOGLE_TEXT[0]
-        "image_model": "gemini-2.5-flash-image", # VerifiedModels.GOOGLE_IMAGE[0]
+        "text_model": "gemini-2.5-flash",  # VerifiedModels.GOOGLE_TEXT[0]
+        "judge_model": "gemini-2.5-flash",  # VerifiedModels.GOOGLE_TEXT[0]
+        "image_model": "gemini-2.5-flash-image",  # VerifiedModels.GOOGLE_IMAGE[0]
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.GOOGLE,
         "max_tokens": 2048,
@@ -250,8 +252,8 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "description": "Latest Gemini 3 Flash Preview - thinking model via OpenRouter",
         # Uses latest Gemini 3 Flash Preview for text, Google native for images
         "text_model": "google/gemini-3-flash-preview",  # VerifiedModels.OPENROUTER_TEXT[2]
-        "judge_model": "google/gemini-3-flash-preview", # VerifiedModels.OPENROUTER_TEXT[2]
-        "image_model": "gemini-2.5-flash-image",        # VerifiedModels.GOOGLE_IMAGE[0]
+        "judge_model": "google/gemini-3-flash-preview",  # VerifiedModels.OPENROUTER_TEXT[2]
+        "image_model": "gemini-2.5-flash-image",  # VerifiedModels.GOOGLE_IMAGE[0]
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.OPENROUTER,
         "max_tokens": 4096,
@@ -276,9 +278,9 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
 # Parallelism Configuration
 # Maps presets to their parallelism mode
 PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
-    QualityPreset.HD: ParallelismMode.NORMAL,       # Quality focus, standard parallelism
-    QualityPreset.BALANCED: ParallelismMode.NORMAL, # Default behavior
-    QualityPreset.HYPER: ParallelismMode.MAX,       # Speed focus, maximum parallelism
+    QualityPreset.HD: ParallelismMode.NORMAL,  # Quality focus, standard parallelism
+    QualityPreset.BALANCED: ParallelismMode.NORMAL,  # Default behavior
+    QualityPreset.HYPER: ParallelismMode.MAX,  # Speed focus, maximum parallelism
     QualityPreset.GEMINI3: ParallelismMode.AGGRESSIVE,  # Thinking model, moderate parallelism
     QualityPreset.FREE_DISTILLABLE: ParallelismMode.SEQUENTIAL,  # Free models need sequential
 }
@@ -287,16 +289,16 @@ PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
 # These are conservative estimates based on known provider limits
 PROVIDER_RATE_LIMITS: dict[ProviderType, dict[str, int]] = {
     ProviderType.GOOGLE: {
-        "rpm": 60,              # Requests per minute
-        "max_concurrent": 8,    # Safe concurrent calls
+        "rpm": 60,  # Requests per minute
+        "max_concurrent": 8,  # Safe concurrent calls
     },
     ProviderType.OPENROUTER: {
-        "rpm": 30,              # Conservative default (varies by model)
-        "max_concurrent": 5,    # Safe concurrent calls
+        "rpm": 30,  # Conservative default (varies by model)
+        "max_concurrent": 5,  # Safe concurrent calls
     },
     ProviderType.STABILITY: {
-        "rpm": 10,              # Stability AI conservative default
-        "max_concurrent": 3,    # Image gen is resource-heavy
+        "rpm": 10,  # Stability AI conservative default
+        "max_concurrent": 3,  # Image gen is resource-heavy
     },
 }
 
@@ -307,7 +309,7 @@ TIER_CONCURRENT_LIMITS: dict[str, dict[str, int]] = {
         "sequential": 1,
         "normal": 1,
         "aggressive": 2,
-        "max": 2,       # Free models have strict rate limits
+        "max": 2,  # Free models have strict rate limits
     },
     "paid": {
         "sequential": 1,
@@ -319,7 +321,7 @@ TIER_CONCURRENT_LIMITS: dict[str, dict[str, int]] = {
         "sequential": 1,
         "normal": 3,
         "aggressive": 5,
-        "max": 8,       # Google native has generous limits
+        "max": 8,  # Google native has generous limits
     },
 }
 
@@ -532,9 +534,7 @@ class Settings(BaseSettings):
             v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         valid_prefixes = ("sqlite", "postgresql")
         if not any(v.startswith(prefix) for prefix in valid_prefixes):
-            raise ValueError(
-                f"DATABASE_URL must start with one of: {valid_prefixes}"
-            )
+            raise ValueError(f"DATABASE_URL must start with one of: {valid_prefixes}")
         return v
 
     @model_validator(mode="after")
@@ -547,7 +547,9 @@ class Settings(BaseSettings):
         """
         # Soft validation - just track if any providers are available
         # The app will start but providers will be marked as unavailable
-        self._has_any_provider = bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY)
+        self._has_any_provider = bool(
+            self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY
+        )
         return self
 
     @property
@@ -694,22 +696,16 @@ def validate_presets() -> list[str]:
 
         # Validate text model
         if not VerifiedModels.is_verified_or_available(text_model, text_provider):
-            errors.append(
-                f"{preset.value}: text_model '{text_model}' not verified or available"
-            )
+            errors.append(f"{preset.value}: text_model '{text_model}' not verified or available")
 
         # Validate judge model (follows text provider)
         if not VerifiedModels.is_verified_or_available(judge_model, text_provider):
-            errors.append(
-                f"{preset.value}: judge_model '{judge_model}' not verified or available"
-            )
+            errors.append(f"{preset.value}: judge_model '{judge_model}' not verified or available")
 
         # Validate image model
         image_provider = config.get("image_provider", ProviderType.GOOGLE)
         if image_model and not VerifiedModels.is_verified_or_available(image_model, image_provider):
-            errors.append(
-                f"{preset.value}: image_model '{image_model}' not verified or available"
-            )
+            errors.append(f"{preset.value}: image_model '{image_model}' not verified or available")
 
     return errors
 

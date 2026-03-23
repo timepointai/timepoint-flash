@@ -157,9 +157,7 @@ class TestStreamingEvents:
         content = response.content.decode("utf-8")
 
         # Extract data lines and verify they contain JSON-like structure
-        data_lines = [
-            line for line in content.split("\n") if line.startswith("data:")
-        ]
+        data_lines = [line for line in content.split("\n") if line.startswith("data:")]
         # Should have at least one data line
         assert len(data_lines) > 0
 

@@ -51,22 +51,26 @@ def get_preset_models(preset: ModelPreset) -> list[EvalModelConfig]:
     if preset in (ModelPreset.VERIFIED, ModelPreset.ALL, ModelPreset.GOOGLE_NATIVE):
         # Add Google native models
         for model_id in VerifiedModels.GOOGLE_TEXT:
-            models.append(EvalModelConfig(
-                model_id=model_id,
-                provider="google",
-                label=f"Google {model_id}",
-            ))
+            models.append(
+                EvalModelConfig(
+                    model_id=model_id,
+                    provider="google",
+                    label=f"Google {model_id}",
+                )
+            )
 
     if preset in (ModelPreset.VERIFIED, ModelPreset.ALL, ModelPreset.OPENROUTER):
         # Add OpenRouter models
         for model_id in VerifiedModels.OPENROUTER_TEXT:
             # Skip free models for more reliable comparison
             if ":free" not in model_id:
-                models.append(EvalModelConfig(
-                    model_id=model_id,
-                    provider="openrouter",
-                    label=f"OpenRouter {model_id.split('/')[-1]}",
-                ))
+                models.append(
+                    EvalModelConfig(
+                        model_id=model_id,
+                        provider="openrouter",
+                        label=f"OpenRouter {model_id.split('/')[-1]}",
+                    )
+                )
 
     return models
 
@@ -184,7 +188,7 @@ class ModelEvaluator:
                 completed_at=datetime.utcnow(),
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return EvalModelResult(
                 model_id=model_config.model_id,
                 provider=model_config.provider,
@@ -242,10 +246,7 @@ class ModelEvaluator:
         logger.info(f"Running eval comparison with {len(models)} models")
 
         # Run all models in parallel
-        tasks = [
-            self.run_single(model, request.query, request.timeout_seconds)
-            for model in models
-        ]
+        tasks = [self.run_single(model, request.query, request.timeout_seconds) for model in models]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -255,15 +256,17 @@ class ModelEvaluator:
             if isinstance(result, Exception):
                 # Create error result for exceptions
                 model = models[i]
-                processed_results.append(EvalModelResult(
-                    model_id=model.model_id,
-                    provider=model.provider,
-                    label=model.label,
-                    success=False,
-                    error=str(result),
-                    started_at=datetime.utcnow(),
-                    completed_at=datetime.utcnow(),
-                ))
+                processed_results.append(
+                    EvalModelResult(
+                        model_id=model.model_id,
+                        provider=model.provider,
+                        label=model.label,
+                        success=False,
+                        error=str(result),
+                        started_at=datetime.utcnow(),
+                        completed_at=datetime.utcnow(),
+                    )
+                )
             else:
                 processed_results.append(result)
 
@@ -306,9 +309,9 @@ class ModelEvaluator:
 
     async def close(self) -> None:
         """Close provider connections."""
-        if self.google_provider and hasattr(self.google_provider, 'close'):
+        if self.google_provider and hasattr(self.google_provider, "close"):
             await self.google_provider.close()
-        if self.openrouter_provider and hasattr(self.openrouter_provider, 'close'):
+        if self.openrouter_provider and hasattr(self.openrouter_provider, "close"):
             await self.openrouter_provider.close()
 
 
@@ -338,20 +341,17 @@ def format_comparison_report(comparison: EvalComparison) -> str:
     lines.append("-" * width)
 
     # Sort by latency (successful first, then failed)
-    successful = sorted(
-        [r for r in comparison.results if r.success],
-        key=lambda r: r.latency_ms
-    )
+    successful = sorted([r for r in comparison.results if r.success], key=lambda r: r.latency_ms)
     failed = [r for r in comparison.results if not r.success]
 
     medals = ["1st", "2nd", "3rd"]
 
     for i, result in enumerate(successful):
-        rank = medals[i] if i < len(medals) else f"{i+1}th"
+        rank = medals[i] if i < len(medals) else f"{i + 1}th"
         status = "OK"
         lines.append(f"  {rank:4} {result.label[:35]:35} {result.latency_ms:6}ms  [{status}]")
         if result.output_preview:
-            preview = result.output_preview[:50].replace('\n', ' ')
+            preview = result.output_preview[:50].replace("\n", " ")
             lines.append(f"       Output: {preview}...")
 
     for result in failed:
@@ -369,7 +369,9 @@ def format_comparison_report(comparison: EvalComparison) -> str:
         lines.append(f"  Fastest: {comparison.fastest_model}")
         lines.append(f"  Slowest: {comparison.slowest_model}")
         lines.append(f"  Avg Latency: {comparison.latency_stats.avg_ms}ms")
-        lines.append(f"  Latency Range: {comparison.latency_stats.min_ms}ms - {comparison.latency_stats.max_ms}ms")
+        lines.append(
+            f"  Latency Range: {comparison.latency_stats.min_ms}ms - {comparison.latency_stats.max_ms}ms"
+        )
 
         # Calculate speedup factor
         if comparison.latency_stats.avg_ms > 0:

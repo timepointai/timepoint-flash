@@ -763,11 +763,13 @@ def get_available_interaction_models() -> list[dict]:
     models = []
     for model_id, config in TEXT_MODEL_REGISTRY.items():
         if config.supports_streaming and config.supports_json_mode:
-            models.append({
-                "id": model_id,
-                "provider": config.provider,
-                "supports_json_schema": config.supports_json_schema,
-                "supports_extended_thinking": config.supports_extended_thinking,
-                "notes": config.notes,
-            })
+            models.append(
+                {
+                    "id": model_id,
+                    "provider": config.provider,
+                    "supports_json_schema": config.supports_json_schema,
+                    "supports_extended_thinking": config.supports_extended_thinking,
+                    "notes": config.notes,
+                }
+            )
     return models

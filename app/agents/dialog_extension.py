@@ -252,7 +252,7 @@ class DialogExtensionAgent:
         lines = []
         for line in dialog:
             tone_str = f" [{line.tone}]" if line.tone else ""
-            lines.append(f"{line.speaker}{tone_str}: \"{line.text}\"")
+            lines.append(f'{line.speaker}{tone_str}: "{line.text}"')
         return "\n".join(lines)
 
     def _format_character_profiles(
@@ -330,9 +330,9 @@ class DialogExtensionAgent:
             latency = int((time.perf_counter() - start_time) * 1000)
 
             # Get characters who spoke
-            characters_involved = list({
-                line.get("speaker", "") for line in response.content.dialog
-            })
+            characters_involved = list(
+                {line.get("speaker", "") for line in response.content.dialog}
+            )
 
             # Update response with characters
             result_content = DialogExtensionResponse(
@@ -341,7 +341,9 @@ class DialogExtensionAgent:
                 characters_involved=characters_involved,
             )
 
-            logger.debug(f"{self.name}: completed in {latency}ms with {len(result_content.dialog)} lines")
+            logger.debug(
+                f"{self.name}: completed in {latency}ms with {len(result_content.dialog)} lines"
+            )
 
             return AgentResult(
                 success=True,
@@ -440,23 +442,21 @@ class DialogExtensionAgent:
                     user_prompt = f"""You are in this scene:
 Setting: {input_data.setting}
 Atmosphere: {input_data.atmosphere}
-{f'Direction: {input_data.prompt}' if input_data.prompt else ''}
+{f"Direction: {input_data.prompt}" if input_data.prompt else ""}
 
 What do you say? Give ONLY your spoken words (1-2 sentences).
 Do NOT include your name, quotation marks, or stage directions."""
                 else:
                     # Continuing conversation
-                    history_str = "\n".join(
-                        f'{s}: "{t}"' for s, t in conversation_history
-                    )
+                    history_str = "\n".join(f'{s}: "{t}"' for s, t in conversation_history)
                     for line in new_lines:
                         history_str += f'\n{line["speaker"]}: "{line["text"]}"'
 
                     user_prompt = f"""The conversation so far:
 {history_str}
 
-{last_speaker or 'Someone'} just said: "{last_text or ''}"
-{f'Direction: {input_data.prompt}' if input_data.prompt else ''}
+{last_speaker or "Someone"} just said: "{last_text or ""}"
+{f"Direction: {input_data.prompt}" if input_data.prompt else ""}
 
 What do you say in response? Give ONLY your spoken words (1-2 sentences).
 Do NOT include your name, quotation marks, or stage directions."""
@@ -473,18 +473,20 @@ Do NOT include your name, quotation marks, or stage directions."""
                 # Clean response
                 text = response.content.strip()
                 if text.lower().startswith(speaker.name.lower()):
-                    text = text[len(speaker.name):].lstrip(":").strip()
+                    text = text[len(speaker.name) :].lstrip(":").strip()
                 if text.startswith('"') and text.endswith('"'):
                     text = text[1:-1]
                 if text.startswith("'") and text.endswith("'"):
                     text = text[1:-1]
 
                 if text:
-                    new_lines.append({
-                        "speaker": speaker.name,
-                        "text": text,
-                        "tone": speaker.emotional_state,
-                    })
+                    new_lines.append(
+                        {
+                            "speaker": speaker.name,
+                            "text": text,
+                            "tone": speaker.emotional_state,
+                        }
+                    )
                     last_speaker = speaker.name
                     last_text = text
 
@@ -590,21 +592,19 @@ Do NOT include your name, quotation marks, or stage directions."""
                 user_prompt = f"""You are in this scene:
 Setting: {input_data.setting}
 Atmosphere: {input_data.atmosphere}
-{f'Direction: {input_data.prompt}' if input_data.prompt else ''}
+{f"Direction: {input_data.prompt}" if input_data.prompt else ""}
 
 What do you say? Give ONLY your spoken words (1-2 sentences)."""
             else:
-                history_str = "\n".join(
-                    f'{s}: "{t}"' for s, t in conversation_history
-                )
+                history_str = "\n".join(f'{s}: "{t}"' for s, t in conversation_history)
                 for s, t in generated_lines:
                     history_str += f'\n{s}: "{t}"'
 
                 user_prompt = f"""The conversation so far:
 {history_str}
 
-{last_speaker or 'Someone'} just said: "{last_text or ''}"
-{f'Direction: {input_data.prompt}' if input_data.prompt else ''}
+{last_speaker or "Someone"} just said: "{last_text or ""}"
+{f"Direction: {input_data.prompt}" if input_data.prompt else ""}
 
 What do you say in response? Give ONLY your spoken words (1-2 sentences)."""
 
@@ -618,7 +618,7 @@ What do you say in response? Give ONLY your spoken words (1-2 sentences)."""
 
             text = response.content.strip()
             if text.lower().startswith(speaker.name.lower()):
-                text = text[len(speaker.name):].lstrip(":").strip()
+                text = text[len(speaker.name) :].lstrip(":").strip()
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
 

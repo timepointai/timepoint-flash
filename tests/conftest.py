@@ -373,6 +373,7 @@ def real_settings():
 
     # Clear the lru_cache to force fresh settings load
     from app.config import get_settings
+
     get_settings.cache_clear()
 
     settings = Settings()

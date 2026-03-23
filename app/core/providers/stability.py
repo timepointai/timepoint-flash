@@ -18,7 +18,6 @@ Tests:
     - tests/unit/test_providers.py::test_stability_provider_generate_image
 """
 
-import base64
 import logging
 import time
 from typing import Any, TypeVar

@@ -21,6 +21,7 @@ from app.models import Timepoint, TimepointStatus, TimepointVisibility
 # Helpers to build mock-ish Timepoint objects without a real DB
 # ---------------------------------------------------------------------------
 
+
 def _make_timepoint(
     visibility: TimepointVisibility = TimepointVisibility.PUBLIC,
     user_id: str | None = None,

@@ -7,6 +7,7 @@ Provides shared functions for:
 - Timepoint structure verification
 - Test data cleanup
 """
+
 import asyncio
 import base64
 import time
@@ -22,7 +23,7 @@ async def wait_for_completion(
     check_func: Callable[[], Awaitable[tuple[bool, Any | None]]],
     timeout_seconds: int = 120,
     poll_interval: float = 2.0,
-    description: str = "operation"
+    description: str = "operation",
 ) -> Any | None:
     """
     Smart polling helper that waits for an async operation to complete.
@@ -132,9 +133,7 @@ def verify_timepoint_structure(timepoint_data: dict[str, Any]) -> tuple[bool, li
     errors = []
 
     # Required top-level fields
-    required_fields = [
-        "id", "slug", "year", "season", "input_query", "cleaned_query"
-    ]
+    required_fields = ["id", "slug", "year", "season", "input_query", "cleaned_query"]
 
     for field in required_fields:
         if field not in timepoint_data:
@@ -154,7 +153,9 @@ def verify_timepoint_structure(timepoint_data: dict[str, Any]) -> tuple[bool, li
 
     # Check character data
     if "character_data" in timepoint_data or "character_data_json" in timepoint_data:
-        characters = timepoint_data.get("character_data") or timepoint_data.get("character_data_json", [])
+        characters = timepoint_data.get("character_data") or timepoint_data.get(
+            "character_data_json", []
+        )
         if not isinstance(characters, list):
             errors.append(f"Invalid character_data type: {type(characters)}")
         elif len(characters) == 0:
@@ -201,10 +202,7 @@ def verify_timepoint_structure(timepoint_data: dict[str, Any]) -> tuple[bool, li
     return (is_valid, errors)
 
 
-def cleanup_test_data(
-    db_session: Session,
-    email_pattern: str = "test-%@example.com"
-):
+def cleanup_test_data(db_session: Session, email_pattern: str = "test-%@example.com"):
     """
     Clean up test data from database.
 
@@ -244,13 +242,13 @@ def cleanup_test_data(
             )
 
         # Delete test IP rate limits (test IPs typically start with 127.0.0 or testclient)
-        db_session.query(IPRateLimit).filter(
-            IPRateLimit.ip_address.like("127.0.%")
-        ).delete(synchronize_session=False)
+        db_session.query(IPRateLimit).filter(IPRateLimit.ip_address.like("127.0.%")).delete(
+            synchronize_session=False
+        )
 
-        db_session.query(IPRateLimit).filter(
-            IPRateLimit.ip_address.like("testclient%")
-        ).delete(synchronize_session=False)
+        db_session.query(IPRateLimit).filter(IPRateLimit.ip_address.like("testclient%")).delete(
+            synchronize_session=False
+        )
 
         db_session.commit()
         print(f"✓ Cleaned up test data matching pattern: {email_pattern}")
@@ -272,5 +270,6 @@ def generate_unique_test_email(base: str = "test", domain: str = "example.com") 
         Unique email address like "test-1234567890@example.com"
     """
     import time
+
     timestamp = int(time.time() * 1000)  # Millisecond precision
     return f"{base}-{timestamp}@{domain}"

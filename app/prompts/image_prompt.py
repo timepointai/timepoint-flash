@@ -263,22 +263,33 @@ def get_prompt(
     if event_mechanics:
         grounded_parts.append(f"EVENT MECHANICS (VERIFIED - must be respected):\n{event_mechanics}")
     if visible_technology:
-        grounded_parts.append(f"VISIBLE TECHNOLOGY (VERIFIED - must be depicted accurately):\n{visible_technology}")
+        grounded_parts.append(
+            f"VISIBLE TECHNOLOGY (VERIFIED - must be depicted accurately):\n{visible_technology}"
+        )
     if photographic_reality:
-        grounded_parts.append(f"PHOTOGRAPHIC REALITY (VERIFIED - what the scene actually looked like):\n{photographic_reality}")
+        grounded_parts.append(
+            f"PHOTOGRAPHIC REALITY (VERIFIED - what the scene actually looked like):\n{photographic_reality}"
+        )
 
     # CRITICAL: Physical participants for image generation
     if physical_participants:
         participants_str = "\n".join(f"  - {p}" for p in physical_participants)
-        grounded_parts.append(f"PHYSICAL PARTICIPANTS (VERIFIED - these people MUST appear in the image):\n{participants_str}")
+        grounded_parts.append(
+            f"PHYSICAL PARTICIPANTS (VERIFIED - these people MUST appear in the image):\n{participants_str}"
+        )
 
     # Entity representations - how to show non-human entities
     if entity_representations:
         reps_str = "\n".join(f"  - {rep}" for rep in entity_representations)
-        grounded_parts.append(f"ENTITY REPRESENTATIONS (VERIFIED - show non-human entities this way):\n{reps_str}")
+        grounded_parts.append(
+            f"ENTITY REPRESENTATIONS (VERIFIED - show non-human entities this way):\n{reps_str}"
+        )
 
     if grounded_parts:
-        grounded_context_section = "=== VERIFIED HISTORICAL FACTS (CRITICAL - OVERRIDE ALL OTHER DESCRIPTIONS) ===\n\n" + "\n\n".join(grounded_parts)
+        grounded_context_section = (
+            "=== VERIFIED HISTORICAL FACTS (CRITICAL - OVERRIDE ALL OTHER DESCRIPTIONS) ===\n\n"
+            + "\n\n".join(grounded_parts)
+        )
     else:
         grounded_context_section = ""
 
@@ -297,9 +308,8 @@ def get_prompt(
         objects=", ".join(objects) if objects else "Period-appropriate objects",
         colors=", ".join(colors) if colors else "Period-appropriate colors",
         focal_point=focal_point or "Center of action",
-        character_descriptions="\n".join(
-            f"- {desc}" for desc in character_descriptions
-        ) or "No specific characters",
+        character_descriptions="\n".join(f"- {desc}" for desc in character_descriptions)
+        or "No specific characters",
         dialog_context=dialog_context or "Silent moment",
         grounded_context_section=grounded_context_section,
     )

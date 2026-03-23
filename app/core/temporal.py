@@ -204,10 +204,18 @@ class TemporalPoint(BaseModel):
         """
         # Infer season from month (Northern Hemisphere)
         month_to_season = {
-            12: "winter", 1: "winter", 2: "winter",
-            3: "spring", 4: "spring", 5: "spring",
-            6: "summer", 7: "summer", 8: "summer",
-            9: "fall", 10: "fall", 11: "fall",
+            12: "winter",
+            1: "winter",
+            2: "winter",
+            3: "spring",
+            4: "spring",
+            5: "spring",
+            6: "summer",
+            7: "summer",
+            8: "summer",
+            9: "fall",
+            10: "fall",
+            11: "fall",
         }
 
         # Infer time of day from hour
@@ -318,9 +326,7 @@ class TemporalPoint(BaseModel):
 
         # Adjust year for BCE
         if self.is_bce:
-            new_point = new_point.model_copy(
-                update={"year": new_point.year + year_offset}
-            )
+            new_point = new_point.model_copy(update={"year": new_point.year + year_offset})
 
         return new_point
 
@@ -347,8 +353,19 @@ class TemporalPoint(BaseModel):
 
         if self.month:
             month_names = [
-                "", "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"
+                "",
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
             ]
             parts.append(month_names[self.month])
 
@@ -451,10 +468,18 @@ class TemporalNavigator:
             return None
 
         season_map = {
-            12: "winter", 1: "winter", 2: "winter",
-            3: "spring", 4: "spring", 5: "spring",
-            6: "summer", 7: "summer", 8: "summer",
-            9: "fall", 10: "fall", 11: "fall",
+            12: "winter",
+            1: "winter",
+            2: "winter",
+            3: "spring",
+            4: "spring",
+            5: "spring",
+            6: "summer",
+            7: "summer",
+            8: "summer",
+            9: "fall",
+            10: "fall",
+            11: "fall",
         }
         return season_map.get(month)
 

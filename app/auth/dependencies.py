@@ -48,9 +48,7 @@ async def get_current_user(
         result = await session.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if user is None:
-            result = await session.execute(
-                select(User).where(User.external_id == user_id)
-            )
+            result = await session.execute(select(User).where(User.external_id == user_id))
             user = result.scalar_one_or_none()
         if user is None or not user.is_active:
             raise HTTPException(
@@ -71,7 +69,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = auth_header[len("Bearer "):]
+    token = auth_header[len("Bearer ") :]
 
     from app.auth.jwt_handler import decode_access_token
 

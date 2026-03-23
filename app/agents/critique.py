@@ -70,12 +70,8 @@ class CritiqueIssue(BaseModel):
     severity: str = Field(
         description="'critical' (must fix), 'warning' (should fix), 'minor' (note)"
     )
-    description: str = Field(
-        description="What's wrong and why"
-    )
-    fix_suggestion: str = Field(
-        description="Specific correction to apply"
-    )
+    description: str = Field(description="What's wrong and why")
+    fix_suggestion: str = Field(description="Specific correction to apply")
     location: str = Field(
         description="Where in the output the issue occurs (e.g., character name, dialog line)"
     )
@@ -107,18 +103,14 @@ class CritiqueOutput(BaseModel):
     """Output from the Critique Agent."""
 
     issues: list[CritiqueIssue] = Field(
-        default_factory=list,
-        description="Issues found in the output"
+        default_factory=list, description="Issues found in the output"
     )
     has_critical: bool = Field(
         description="Whether any critical issues were found (triggers retry)"
     )
-    overall_assessment: str = Field(
-        description="Brief summary of quality"
-    )
+    overall_assessment: str = Field(description="Brief summary of quality")
     revision_instructions: str = Field(
-        default="",
-        description="If has_critical=true, specific instructions for the re-run"
+        default="", description="If has_critical=true, specific instructions for the re-run"
     )
 
 
@@ -183,7 +175,7 @@ def get_critique_prompt(
 
 SCENE: "{query}"
 YEAR: {year}
-ERA: {era or 'Unknown'}
+ERA: {era or "Unknown"}
 LOCATION: {location}
 
 {step_name.upper()} OUTPUT TO REVIEW:
@@ -230,9 +222,7 @@ class CritiqueAgent(BaseAgent[CritiqueInput, CritiqueOutput]):
             additional_context=input_data.additional_context,
         )
 
-    async def run(
-        self, input_data: CritiqueInput
-    ) -> AgentResult[CritiqueOutput]:
+    async def run(self, input_data: CritiqueInput) -> AgentResult[CritiqueOutput]:
         """Run the critique.
 
         Args:
@@ -244,9 +234,7 @@ class CritiqueAgent(BaseAgent[CritiqueInput, CritiqueOutput]):
         result = await self._call_llm(input_data, temperature=0.3)
 
         if result.success and result.content:
-            critical_count = sum(
-                1 for i in result.content.issues if i.severity == "critical"
-            )
+            critical_count = sum(1 for i in result.content.issues if i.severity == "critical")
             result.metadata["issues_count"] = len(result.content.issues)
             result.metadata["critical_count"] = critical_count
 

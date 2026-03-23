@@ -109,8 +109,7 @@ class TestDialogArc:
     def _make_beats(self) -> list[ArcBeat]:
         """Create 7 test beats."""
         return [
-            ArcBeat(position=i, narrative_function=NarrativeFunction.ESTABLISH)
-            for i in range(7)
+            ArcBeat(position=i, narrative_function=NarrativeFunction.ESTABLISH) for i in range(7)
         ]
 
     def test_create_arc(self):

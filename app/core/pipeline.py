@@ -206,10 +206,7 @@ class PipelineState:
             PipelineStep.IMAGE_GENERATION,
             PipelineStep.GROUNDING,
         }
-        return any(
-            not r.success and r.step not in non_critical_steps
-            for r in self.step_results
-        )
+        return any(not r.success and r.step not in non_critical_steps for r in self.step_results)
 
     @property
     def image_generation_failed(self) -> bool:
@@ -357,9 +354,7 @@ class GenerationPipeline:
         self._moment_agent = MomentAgent(router=router)
         # Permissive mode: use batch dialog (1 LLM call) instead of
         # sequential roleplay (7 calls) to cut latency dramatically.
-        is_permissive = bool(
-            self._model_policy and self._model_policy.lower() == "permissive"
-        )
+        is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
         self._dialog_agent = DialogAgent(
             router=router,
             use_sequential=not is_permissive,
@@ -374,11 +369,19 @@ class GenerationPipeline:
         # Inject request-level llm_params into all agents
         if self._llm_params:
             for agent in [
-                self._judge_agent, self._timeline_agent, self._scene_agent,
-                self._characters_agent, self._char_id_agent, self._char_bio_agent,
-                self._moment_agent, self._dialog_agent, self._camera_agent,
-                self._graph_agent, self._image_prompt_agent,
-                self._image_prompt_optimizer_agent, self._critique_agent,
+                self._judge_agent,
+                self._timeline_agent,
+                self._scene_agent,
+                self._characters_agent,
+                self._char_id_agent,
+                self._char_bio_agent,
+                self._moment_agent,
+                self._dialog_agent,
+                self._camera_agent,
+                self._graph_agent,
+                self._image_prompt_agent,
+                self._image_prompt_optimizer_agent,
+                self._critique_agent,
             ]:
                 agent._llm_params = self._llm_params  # noqa: SLF001
 
@@ -578,10 +581,7 @@ class GenerationPipeline:
         moment_task = run_with_semaphore(self._step_moment(state))
         camera_task = run_with_semaphore(self._step_camera(state))
 
-        parallel_results = await asyncio.gather(
-            moment_task, camera_task,
-            return_exceptions=True
-        )
+        parallel_results = await asyncio.gather(moment_task, camera_task, return_exceptions=True)
 
         # Merge parallel results
         self._merge_parallel_results(state, parallel_results, ["moment", "camera"])
@@ -619,10 +619,9 @@ class GenerationPipeline:
                 camera_result = await camera_task
                 if isinstance(camera_result, PipelineState) and camera_result.camera_data:
                     state.camera_data = camera_result.camera_data
-                    state.step_results.extend([
-                        r for r in camera_result.step_results
-                        if r.step == PipelineStep.CAMERA
-                    ])
+                    state.step_results.extend(
+                        [r for r in camera_result.step_results if r.step == PipelineStep.CAMERA]
+                    )
             except Exception as e:
                 logger.error(f"Camera step failed: {e}")
             return state
@@ -632,10 +631,9 @@ class GenerationPipeline:
             camera_result = await camera_task
             if isinstance(camera_result, PipelineState) and camera_result.camera_data:
                 state.camera_data = camera_result.camera_data
-                state.step_results.extend([
-                    r for r in camera_result.step_results
-                    if r.step == PipelineStep.CAMERA
-                ])
+                state.step_results.extend(
+                    [r for r in camera_result.step_results if r.step == PipelineStep.CAMERA]
+                )
         except Exception as e:
             logger.error(f"Camera step failed: {e}")
             state.step_results.append(
@@ -711,6 +709,7 @@ class GenerationPipeline:
 
         # Prepare Moment input (uses character names only!)
         from app.agents.moment import MomentInput
+
         moment_input = MomentInput(
             query=query,
             year=state.timeline_data.year,
@@ -807,7 +806,9 @@ class GenerationPipeline:
             )
         )
 
-        logger.debug(f"Optimized Characters: {len(characters)} created in {elapsed_ms}ms (parallel Graph+Moment+Bios)")
+        logger.debug(
+            f"Optimized Characters: {len(characters)} created in {elapsed_ms}ms (parallel Graph+Moment+Bios)"
+        )
         return state
 
     def _merge_parallel_results(
@@ -831,16 +832,14 @@ class GenerationPipeline:
             elif isinstance(result, PipelineState):
                 if step_name == "moment" and result.moment_data:
                     state.moment_data = result.moment_data
-                    state.step_results.extend([
-                        r for r in result.step_results
-                        if r.step == PipelineStep.MOMENT
-                    ])
+                    state.step_results.extend(
+                        [r for r in result.step_results if r.step == PipelineStep.MOMENT]
+                    )
                 elif step_name == "camera" and result.camera_data:
                     state.camera_data = result.camera_data
-                    state.step_results.extend([
-                        r for r in result.step_results
-                        if r.step == PipelineStep.CAMERA
-                    ])
+                    state.step_results.extend(
+                        [r for r in result.step_results if r.step == PipelineStep.CAMERA]
+                    )
 
     async def run_streaming(
         self, query: str, generate_image: bool = False
@@ -866,7 +865,9 @@ class GenerationPipeline:
         self._init_agents()
         self._plan_execution()  # Determine tier-based parallelism
         state = PipelineState(query=query)
-        logger.info(f"Starting streaming pipeline for query: {query} (tier={self._model_tier.value}, parallelism={self._max_parallelism})")
+        logger.info(
+            f"Starting streaming pipeline for query: {query} (tier={self._model_tier.value}, parallelism={self._max_parallelism})"
+        )
 
         # === SEQUENTIAL PHASE 1: Foundation steps ===
         # Step 1: Judge
@@ -920,13 +921,17 @@ class GenerationPipeline:
                     # Merge result into main state and yield
                     if step_name == "moment":
                         state.moment_data = result_state.moment_data
-                        step_result = [r for r in result_state.step_results if r.step == PipelineStep.MOMENT]
+                        step_result = [
+                            r for r in result_state.step_results if r.step == PipelineStep.MOMENT
+                        ]
                         if step_result:
                             state.step_results.append(step_result[0])
                             yield (PipelineStep.MOMENT, step_result[0], state)
                     elif step_name == "camera":
                         state.camera_data = result_state.camera_data
-                        step_result = [r for r in result_state.step_results if r.step == PipelineStep.CAMERA]
+                        step_result = [
+                            r for r in result_state.step_results if r.step == PipelineStep.CAMERA
+                        ]
                         if step_result:
                             state.step_results.append(step_result[0])
                             yield (PipelineStep.CAMERA, step_result[0], state)
@@ -1230,7 +1235,9 @@ class GenerationPipeline:
             logger.warning("Graph generation failed, continuing without relationship context")
 
         # === PHASE 3: Parallel Bio Generation (with graph context) ===
-        logger.debug(f"Characters Phase 3: Parallel bio generation ({len(char_identification.characters)} chars)")
+        logger.debug(
+            f"Characters Phase 3: Parallel bio generation ({len(char_identification.characters)} chars)"
+        )
 
         async def generate_bio_with_semaphore(stub):
             """Generate bio for one character with semaphore control."""
@@ -1250,10 +1257,7 @@ class GenerationPipeline:
                 return await self._char_bio_agent.run(bio_input)
 
         # Run all bio generations in parallel
-        bio_tasks = [
-            generate_bio_with_semaphore(stub)
-            for stub in char_identification.characters
-        ]
+        bio_tasks = [generate_bio_with_semaphore(stub) for stub in char_identification.characters]
         bio_results = await asyncio.gather(*bio_tasks, return_exceptions=True)
 
         # Assemble characters from results
@@ -1297,7 +1301,9 @@ class GenerationPipeline:
             )
         )
 
-        logger.debug(f"Characters: {len(characters)} created via graph-informed parallel generation in {elapsed_ms}ms")
+        logger.debug(
+            f"Characters: {len(characters)} created via graph-informed parallel generation in {elapsed_ms}ms"
+        )
         return state
 
     async def _step_characters_fallback(self, state: PipelineState) -> PipelineState:
@@ -1414,9 +1420,7 @@ class GenerationPipeline:
             # === CRITIQUE LOOP (one pass max) ===
             # Skip critique in permissive mode — saves 1-8 LLM calls and the
             # batch dialog output is already quality-constrained by the prompt.
-            is_permissive = bool(
-                self._model_policy and self._model_policy.lower() == "permissive"
-            )
+            is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
             if is_permissive:
                 logger.info("Skipping dialog critique: model_policy=permissive (speed mode)")
                 state.step_results.append(
@@ -1550,8 +1554,7 @@ class GenerationPipeline:
             era=state.timeline_data.era,
             location=state.timeline_data.location,
             characters=[
-                {"name": c.name, "role": c.role.value}
-                for c in state.character_data.characters
+                {"name": c.name, "role": c.role.value} for c in state.character_data.characters
             ],
         )
         result = await self._graph_agent.run(input_data)
@@ -1595,7 +1598,7 @@ class GenerationPipeline:
             scene=state.scene_data,
             characters=state.character_data,
             dialog=state.dialog_data,
-            graph=state.graph_data,    # Relationships
+            graph=state.graph_data,  # Relationships
             moment=state.moment_data,  # Plot/tension
             camera=state.camera_data,  # Composition
             grounded_context=state.grounded_context,  # Historical accuracy
@@ -1668,7 +1671,9 @@ class GenerationPipeline:
                     "optimized_words": result.content.word_count if result.content else 0,
                     "quality_score": result.content.quality_score if result.content else 0,
                     "issues_found": len(result.content.issues_found) if result.content else 0,
-                } if result.success else None,
+                }
+                if result.success
+                else None,
                 error=result.error,
                 latency_ms=result.latency_ms,
                 model_used=result.model_used,
@@ -1699,7 +1704,9 @@ class GenerationPipeline:
         if state.optimized_prompt:
             logger.debug(f"Using optimized prompt ({len(state.optimized_prompt.split())} words)")
         else:
-            logger.debug(f"Using full prompt ({len(state.image_prompt_data.full_prompt.split())} words)")
+            logger.debug(
+                f"Using full prompt ({len(state.image_prompt_data.full_prompt.split())} words)"
+            )
 
         input_data = ImageGenInput(
             prompt=prompt_to_use,
@@ -1794,15 +1801,17 @@ class GenerationPipeline:
         }
 
         if state.timeline_data:
-            payload.update({
-                "year": state.timeline_data.year,
-                "month": state.timeline_data.month,
-                "day": state.timeline_data.day,
-                "season": state.timeline_data.season,
-                "time_of_day": state.timeline_data.time_of_day,
-                "era": state.timeline_data.era,
-                "location": state.timeline_data.location,
-            })
+            payload.update(
+                {
+                    "year": state.timeline_data.year,
+                    "month": state.timeline_data.month,
+                    "day": state.timeline_data.day,
+                    "season": state.timeline_data.season,
+                    "time_of_day": state.timeline_data.time_of_day,
+                    "era": state.timeline_data.era,
+                    "location": state.timeline_data.location,
+                }
+            )
 
         if state.scene_data:
             payload["scene_data"] = state.scene_data.model_dump()
@@ -1830,7 +1839,10 @@ class GenerationPipeline:
 
         # Model provenance (Clockchain schema v0.2)
         from app.core.model_policy import derive_model_permissiveness
-        payload["model_provider"] = self.router.config.primary.value if self.router.config else "unknown"
+
+        payload["model_provider"] = (
+            self.router.config.primary.value if self.router.config else "unknown"
+        )
         payload["model_permissiveness"] = derive_model_permissiveness(text_model)
 
         # Store image generation warning in payload if applicable
@@ -1840,6 +1852,7 @@ class GenerationPipeline:
         # Compute TDF hash
         import hashlib
         import json as _json
+
         canonical = _json.dumps(payload, sort_keys=True, default=str)
         tdf_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -1884,7 +1897,9 @@ class GenerationPipeline:
                 step=result.step.value,
                 status="success" if result.success else "failed",
                 input_data={"query": state.query},
-                output_data=result.data.model_dump() if hasattr(result.data, "model_dump") else None,
+                output_data=result.data.model_dump()
+                if hasattr(result.data, "model_dump")
+                else None,
                 model_used=result.model_used,
                 latency_ms=result.latency_ms,
                 error_message=result.error,

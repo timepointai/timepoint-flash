@@ -288,7 +288,7 @@ class SurveyAgent:
         else:
             # Clean up response and use heuristics
             if response_text.lower().startswith(character.name.lower()):
-                response_text = response_text[len(character.name):].lstrip(":").strip()
+                response_text = response_text[len(character.name) :].lstrip(":").strip()
 
             # Analyze response with heuristics
             sentiment = self._analyze_sentiment(response_text)
@@ -351,7 +351,7 @@ class SurveyAgent:
             # Clean and use heuristics
             clean_text = response_text
             if clean_text.lower().startswith(character_name.lower()):
-                clean_text = clean_text[len(character_name):].lstrip(":").strip()
+                clean_text = clean_text[len(character_name) :].lstrip(":").strip()
 
             return CharacterSurveyResponse(
                 character_name=character_name,
@@ -375,8 +375,27 @@ class SurveyAgent:
         """
         text_lower = text.lower()
 
-        positive_words = ["agree", "support", "pleased", "excellent", "wonderful", "hope", "joy", "proud", "honor"]
-        negative_words = ["disagree", "oppose", "concerned", "worried", "fear", "doubt", "unfortunately", "grave"]
+        positive_words = [
+            "agree",
+            "support",
+            "pleased",
+            "excellent",
+            "wonderful",
+            "hope",
+            "joy",
+            "proud",
+            "honor",
+        ]
+        negative_words = [
+            "disagree",
+            "oppose",
+            "concerned",
+            "worried",
+            "fear",
+            "doubt",
+            "unfortunately",
+            "grave",
+        ]
 
         pos_count = sum(1 for w in positive_words if w in text_lower)
         neg_count = sum(1 for w in negative_words if w in text_lower)
@@ -482,14 +501,10 @@ class SurveyAgent:
 
             if input_data.mode == SurveyMode.PARALLEL:
                 # Parallel execution
-                all_responses = await self._survey_parallel(
-                    input_data, temperature
-                )
+                all_responses = await self._survey_parallel(input_data, temperature)
             else:
                 # Sequential execution
-                all_responses = await self._survey_sequential(
-                    input_data, temperature
-                )
+                all_responses = await self._survey_sequential(input_data, temperature)
 
             # Generate summary if requested
             summary: str | None = None
@@ -519,7 +534,9 @@ class SurveyAgent:
                 total_characters=len(input_data.characters),
             )
 
-            logger.debug(f"{self.name}: completed with {len(all_responses)} responses in {latency}ms")
+            logger.debug(
+                f"{self.name}: completed with {len(all_responses)} responses in {latency}ms"
+            )
 
             return AgentResult(
                 success=True,
@@ -713,9 +730,7 @@ class SurveyAgent:
             summaries = []
             for question in input_data.questions:
                 q_responses = [
-                    (r.character_name, r.response)
-                    for r in all_responses
-                    if r.question == question
+                    (r.character_name, r.response) for r in all_responses if r.question == question
                 ]
                 if q_responses:
                     try:

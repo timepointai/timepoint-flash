@@ -315,7 +315,9 @@ class CharacterChatAgent:
             # Combine prompts for the call
             full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
 
-            logger.debug(f"{self.name}: chatting with {input_data.character.name} (structured={use_structured})")
+            logger.debug(
+                f"{self.name}: chatting with {input_data.character.name} (structured={use_structured})"
+            )
 
             # Make LLM call
             response = await self.router.call(
@@ -337,7 +339,9 @@ class CharacterChatAgent:
             else:
                 # Clean up response - remove any accidental prefixes
                 if response_text.lower().startswith(input_data.character.name.lower()):
-                    response_text = response_text[len(input_data.character.name):].lstrip(":").strip()
+                    response_text = (
+                        response_text[len(input_data.character.name) :].lstrip(":").strip()
+                    )
 
                 # Detect emotional tone (simple heuristic)
                 emotional_tone = self._detect_emotional_tone(response_text)
@@ -626,10 +630,7 @@ class ChatSessionManager:
         Returns:
             List of ChatSession objects
         """
-        return [
-            s for s in self.sessions.values()
-            if s.timepoint_id == timepoint_id
-        ]
+        return [s for s in self.sessions.values() if s.timepoint_id == timepoint_id]
 
     def _cleanup_oldest_sessions(self) -> None:
         """Remove oldest sessions to make room for new ones."""

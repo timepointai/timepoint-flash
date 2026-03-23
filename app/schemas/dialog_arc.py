@@ -34,24 +34,24 @@ class NarrativeShape(str, Enum):
     validated Vonnegut's classification of narrative arcs.
     """
 
-    MAN_IN_HOLE = "man_in_hole"          # Good -> Bad -> Good (most common)
-    CREATION = "creation"                  # Low -> Steady Rise (Apollo 11, Woodstock)
-    CINDERELLA = "cinderella"              # Low -> High -> Low -> Very High
+    MAN_IN_HOLE = "man_in_hole"  # Good -> Bad -> Good (most common)
+    CREATION = "creation"  # Low -> Steady Rise (Apollo 11, Woodstock)
+    CINDERELLA = "cinderella"  # Low -> High -> Low -> Very High
     FROM_BAD_TO_WORSE = "from_bad_to_worse"  # Bad -> Worse (Pompeii, Titanic)
-    OLD_TESTAMENT = "old_testament"        # Rise -> Deep Fall (Icarus, Sarajevo)
-    FREYTAG = "freytag"                    # Standard pyramid: exposition -> climax -> denouement
+    OLD_TESTAMENT = "old_testament"  # Rise -> Deep Fall (Icarus, Sarajevo)
+    FREYTAG = "freytag"  # Standard pyramid: exposition -> climax -> denouement
 
 
 class NarrativeFunction(str, Enum):
     """What each dialog line does in the narrative arc."""
 
-    ESTABLISH = "establish"      # Set scene, introduce status quo
-    COMPLICATE = "complicate"    # Introduce tension/conflict
-    ESCALATE = "escalate"        # Raise stakes
-    TURN = "turn"                # Climactic moment / reversal
-    REACT = "react"              # Response to the turn
-    RESOLVE = "resolve"          # Resolution or new equilibrium
-    PUNCTUATE = "punctuate"      # Final note / emotional coda
+    ESTABLISH = "establish"  # Set scene, introduce status quo
+    COMPLICATE = "complicate"  # Introduce tension/conflict
+    ESCALATE = "escalate"  # Raise stakes
+    TURN = "turn"  # Climactic moment / reversal
+    REACT = "react"  # Response to the turn
+    RESOLVE = "resolve"  # Resolution or new equilibrium
+    PUNCTUATE = "punctuate"  # Final note / emotional coda
 
 
 class ArcBeat(BaseModel):
@@ -183,28 +183,58 @@ FUNCTION_SPEAKER_HINTS: dict[NarrativeFunction, str] = {
 # Default emotional targets when MomentData has no beats
 DEFAULT_EMOTIONAL_BEATS: dict[NarrativeShape, list[str]] = {
     NarrativeShape.FREYTAG: [
-        "anticipation", "tension", "urgency", "dread",
-        "revelation", "shock", "acceptance",
+        "anticipation",
+        "tension",
+        "urgency",
+        "dread",
+        "revelation",
+        "shock",
+        "acceptance",
     ],
     NarrativeShape.MAN_IN_HOLE: [
-        "contentment", "worry", "despair", "determination",
-        "effort", "relief", "gratitude",
+        "contentment",
+        "worry",
+        "despair",
+        "determination",
+        "effort",
+        "relief",
+        "gratitude",
     ],
     NarrativeShape.CREATION: [
-        "curiosity", "wonder", "focus", "hope",
-        "excitement", "triumph", "awe",
+        "curiosity",
+        "wonder",
+        "focus",
+        "hope",
+        "excitement",
+        "triumph",
+        "awe",
     ],
     NarrativeShape.CINDERELLA: [
-        "longing", "hope", "joy", "loss",
-        "determination", "triumph", "wonder",
+        "longing",
+        "hope",
+        "joy",
+        "loss",
+        "determination",
+        "triumph",
+        "wonder",
     ],
     NarrativeShape.FROM_BAD_TO_WORSE: [
-        "unease", "alarm", "fear", "dread",
-        "horror", "despair", "resignation",
+        "unease",
+        "alarm",
+        "fear",
+        "dread",
+        "horror",
+        "despair",
+        "resignation",
     ],
     NarrativeShape.OLD_TESTAMENT: [
-        "pride", "ambition", "hubris", "shock",
-        "regret", "sorrow", "acceptance",
+        "pride",
+        "ambition",
+        "hubris",
+        "shock",
+        "regret",
+        "sorrow",
+        "acceptance",
     ],
 }
 
@@ -254,14 +284,16 @@ def build_arc_from_moment(moment: object) -> DialogArc:
     beats: list[ArcBeat] = []
     for i in range(7):
         func = functions[i]
-        beats.append(ArcBeat(
-            position=i,
-            narrative_function=func,
-            emotional_target=emotional_targets[i],
-            speaker_role=FUNCTION_SPEAKER_ROLES[func],
-            speaker_hint=FUNCTION_SPEAKER_HINTS[func],
-            intensity=intensities[i],
-        ))
+        beats.append(
+            ArcBeat(
+                position=i,
+                narrative_function=func,
+                emotional_target=emotional_targets[i],
+                speaker_role=FUNCTION_SPEAKER_ROLES[func],
+                speaker_hint=FUNCTION_SPEAKER_HINTS[func],
+                intensity=intensities[i],
+            )
+        )
 
     # Extract arc metadata
     central_question = getattr(moment, "central_question", "") or ""

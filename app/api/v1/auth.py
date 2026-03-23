@@ -70,9 +70,7 @@ async def apple_sign_in(
         ) from e
 
     # Find or create user
-    result = await session.execute(
-        select(User).where(User.apple_sub == claims.sub)
-    )
+    result = await session.execute(select(User).where(User.apple_sub == claims.sub))
     user = result.scalar_one_or_none()
 
     if user is None:
@@ -138,9 +136,7 @@ async def google_sign_in(
     google_external_id = f"google:{claims.sub}"
 
     # Find existing user by external_id
-    result = await session.execute(
-        select(User).where(User.external_id == google_external_id)
-    )
+    result = await session.execute(select(User).where(User.external_id == google_external_id))
     user = result.scalar_one_or_none()
 
     if user is None:
@@ -206,9 +202,7 @@ async def dev_token(
     email_hash = hashlib.sha256(request.email.encode()).hexdigest()[:16]
     synthetic_sub = f"dev_{email_hash}"
 
-    result = await session.execute(
-        select(User).where(User.apple_sub == synthetic_sub)
-    )
+    result = await session.execute(select(User).where(User.apple_sub == synthetic_sub))
     user = result.scalar_one_or_none()
 
     if user is None:
@@ -267,16 +261,12 @@ async def service_token(
     user through their own auth flow.  Requires a valid X-Service-Key header.
     """
     # Verify the user exists and is active
-    result = await session.execute(
-        select(User).where(User.id == request.user_id)
-    )
+    result = await session.execute(select(User).where(User.id == request.user_id))
     user = result.scalar_one_or_none()
 
     if user is None:
         # Also try external_id for Pro Cloud users
-        result = await session.execute(
-            select(User).where(User.external_id == request.user_id)
-        )
+        result = await session.execute(select(User).where(User.external_id == request.user_id))
         user = result.scalar_one_or_none()
 
     if user is None or not user.is_active:
@@ -336,9 +326,7 @@ async def demo_sign_in(
     email_hash = hashlib.sha256(demo_email.encode()).hexdigest()[:16]
     synthetic_sub = f"demo_{email_hash}"
 
-    result = await session.execute(
-        select(User).where(User.apple_sub == synthetic_sub)
-    )
+    result = await session.execute(select(User).where(User.apple_sub == synthetic_sub))
     user = result.scalar_one_or_none()
 
     if user is None:
@@ -398,9 +386,7 @@ async def refresh_tokens(
     # Retrieve user_id from the new token record
     from app.models_auth import RefreshToken
 
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == new_hash)
-    )
+    result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == new_hash))
     new_rt = result.scalar_one()
 
     access_token = create_access_token(new_rt.user_id)

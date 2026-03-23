@@ -120,8 +120,12 @@ class TestCharacterIdentification:
         """Test primary_stubs property."""
         stubs = [
             CharacterStub(name="Primary 1", role=CharacterRole.PRIMARY, brief_description="Test"),
-            CharacterStub(name="Secondary 1", role=CharacterRole.SECONDARY, brief_description="Test"),
-            CharacterStub(name="Background 1", role=CharacterRole.BACKGROUND, brief_description="Test"),
+            CharacterStub(
+                name="Secondary 1", role=CharacterRole.SECONDARY, brief_description="Test"
+            ),
+            CharacterStub(
+                name="Background 1", role=CharacterRole.BACKGROUND, brief_description="Test"
+            ),
         ]
         char_id = CharacterIdentification(
             characters=stubs,
@@ -134,9 +138,24 @@ class TestCharacterIdentification:
     def test_speaking_stubs_property(self):
         """Test speaking_stubs property."""
         stubs = [
-            CharacterStub(name="Speaker 1", role=CharacterRole.PRIMARY, brief_description="Test", speaks_in_scene=True),
-            CharacterStub(name="Speaker 2", role=CharacterRole.SECONDARY, brief_description="Test", speaks_in_scene=True),
-            CharacterStub(name="Silent 1", role=CharacterRole.BACKGROUND, brief_description="Test", speaks_in_scene=False),
+            CharacterStub(
+                name="Speaker 1",
+                role=CharacterRole.PRIMARY,
+                brief_description="Test",
+                speaks_in_scene=True,
+            ),
+            CharacterStub(
+                name="Speaker 2",
+                role=CharacterRole.SECONDARY,
+                brief_description="Test",
+                speaks_in_scene=True,
+            ),
+            CharacterStub(
+                name="Silent 1",
+                role=CharacterRole.BACKGROUND,
+                brief_description="Test",
+                speaks_in_scene=False,
+            ),
         ]
         char_id = CharacterIdentification(
             characters=stubs,
@@ -324,6 +343,7 @@ class TestAgentInitialization:
     def test_char_bio_agent_init(self):
         """Test CharacterBioAgent initialization."""
         from app.schemas import Character
+
         agent = CharacterBioAgent()
         assert agent.name == "CharacterBioAgent"
         assert agent.response_model == Character

@@ -84,7 +84,11 @@ class NavigationResponse(BaseModel):
 
 def _check_visibility_access(tp: Timepoint, user: User | None) -> None:
     """Raise 403 if private timepoint and user is not the owner."""
-    vis = tp.visibility.value if isinstance(tp.visibility, TimepointVisibility) else (tp.visibility or "public")
+    vis = (
+        tp.visibility.value
+        if isinstance(tp.visibility, TimepointVisibility)
+        else (tp.visibility or "public")
+    )
     if vis == "private":
         is_owner = user is not None and tp.user_id is not None and user.id == tp.user_id
         if not is_owner:
@@ -197,15 +201,16 @@ async def generate_next_moment(
     # Spend credits if authenticated
     if user is not None:
         await spend_credits(
-            session, user.id, CREDIT_COSTS["temporal_jump"], TransactionType.TEMPORAL,
+            session,
+            user.id,
+            CREDIT_COSTS["temporal_jump"],
+            TransactionType.TEMPORAL,
             reference_id=timepoint_id,
             description=f"Temporal jump: {request.units} {request.unit}(s) forward",
         )
 
     # Get source timepoint
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     source_tp = result.scalar_one_or_none()
 
     if not source_tp:
@@ -235,9 +240,11 @@ async def generate_next_moment(
             ),
             timeout=300,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Temporal next timed out after 300s: {timepoint_id}")
-        raise HTTPException(status_code=504, detail="Temporal generation timed out after 300 seconds")
+        raise HTTPException(
+            status_code=504, detail="Temporal generation timed out after 300 seconds"
+        ) from None
 
     # Assign sequence_id to both source and target
     seq_id = source_tp.sequence_id or str(uuid.uuid4())
@@ -250,6 +257,7 @@ async def generate_next_moment(
     if app_settings.BLOB_STORAGE_ENABLED:
         try:
             from app.storage import StorageConfig, StorageService
+
             storage_config = StorageConfig(
                 enabled=True,
                 root=app_settings.BLOB_STORAGE_ROOT,
@@ -261,7 +269,8 @@ async def generate_next_moment(
                 {"id": new_tp.id, "slug": new_tp.slug, "year": new_tp.year},
             ]
             full_path, folder_name = await storage_service.write_blob(
-                new_tp, sequence_members=seq_members,
+                new_tp,
+                sequence_members=seq_members,
             )
             new_tp.blob_path = full_path
             new_tp.blob_folder_name = folder_name
@@ -311,15 +320,16 @@ async def generate_prior_moment(
     # Spend credits if authenticated
     if user is not None:
         await spend_credits(
-            session, user.id, CREDIT_COSTS["temporal_jump"], TransactionType.TEMPORAL,
+            session,
+            user.id,
+            CREDIT_COSTS["temporal_jump"],
+            TransactionType.TEMPORAL,
             reference_id=timepoint_id,
             description=f"Temporal jump: {request.units} {request.unit}(s) backward",
         )
 
     # Get source timepoint
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     source_tp = result.scalar_one_or_none()
 
     if not source_tp:
@@ -349,9 +359,11 @@ async def generate_prior_moment(
             ),
             timeout=300,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Temporal prior timed out after 300s: {timepoint_id}")
-        raise HTTPException(status_code=504, detail="Temporal generation timed out after 300 seconds")
+        raise HTTPException(
+            status_code=504, detail="Temporal generation timed out after 300 seconds"
+        ) from None
 
     # For prior, the new timepoint should be the parent
     source_tp.parent_id = new_tp.id
@@ -367,6 +379,7 @@ async def generate_prior_moment(
     if app_settings.BLOB_STORAGE_ENABLED:
         try:
             from app.storage import StorageConfig, StorageService
+
             storage_config = StorageConfig(
                 enabled=True,
                 root=app_settings.BLOB_STORAGE_ROOT,
@@ -377,7 +390,8 @@ async def generate_prior_moment(
                 {"id": source_tp.id, "slug": source_tp.slug, "year": source_tp.year},
             ]
             full_path, folder_name = await storage_service.write_blob(
-                new_tp, sequence_members=seq_members,
+                new_tp,
+                sequence_members=seq_members,
             )
             new_tp.blob_path = full_path
             new_tp.blob_folder_name = folder_name
@@ -419,9 +433,7 @@ async def get_temporal_sequence(
         Dictionary with prior and next timepoint lists
     """
     # Get center timepoint
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     center_tp = result.scalar_one_or_none()
 
     if not center_tp:
@@ -447,11 +459,13 @@ async def get_temporal_sequence(
                 )
                 parent = result.scalar_one_or_none()
                 if parent:
-                    response["prior"].append({
-                        "id": parent.id,
-                        "year": parent.year,
-                        "slug": parent.slug,
-                    })
+                    response["prior"].append(
+                        {
+                            "id": parent.id,
+                            "year": parent.year,
+                            "slug": parent.slug,
+                        }
+                    )
                     current = parent
                 else:
                     break
@@ -470,11 +484,13 @@ async def get_temporal_sequence(
             )
             child = result.scalar_one_or_none()
             if child:
-                response["next"].append({
-                    "id": child.id,
-                    "year": child.year,
-                    "slug": child.slug,
-                })
+                response["next"].append(
+                    {
+                        "id": child.id,
+                        "year": child.year,
+                        "slug": child.slug,
+                    }
+                )
                 current_id = child.id
             else:
                 break

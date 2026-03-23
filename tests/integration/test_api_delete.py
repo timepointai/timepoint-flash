@@ -49,9 +49,7 @@ class TestDeleteEndpointValidation:
 
     def test_delete_nonexistent_timepoint(self, client, test_db):
         """Test deleting non-existent timepoint returns 404."""
-        response = client.delete(
-            "/api/v1/timepoints/00000000-0000-0000-0000-000000000000"
-        )
+        response = client.delete("/api/v1/timepoints/00000000-0000-0000-0000-000000000000")
         assert response.status_code == 404
 
     def test_delete_404_response_structure(self, client, test_db):

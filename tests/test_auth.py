@@ -184,9 +184,7 @@ class TestCredits:
         db_session.add(account)
         await db_session.flush()
 
-        txn = await grant_credits(
-            db_session, user.id, 50, TransactionType.SIGNUP_BONUS, "Welcome"
-        )
+        txn = await grant_credits(db_session, user.id, 50, TransactionType.SIGNUP_BONUS, "Welcome")
         await db_session.commit()
 
         assert txn.amount == 50
@@ -225,9 +223,7 @@ class TestCredits:
         await db_session.flush()
 
         with pytest.raises(ValueError, match="Insufficient"):
-            await spend_credits(
-                db_session, user.id, 5, TransactionType.GENERATION
-            )
+            await spend_credits(db_session, user.id, 5, TransactionType.GENERATION)
 
     @pytest.mark.asyncio
     async def test_check_balance(self, db_session):

@@ -33,12 +33,15 @@ def _make_mock_timepoint(**overrides):
     tp.status.value = "completed"
 
     # TDF payload
-    tp.tdf_payload = overrides.get("tdf_payload", {
-        "scene_data": {"setting": "hotel lobby"},
-        "character_data": {"characters": []},
-        "dialog": [{"speaker": "Tesla", "line": "Hello"}],
-        "image_prompt": "A photorealistic image of Tesla",
-    })
+    tp.tdf_payload = overrides.get(
+        "tdf_payload",
+        {
+            "scene_data": {"setting": "hotel lobby"},
+            "character_data": {"characters": []},
+            "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+            "image_prompt": "A photorealistic image of Tesla",
+        },
+    )
     tp.tdf_hash = overrides.get("tdf_hash", "abc123")
     tp.tdf_version = overrides.get("tdf_version", "1.0.0")
     tp.image_base64 = overrides.get("image_base64", None)
@@ -109,12 +112,14 @@ class TestWriteBlob:
 
     @pytest.mark.asyncio
     async def test_writes_image_prompt(self, service, mock_backend):
-        tp = _make_mock_timepoint(tdf_payload={
-            "scene_data": {"setting": "hotel lobby"},
-            "character_data": {"characters": []},
-            "dialog": [{"speaker": "Tesla", "line": "Hello"}],
-            "image_prompt": "A test prompt",
-        })
+        tp = _make_mock_timepoint(
+            tdf_payload={
+                "scene_data": {"setting": "hotel lobby"},
+                "character_data": {"characters": []},
+                "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+                "image_prompt": "A test prompt",
+            }
+        )
         await service.write_blob(tp)
         write_calls = mock_backend.write_text.call_args_list
         filenames = [call.args[0].split("/")[-1] for call in write_calls]
@@ -169,13 +174,15 @@ class TestWriteBlob:
 
     @pytest.mark.asyncio
     async def test_grounding_json_written(self, service, mock_backend):
-        tp = _make_mock_timepoint(tdf_payload={
-            "scene_data": {"setting": "hotel lobby"},
-            "character_data": {"characters": []},
-            "dialog": [{"speaker": "Tesla", "line": "Hello"}],
-            "grounding_data": {"facts": ["fact1"]},
-            "image_prompt": "A photorealistic image of Tesla",
-        })
+        tp = _make_mock_timepoint(
+            tdf_payload={
+                "scene_data": {"setting": "hotel lobby"},
+                "character_data": {"characters": []},
+                "dialog": [{"speaker": "Tesla", "line": "Hello"}],
+                "grounding_data": {"facts": ["fact1"]},
+                "image_prompt": "A photorealistic image of Tesla",
+            }
+        )
         await service.write_blob(tp)
         write_calls = mock_backend.write_text.call_args_list
         filenames = [call.args[0].split("/")[-1] for call in write_calls]

@@ -32,9 +32,7 @@ async def _get_account(session: AsyncSession, user_id: str) -> CreditAccount:
     Raises:
         ValueError: If no credit account exists.
     """
-    result = await session.execute(
-        select(CreditAccount).where(CreditAccount.user_id == user_id)
-    )
+    result = await session.execute(select(CreditAccount).where(CreditAccount.user_id == user_id))
     account = result.scalar_one_or_none()
     if account is None:
         raise ValueError(f"No credit account for user {user_id}")
@@ -83,9 +81,7 @@ async def spend_credits(
     account = await _get_account(session, user_id)
 
     if account.balance < cost:
-        raise ValueError(
-            f"Insufficient credits: have {account.balance}, need {cost}"
-        )
+        raise ValueError(f"Insufficient credits: have {account.balance}, need {cost}")
 
     account.balance -= cost
     account.lifetime_spent += cost

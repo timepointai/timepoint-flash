@@ -306,15 +306,29 @@ class TestDialogInputWithMoment:
         from app.schemas.moment import MomentData
 
         timeline = TimelineData(
-            year=1776, location="Philadelphia", era="Revolution",
+            year=1776,
+            location="Philadelphia",
+            era="Revolution",
         )
         scene = SceneData(
-            setting="Assembly Room", atmosphere="Tense", tension_level="high",
+            setting="Assembly Room",
+            atmosphere="Tense",
+            tension_level="high",
         )
         characters = CharacterData(
             characters=[
-                Character(name="Hancock", role=CharacterRole.PRIMARY, description="President", speaks_in_scene=True),
-                Character(name="Franklin", role=CharacterRole.SECONDARY, description="Diplomat", speaks_in_scene=True),
+                Character(
+                    name="Hancock",
+                    role=CharacterRole.PRIMARY,
+                    description="President",
+                    speaks_in_scene=True,
+                ),
+                Character(
+                    name="Franklin",
+                    role=CharacterRole.SECONDARY,
+                    description="Diplomat",
+                    speaks_in_scene=True,
+                ),
             ],
             focal_character="Hancock",
         )
@@ -344,7 +358,12 @@ class TestDialogInputWithMoment:
         scene = SceneData(setting="Room", atmosphere="Tense", tension_level="high")
         characters = CharacterData(
             characters=[
-                Character(name="Hancock", role=CharacterRole.PRIMARY, description="President", speaks_in_scene=True),
+                Character(
+                    name="Hancock",
+                    role=CharacterRole.PRIMARY,
+                    description="President",
+                    speaks_in_scene=True,
+                ),
             ],
             focal_character="Hancock",
         )
@@ -364,7 +383,12 @@ class TestDialogInputWithMoment:
         timeline = TimelineData(year=1776, location="Philadelphia", era="Revolution")
         scene = SceneData(setting="Room", atmosphere="Tense", tension_level="high")
         chars = [
-            Character(name=f"Char{i}", role=CharacterRole.SECONDARY, description=f"Person {i}", speaks_in_scene=True)
+            Character(
+                name=f"Char{i}",
+                role=CharacterRole.SECONDARY,
+                description=f"Person {i}",
+                speaks_in_scene=True,
+            )
             for i in range(8)
         ]
         characters = CharacterData(characters=chars, focal_character="Char0")
@@ -550,9 +574,7 @@ class TestImageGenAgent:
     async def test_run_failure(self):
         """Test handling generation failure."""
         mock_router = MagicMock()
-        mock_router.generate_image = AsyncMock(
-            side_effect=Exception("Generation failed")
-        )
+        mock_router.generate_image = AsyncMock(side_effect=Exception("Generation failed"))
 
         agent = ImageGenAgent(router=mock_router)
         input_data = ImageGenInput(prompt="A scene")

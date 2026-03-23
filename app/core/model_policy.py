@@ -9,22 +9,34 @@ PERMISSIVE_PREFIXES = (
     "meta-llama/",
     "deepseek/",
     "qwen/",
-    "mistralai/",           # Mistral open-weight models (Apache 2.0)
-    "microsoft/",           # Phi family
-    "google/gemma",         # Gemma open-weight
+    "mistralai/",  # Mistral open-weight models (Apache 2.0)
+    "microsoft/",  # Phi family
+    "google/gemma",  # Gemma open-weight
     "allenai/",
-    "nvidia/",              # Nemotron family
-    "nousresearch/",        # Hermes family (open-weight)
-    "black-forest-labs/",   # FLUX open-weight image models
-    "openrouter/",          # OpenRouter free distillable models (Hunter, Healer)
-    "stability-ai/",        # Stability AI SD3.5 (distillation-permissive)
+    "nvidia/",  # Nemotron family
+    "nousresearch/",  # Hermes family (open-weight)
+    "black-forest-labs/",  # FLUX open-weight image models
+    "openrouter/",  # OpenRouter free distillable models (Hunter, Healer)
+    "stability-ai/",  # Stability AI SD3.5 (distillation-permissive)
 )
 
 # Google-native model prefixes (always restricted)
 GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "flux-schnell")
 
 # Prefixes routed through OpenRouter (may be restricted or permissive)
-OPENROUTER_PREFIXES = ("meta-llama/", "anthropic/", "mistralai/", "openai/", "deepseek/", "qwen/", "microsoft/", "nvidia/", "nousresearch/", "black-forest-labs/", "openrouter/")
+OPENROUTER_PREFIXES = (
+    "meta-llama/",
+    "anthropic/",
+    "mistralai/",
+    "openai/",
+    "deepseek/",
+    "qwen/",
+    "microsoft/",
+    "nvidia/",
+    "nousresearch/",
+    "black-forest-labs/",
+    "openrouter/",
+)
 
 
 def derive_model_provider(model_id: str | None) -> str:

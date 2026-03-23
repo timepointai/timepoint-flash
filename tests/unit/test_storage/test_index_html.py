@@ -6,7 +6,6 @@ Covers:
     - Image section presence
 """
 
-
 from app.storage.index_html import _format_bytes, generate_index_html
 from app.storage.manifest import (
     BlobManifest,
@@ -88,11 +87,13 @@ class TestGenerateIndexHtml:
         assert 'src="image.png"' in html
 
     def test_no_image_section_without_image(self):
-        m = _make_manifest(files=[
-            FileEntry(filename="metadata.json", mime_type="application/json", size_bytes=100),
-        ])
+        m = _make_manifest(
+            files=[
+                FileEntry(filename="metadata.json", mime_type="application/json", size_bytes=100),
+            ]
+        )
         html = generate_index_html(m)
-        assert '<img src=' not in html
+        assert "<img src=" not in html
 
     def test_contains_provenance(self):
         m = _make_manifest()

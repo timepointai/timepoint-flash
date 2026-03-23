@@ -230,8 +230,9 @@ class TestTierRateLimits:
             expected_rate = config["rpm"] / 60.0
             actual_rate = config["refill_rate"]
             # Allow 10% tolerance
-            assert abs(actual_rate - expected_rate) / expected_rate < 0.15, \
+            assert abs(actual_rate - expected_rate) / expected_rate < 0.15, (
                 f"Tier {tier}: refill_rate {actual_rate} doesn't match rpm {config['rpm']}"
+            )
 
 
 class TestGracefulDegradation:

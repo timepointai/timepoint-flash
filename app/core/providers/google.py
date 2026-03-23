@@ -151,7 +151,8 @@ class GoogleProvider(LLMProvider):
             is_quota_exhausted = (
                 "quota" in error_str
                 or "resource exhausted" in error_str
-                or "exceeded" in error_str and "daily" in error_str
+                or "exceeded" in error_str
+                and "daily" in error_str
             )
             if is_quota_exhausted:
                 logger.warning(f"Google quota exhausted: {error}")
@@ -162,7 +163,7 @@ class GoogleProvider(LLMProvider):
             else:
                 # Temporary rate limit - retrying may help
                 raise RateLimitError(ProviderType.GOOGLE) from error
-        elif isinstance(error, asyncio.TimeoutError):
+        elif isinstance(error, TimeoutError):
             raise ProviderError(
                 message=f"Request timed out after {self.timeout}s",
                 provider=ProviderType.GOOGLE,
@@ -254,7 +255,6 @@ class GoogleProvider(LLMProvider):
 
             # Parse response
             if response_model is not None and response.text:
-
                 parsed = response_model.model_validate_json(response.text)
                 content = parsed
             else:
@@ -265,7 +265,8 @@ class GoogleProvider(LLMProvider):
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage = {
                     "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
-                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                    or 0,
                 }
 
             return LLMResponse(
@@ -340,7 +341,9 @@ class GoogleProvider(LLMProvider):
             config = types.GenerateContentConfig(**config_params)
 
             # Make API call with timeout
-            logger.debug(f"Calling Google API with grounding: model={model}, timeout={self.timeout}s")
+            logger.debug(
+                f"Calling Google API with grounding: model={model}, timeout={self.timeout}s"
+            )
             response = await asyncio.wait_for(
                 self.client.aio.models.generate_content(
                     model=model,
@@ -360,7 +363,8 @@ class GoogleProvider(LLMProvider):
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage = {
                     "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
-                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                    or 0,
                 }
 
             # Extract grounding metadata if available
@@ -378,7 +382,9 @@ class GoogleProvider(LLMProvider):
 
             logger.info(f"Grounded response generated in {latency_ms}ms")
             if grounding_metadata and grounding_metadata["grounding_chunks"]:
-                logger.debug(f"Grounding sources: {len(grounding_metadata['grounding_chunks'])} chunks")
+                logger.debug(
+                    f"Grounding sources: {len(grounding_metadata['grounding_chunks'])} chunks"
+                )
 
             return LLMResponse(
                 content=content,
@@ -535,7 +541,9 @@ class GoogleProvider(LLMProvider):
                     provider=ProviderType.GOOGLE,
                 )
 
-            logger.info(f"Image generated successfully with {model} in {latency_ms}ms, mime_type={image_mime_type}")
+            logger.info(
+                f"Image generated successfully with {model} in {latency_ms}ms, mime_type={image_mime_type}"
+            )
             return LLMResponse(
                 content=image_b64,
                 model=model,
@@ -685,7 +693,8 @@ class GoogleProvider(LLMProvider):
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage = {
                     "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
-                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                    or 0,
                 }
 
             return LLMResponse(

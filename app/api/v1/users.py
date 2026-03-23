@@ -69,9 +69,7 @@ async def resolve_user(
     Requires X-Service-Key header.
     """
     # Look up by external_id
-    result = await session.execute(
-        select(User).where(User.external_id == request.external_id)
-    )
+    result = await session.execute(select(User).where(User.external_id == request.external_id))
     user = result.scalar_one_or_none()
 
     if user is not None:
@@ -169,15 +167,11 @@ async def get_my_timepoints(
 
     # Total count
     count_subquery = query.subquery()
-    count_result = await session.execute(
-        select(func.count()).select_from(count_subquery)
-    )
+    count_result = await session.execute(select(func.count()).select_from(count_subquery))
     total = count_result.scalar() or 0
 
     # Paginated results
-    result = await session.execute(
-        query.offset((page - 1) * page_size).limit(page_size)
-    )
+    result = await session.execute(query.offset((page - 1) * page_size).limit(page_size))
     timepoints = result.scalars().all()
 
     items = [
@@ -254,9 +248,7 @@ async def export_my_data(
 
     # All user timepoints with full scene data
     tp_result = await session.execute(
-        select(Timepoint)
-        .where(Timepoint.user_id == user.id)
-        .order_by(Timepoint.created_at.desc())
+        select(Timepoint).where(Timepoint.user_id == user.id).order_by(Timepoint.created_at.desc())
     )
     timepoints = [tp.to_dict() for tp in tp_result.scalars()]
 

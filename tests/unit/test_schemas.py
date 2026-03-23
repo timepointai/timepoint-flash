@@ -169,7 +169,9 @@ class TestSceneData:
             setting="Test setting",
             atmosphere="Test atmosphere",
             sensory_details=[
-                SensoryDetail(sense="sight", description="Flickering candles", intensity="moderate"),
+                SensoryDetail(
+                    sense="sight", description="Flickering candles", intensity="moderate"
+                ),
                 SensoryDetail(sense="sound", description="Quill scratching", intensity="subtle"),
             ],
         )
@@ -300,10 +302,7 @@ class TestDialogData:
 
     def test_dialog_data_max_seven(self):
         """Test that DialogData limits to 7 lines."""
-        lines = [
-            DialogLine(speaker=f"Speaker {i}", text=f"Line {i}")
-            for i in range(10)
-        ]
+        lines = [DialogLine(speaker=f"Speaker {i}", text=f"Line {i}") for i in range(10)]
         data = DialogData(lines=lines)
         assert len(data.lines) == 7
 

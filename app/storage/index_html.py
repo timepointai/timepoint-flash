@@ -149,7 +149,7 @@ def generate_index_html(manifest: BlobManifest) -> str:
         image_section = (
             f'<div class="image-container">\n'
             f'  <img src="{image_filename}" alt="{manifest.query}">\n'
-            f'</div>'
+            f"</div>"
         )
     else:
         image_section = ""

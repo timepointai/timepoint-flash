@@ -160,7 +160,10 @@ class TestBuildManifest:
         tp = self._make_mock_timepoint()
         entries = [FileEntry(filename="a.json", mime_type="application/json", size_bytes=10)]
         m = build_manifest(
-            tp, "f", "/p", entries,
+            tp,
+            "f",
+            "/p",
+            entries,
             generation_log_steps=["judge", "timeline", "scene"],
             total_latency_ms=5000,
         )

@@ -75,6 +75,7 @@ def get_paid_fallback_model() -> str:
     """Get the best paid text fallback model, consulting the registry first."""
     try:
         from app.core.model_registry import OpenRouterModelRegistry
+
         registry = OpenRouterModelRegistry.get_instance()
         best = registry.get_best_text_model()
         if best:
@@ -92,6 +93,7 @@ def get_image_fallback_model(permissive_only: bool = False) -> str:
     """
     try:
         from app.core.model_registry import OpenRouterModelRegistry
+
         registry = OpenRouterModelRegistry.get_instance()
         best = registry.get_best_image_model(permissive_only=permissive_only)
         if best:
@@ -102,6 +104,7 @@ def get_image_fallback_model(permissive_only: bool = False) -> str:
     if permissive_only:
         return _IMAGE_FALLBACK_PERMISSIVE
     return _IMAGE_FALLBACK_DEFAULT
+
 
 # Rate limit retry settings
 MAX_RETRIES = 5
@@ -122,15 +125,15 @@ class ModelTier(str, Enum):
         parallelism: Recommended max parallel calls for this tier
     """
 
-    FREE = "free"       # :free models - parallelism=1 (sequential)
-    PAID = "paid"       # OpenRouter paid - parallelism=2-3
-    NATIVE = "native"   # Google native - parallelism=3-5
+    FREE = "free"  # :free models - parallelism=1 (sequential)
+    PAID = "paid"  # OpenRouter paid - parallelism=2-3
+    NATIVE = "native"  # Google native - parallelism=3-5
 
 
 # Parallelism settings per tier (used by pipeline)
 TIER_PARALLELISM = {
-    ModelTier.FREE: 1,    # Sequential to avoid rate limits
-    ModelTier.PAID: 2,    # Moderate parallelism
+    ModelTier.FREE: 1,  # Sequential to avoid rate limits
+    ModelTier.PAID: 2,  # Moderate parallelism
     ModelTier.NATIVE: 3,  # Higher parallelism for native API
 }
 
@@ -271,9 +274,7 @@ class LLMRouter:
             settings: Application settings with API keys.
         """
         if settings.has_provider(ProviderType.GOOGLE):
-            self.providers[ProviderType.GOOGLE] = GoogleProvider(
-                api_key=settings.GOOGLE_API_KEY
-            )
+            self.providers[ProviderType.GOOGLE] = GoogleProvider(api_key=settings.GOOGLE_API_KEY)
             logger.info("Initialized Google provider")
 
         if settings.has_provider(ProviderType.OPENROUTER):
@@ -336,7 +337,7 @@ class LLMRouter:
             # Strip OpenRouter-style prefixes for native Google provider
             # e.g., "google/gemini-2.5-flash-image" -> "gemini-2.5-flash-image"
             if model.startswith("google/"):
-                model = model[len("google/"):]
+                model = model[len("google/") :]
                 logger.debug(f"Stripped google/ prefix for native Google: {model}")
 
         return model
@@ -564,9 +565,7 @@ class LLMRouter:
                     await asyncio.sleep(wait_time)
                     backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
                 else:
-                    logger.warning(
-                        f"Rate limit persists after {MAX_RETRIES} attempts on {model}"
-                    )
+                    logger.warning(f"Rate limit persists after {MAX_RETRIES} attempts on {model}")
             except ProviderError as e:
                 # Retry on transient server errors (500, 502, 503, 504)
                 if e.retryable and attempt < MAX_RETRIES:
@@ -635,17 +634,13 @@ class LLMRouter:
                 logger.info(f"Free model rate limited. Falling back to paid model: {paid_fallback}")
                 try:
                     provider = self._get_provider(ProviderType.OPENROUTER)
-                    return await self._call_with_retry(
-                        provider, paid_fallback, prompt, **kwargs
-                    )
+                    return await self._call_with_retry(provider, paid_fallback, prompt, **kwargs)
                 except (ProviderError, RateLimitError) as e2:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
             # (blocked in permissive mode — must stay Google-free)
-            is_permissive = bool(
-                self._model_policy and self._model_policy.lower() == "permissive"
-            )
+            is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
             if (
                 ProviderType.GOOGLE in self.providers
                 and self.config.primary != ProviderType.GOOGLE
@@ -656,9 +651,7 @@ class LLMRouter:
                     provider = self._get_provider(ProviderType.GOOGLE)
                     # Use verified model to guarantee it works
                     google_model = VerifiedModels.get_safe_text_model(ProviderType.GOOGLE)
-                    return await self._call_with_retry(
-                        provider, google_model, prompt, **kwargs
-                    )
+                    return await self._call_with_retry(provider, google_model, prompt, **kwargs)
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
             elif is_permissive:
@@ -755,7 +748,9 @@ class LLMRouter:
         # Try primary provider
         try:
             provider = self._get_provider(self.config.primary)
-            logger.debug(f"Calling {self.config.primary.value} structured with model {primary_model}")
+            logger.debug(
+                f"Calling {self.config.primary.value} structured with model {primary_model}"
+            )
             return await self._call_with_retry(
                 provider, primary_model, prompt, response_model=response_model, **kwargs
             )
@@ -770,17 +765,14 @@ class LLMRouter:
                 try:
                     provider = self._get_provider(ProviderType.OPENROUTER)
                     return await self._call_with_retry(
-                        provider, paid_fallback, prompt,
-                        response_model=response_model, **kwargs
+                        provider, paid_fallback, prompt, response_model=response_model, **kwargs
                     )
                 except (ProviderError, RateLimitError) as e2:
                     logger.warning(f"Paid model fallback also failed: {e2}")
 
             # Try Google provider as ultimate fallback using verified model
             # (blocked in permissive mode — must stay Google-free)
-            is_permissive = bool(
-                self._model_policy and self._model_policy.lower() == "permissive"
-            )
+            is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
             if (
                 ProviderType.GOOGLE in self.providers
                 and self.config.primary != ProviderType.GOOGLE
@@ -792,8 +784,7 @@ class LLMRouter:
                     # Use verified model to guarantee it works
                     google_model = VerifiedModels.get_safe_text_model(ProviderType.GOOGLE)
                     return await self._call_with_retry(
-                        provider, google_model, prompt,
-                        response_model=response_model, **kwargs
+                        provider, google_model, prompt, response_model=response_model, **kwargs
                     )
                 except ProviderError as e3:
                     logger.warning(f"Google provider fallback failed: {e3}")
@@ -864,8 +855,7 @@ class LLMRouter:
                 acquired = await acquire_rate_limit(model, timeout=30.0)
                 if not acquired:
                     logger.warning(
-                        f"Rate limit token not acquired for image model {model}, "
-                        "proceeding anyway"
+                        f"Rate limit token not acquired for image model {model}, proceeding anyway"
                     )
 
                 return await provider.generate_image(prompt, model, **kwargs)
@@ -873,9 +863,7 @@ class LLMRouter:
             except QuotaExhaustedError:
                 # Quota exhaustion = daily limit reached
                 # Do NOT retry - immediately propagate for fallback to OpenRouter
-                logger.warning(
-                    f"Quota exhausted on {model} - skipping retries, will fallback"
-                )
+                logger.warning(f"Quota exhausted on {model} - skipping retries, will fallback")
                 raise
 
             except RateLimitError as e:
@@ -945,9 +933,7 @@ class LLMRouter:
         """
         # Determine provider for image generation
         # Prefer preset's image_provider, then Google native, then OpenRouter
-        is_permissive = bool(
-            self._model_policy and self._model_policy.lower() == "permissive"
-        )
+        is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
         if is_permissive and ProviderType.STABILITY in self.providers:
             # Permissive mode: prefer Stability AI for distillation-safe images
             image_provider = ProviderType.STABILITY
@@ -1018,7 +1004,8 @@ class LLMRouter:
                 fallback_provider = self._get_provider(ProviderType.OPENROUTER)
                 # Remove provider-specific params that may not work with fallback
                 fallback_kwargs = {
-                    k: v for k, v in image_kwargs.items()
+                    k: v
+                    for k, v in image_kwargs.items()
                     if k not in ("image_size",)  # Flux uses different params
                 }
                 return await self._generate_image_with_retry(

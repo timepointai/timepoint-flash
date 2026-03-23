@@ -272,5 +272,5 @@ def format_conversation_history(lines: list[tuple[str, str]]) -> str:
 
     formatted = []
     for speaker, text in lines:
-        formatted.append(f"{speaker}: \"{text}\"")
+        formatted.append(f'{speaker}: "{text}"')
     return "\n".join(formatted)

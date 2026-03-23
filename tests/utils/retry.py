@@ -4,6 +4,7 @@ Retry decorator with exponential backoff for handling transient API failures.
 Automatically retries failed operations with increasing delays between attempts.
 Useful for flaky external API calls (OpenRouter, Google AI, etc.).
 """
+
 import asyncio
 import functools
 import time
@@ -14,7 +15,7 @@ import httpx
 from fastapi import HTTPException
 
 # Type variables for generic decorator
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # Transient error codes that should trigger retries
@@ -60,7 +61,7 @@ def retry_on_api_error(
     backoff_factor: float = 2.0,
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
-    exceptions: tuple[type[Exception], ...] = TRANSIENT_EXCEPTIONS
+    exceptions: tuple[type[Exception], ...] = TRANSIENT_EXCEPTIONS,
 ):
     """
     Decorator that retries a function on transient API errors with exponential backoff.
@@ -85,9 +86,11 @@ def retry_on_api_error(
         - Attempt 4: Wait 4.0s (2.0 * backoff_factor)
         - ...up to max_delay
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         # Handle both sync and async functions
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> T:
                 last_exception = None
@@ -112,9 +115,7 @@ def retry_on_api_error(
                             break
 
                         # Log retry attempt
-                        print(
-                            f"⚠ Transient error (attempt {attempt}/{max_attempts}): {e}"
-                        )
+                        print(f"⚠ Transient error (attempt {attempt}/{max_attempts}): {e}")
                         print(f"  Retrying in {delay:.1f}s...")
 
                         # Wait before retry
@@ -130,6 +131,7 @@ def retry_on_api_error(
             return async_wrapper
 
         else:
+
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> T:
                 last_exception = None
@@ -154,9 +156,7 @@ def retry_on_api_error(
                             break
 
                         # Log retry attempt
-                        print(
-                            f"⚠ Transient error (attempt {attempt}/{max_attempts}): {e}"
-                        )
+                        print(f"⚠ Transient error (attempt {attempt}/{max_attempts}): {e}")
                         print(f"  Retrying in {delay:.1f}s...")
 
                         # Wait before retry
@@ -194,6 +194,7 @@ def skip_on_api_unavailable(error_message: str = "External API unavailable"):
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> T:
                 try:
@@ -209,6 +210,7 @@ def skip_on_api_unavailable(error_message: str = "External API unavailable"):
             return async_wrapper
 
         else:
+
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> T:
                 try:

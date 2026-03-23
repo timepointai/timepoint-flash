@@ -195,8 +195,7 @@ class OpenRouterProvider(LLMProvider):
             models = [
                 m
                 for m in models
-                if m.architecture
-                and capability in (m.architecture.get("output_modalities") or [])
+                if m.architecture and capability in (m.architecture.get("output_modalities") or [])
             ]
 
         return models
@@ -249,9 +248,16 @@ class OpenRouterProvider(LLMProvider):
         }
 
         # Standard OpenRouter parameters
-        for param in ("temperature", "max_tokens", "top_p", "top_k",
-                      "frequency_penalty", "presence_penalty",
-                      "repetition_penalty", "stop"):
+        for param in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+            "repetition_penalty",
+            "stop",
+        ):
             if param in kwargs:
                 payload[param] = kwargs[param]
 
@@ -306,7 +312,8 @@ class OpenRouterProvider(LLMProvider):
                 except Exception as parse_error:
                     # Try to extract JSON from the response (models sometimes add extra text)
                     import re
-                    json_match = re.search(r'\{[\s\S]*\}', raw_content)
+
+                    json_match = re.search(r"\{[\s\S]*\}", raw_content)
                     if json_match:
                         try:
                             content = response_model.model_validate_json(json_match.group())
@@ -380,6 +387,7 @@ class OpenRouterProvider(LLMProvider):
             ... )
         """
         import re
+
         start_time = time.perf_counter()
 
         # OpenRouter uses /chat/completions with modalities for image generation

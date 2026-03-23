@@ -122,7 +122,9 @@ def get_prompt(
         char_lines = []
         for c in characters:
             if isinstance(c, dict):
-                char_lines.append(f"- {c.get('name', 'Unknown')}: {c.get('role', 'unknown')} - {c.get('description', '')}")
+                char_lines.append(
+                    f"- {c.get('name', 'Unknown')}: {c.get('role', 'unknown')} - {c.get('description', '')}"
+                )
             else:
                 char_lines.append(f"- {c}")
         char_list = "\n".join(char_lines)

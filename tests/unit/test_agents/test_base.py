@@ -19,6 +19,7 @@ from app.core.providers import LLMResponse
 # Test models
 class MockOutput(BaseModel):
     """Mock output model for testing."""
+
     value: str
     count: int = 0
 

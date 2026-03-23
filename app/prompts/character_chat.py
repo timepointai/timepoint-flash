@@ -407,9 +407,7 @@ def get_survey_user_prompt(
         Formatted user prompt
     """
     if prior_responses:
-        formatted_prior = "\n".join(
-            f"- {name}: \"{response}\"" for name, response in prior_responses
-        )
+        formatted_prior = "\n".join(f'- {name}: "{response}"' for name, response in prior_responses)
         return SURVEY_WITH_CONTEXT_USER.format(
             prior_responses=formatted_prior,
             question=question,
@@ -512,9 +510,7 @@ def get_survey_structured_user_prompt(
         Formatted user prompt requesting JSON response
     """
     if prior_responses:
-        formatted_prior = "\n".join(
-            f"- {name}: \"{response}\"" for name, response in prior_responses
-        )
+        formatted_prior = "\n".join(f'- {name}: "{response}"' for name, response in prior_responses)
         return SURVEY_STRUCTURED_WITH_CONTEXT_USER.format(
             prior_responses=formatted_prior,
             question=question,
@@ -559,9 +555,7 @@ def get_survey_summary_prompt(
     Returns:
         Formatted summary prompt
     """
-    formatted_responses = "\n".join(
-        f"- {name}: \"{response}\"" for name, response in responses
-    )
+    formatted_responses = "\n".join(f'- {name}: "{response}"' for name, response in responses)
 
     return SURVEY_SUMMARY_PROMPT.format(
         question=question,

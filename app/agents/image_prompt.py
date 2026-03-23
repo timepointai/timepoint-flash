@@ -74,8 +74,12 @@ class ImagePromptInput:
     visible_technology: str | None = None  # Period-accurate technology description
     photographic_reality: str | None = None  # What a photograph would actually show
     # Physical presence for image generation (critical for showing correct people)
-    physical_participants: list[str] = field(default_factory=list)  # People physically visible with positions
-    entity_representations: list[str] = field(default_factory=list)  # How to represent non-human entities (format: "Entity: representation")
+    physical_participants: list[str] = field(
+        default_factory=list
+    )  # People physically visible with positions
+    entity_representations: list[str] = field(
+        default_factory=list
+    )  # How to represent non-human entities (format: "Entity: representation")
 
     @classmethod
     def from_data(
@@ -119,7 +123,9 @@ class ImagePromptInput:
         if graph and graph.relationships:
             rel_parts = []
             for rel in graph.relationships[:5]:  # Limit to top 5 relationships
-                rel_parts.append(f"{rel.from_character} and {rel.to_character}: {rel.relationship_type}")
+                rel_parts.append(
+                    f"{rel.from_character} and {rel.to_character}: {rel.relationship_type}"
+                )
             relationship_context = "; ".join(rel_parts)
 
         # Extract moment data
@@ -148,12 +154,28 @@ class ImagePromptInput:
         physical_participants: list[str] = []
         entity_representations: list[str] = []
         if grounded_context:
-            event_mechanics = grounded_context.event_mechanics if grounded_context.event_mechanics else None
-            visible_technology = grounded_context.visible_technology if grounded_context.visible_technology else None
-            photographic_reality = grounded_context.photographic_reality if grounded_context.photographic_reality else None
+            event_mechanics = (
+                grounded_context.event_mechanics if grounded_context.event_mechanics else None
+            )
+            visible_technology = (
+                grounded_context.visible_technology if grounded_context.visible_technology else None
+            )
+            photographic_reality = (
+                grounded_context.photographic_reality
+                if grounded_context.photographic_reality
+                else None
+            )
             # Critical for showing correct people in the image
-            physical_participants = grounded_context.physical_participants if grounded_context.physical_participants else []
-            entity_representations = grounded_context.entity_representations if grounded_context.entity_representations else {}
+            physical_participants = (
+                grounded_context.physical_participants
+                if grounded_context.physical_participants
+                else []
+            )
+            entity_representations = (
+                grounded_context.entity_representations
+                if grounded_context.entity_representations
+                else {}
+            )
 
         return cls(
             query=query,

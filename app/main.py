@@ -92,6 +92,7 @@ async def lifespan(app: FastAPI):
     _settings = get_settings()
     if _settings.BLOB_STORAGE_ENABLED:
         from pathlib import Path
+
         storage_root = Path(_settings.BLOB_STORAGE_ROOT)
         try:
             storage_root.mkdir(parents=True, exist_ok=True)
@@ -115,6 +116,7 @@ async def lifespan(app: FastAPI):
     # Stop model registry background refresh
     try:
         from app.core.model_registry import OpenRouterModelRegistry
+
         OpenRouterModelRegistry.get_instance().stop_background_refresh()
     except Exception:
         pass
@@ -223,7 +225,7 @@ async def health_check() -> HealthResponse:
     # Check database with timeout so health endpoint always responds quickly
     try:
         db_healthy = await asyncio.wait_for(check_db_connection(), timeout=5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logging.getLogger(__name__).error("Health check: database connection timed out after 5s")
         db_healthy = False
 

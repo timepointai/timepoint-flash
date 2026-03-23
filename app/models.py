@@ -235,15 +235,11 @@ class Timepoint(Base):
     # Blob storage
     blob_folder_name: Mapped[str | None] = mapped_column(String(200), default=None)
     blob_path: Mapped[str | None] = mapped_column(Text, default=None)
-    blob_written_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
+    blob_written_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     # Soft delete
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     # NSFW stub
     nsfw_flag: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -257,15 +253,11 @@ class Timepoint(Base):
 
     # Analytics stubs
     view_count: Mapped[int] = mapped_column(Integer, default=0)
-    last_accessed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
+    last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     api_source: Mapped[str | None] = mapped_column(String(50), default=None)
 
     # Auth: owner
-    user_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id"), default=None
-    )
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), default=None)
 
     # Visibility
     visibility: Mapped[str] = mapped_column(
@@ -395,7 +387,9 @@ class Timepoint(Base):
             "generation_version": self.generation_version,
             "tags": self.tags_json,
             # Visibility
-            "visibility": self.visibility.value if isinstance(self.visibility, TimepointVisibility) else (self.visibility or "public"),
+            "visibility": self.visibility.value
+            if isinstance(self.visibility, TimepointVisibility)
+            else (self.visibility or "public"),
         }
 
 

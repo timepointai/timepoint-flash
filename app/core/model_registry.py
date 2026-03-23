@@ -58,9 +58,7 @@ class OpenRouterModelRegistry:
                 len(self._models),
             )
         else:
-            logger.warning(
-                "OpenRouter model registry: API unreachable, using hardcoded defaults"
-            )
+            logger.warning("OpenRouter model registry: API unreachable, using hardcoded defaults")
 
     async def refresh(self) -> bool:
         """Fetch model list from OpenRouter and update cache.
@@ -78,9 +76,7 @@ class OpenRouterModelRegistry:
                     headers={"Authorization": f"Bearer {self._api_key}"},
                 )
                 if resp.status_code != 200:
-                    logger.warning(
-                        "OpenRouter models API returned %d", resp.status_code
-                    )
+                    logger.warning("OpenRouter models API returned %d", resp.status_code)
                     return False
 
                 data = resp.json()

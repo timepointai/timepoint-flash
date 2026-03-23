@@ -52,21 +52,18 @@ class User(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )
-    apple_sub: Mapped[str] = mapped_column(
-        String(255), unique=True, index=True, nullable=False
-    )
+    apple_sub: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     external_id: Mapped[str | None] = mapped_column(
-        String(255), unique=True, index=True, default=None,
+        String(255),
+        unique=True,
+        index=True,
+        default=None,
         comment="Auth0 sub or other external identity provider ID",
     )
     email: Mapped[str | None] = mapped_column(String(255), default=None)
     display_name: Mapped[str | None] = mapped_column(String(255), default=None)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
@@ -101,9 +98,7 @@ class CreditAccount(Base):
 
     # Relationships
     user: Mapped[User] = relationship(back_populates="credit_account")
-    transactions: Mapped[list[CreditTransaction]] = relationship(
-        back_populates="credit_account"
-    )
+    transactions: Mapped[list[CreditTransaction]] = relationship(back_populates="credit_account")
 
     def __repr__(self) -> str:
         return f"<CreditAccount(user_id={self.user_id!r}, balance={self.balance})>"
@@ -133,20 +128,13 @@ class CreditTransaction(Base):
     reference_id: Mapped[str | None] = mapped_column(String(36), default=None)
     reference_type: Mapped[str | None] = mapped_column(String(50), default=None)
     description: Mapped[str | None] = mapped_column(Text, default=None)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    credit_account: Mapped[CreditAccount] = relationship(
-        back_populates="transactions"
-    )
+    credit_account: Mapped[CreditAccount] = relationship(back_populates="transactions")
 
     def __repr__(self) -> str:
-        return (
-            f"<CreditTransaction(amount={self.amount}, "
-            f"type={self.transaction_type.value})>"
-        )
+        return f"<CreditTransaction(amount={self.amount}, type={self.transaction_type.value})>"
 
 
 class RefreshToken(Base):
@@ -159,19 +147,11 @@ class RefreshToken(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )
-    user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id"), nullable=False
-    )
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    revoked_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     user: Mapped[User] = relationship(back_populates="refresh_tokens")

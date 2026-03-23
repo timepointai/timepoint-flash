@@ -266,9 +266,7 @@ async def get_timepoint_with_characters(
     Raises:
         HTTPException: If not found or no character data
     """
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -349,7 +347,11 @@ def filter_characters(
 
 def _check_visibility_access(tp: Timepoint, user: User | None) -> None:
     """Raise 403 if private timepoint and user is not the owner."""
-    vis = tp.visibility.value if isinstance(tp.visibility, TimepointVisibility) else (tp.visibility or "public")
+    vis = (
+        tp.visibility.value
+        if isinstance(tp.visibility, TimepointVisibility)
+        else (tp.visibility or "public")
+    )
     if vis == "private":
         is_owner = user is not None and tp.user_id is not None and user.id == tp.user_id
         if not is_owner:
@@ -413,7 +415,10 @@ async def chat_with_character(
     # Spend credits if authenticated
     if user is not None:
         await spend_credits(
-            db, user.id, CREDIT_COSTS["chat"], TransactionType.CHAT,
+            db,
+            user.id,
+            CREDIT_COSTS["chat"],
+            TransactionType.CHAT,
             reference_id=timepoint_id,
             description=f"Chat with {request.character}",
         )
@@ -451,9 +456,13 @@ async def chat_with_character(
     )
     try:
         result = await asyncio.wait_for(agent.chat(chat_input), timeout=60)
-    except asyncio.TimeoutError:
-        logger.error(f"Chat timed out after 60s: character={request.character}, timepoint={timepoint_id}")
-        raise HTTPException(status_code=408, detail="Chat request timed out after 60 seconds")
+    except TimeoutError:
+        logger.error(
+            f"Chat timed out after 60s: character={request.character}, timepoint={timepoint_id}"
+        )
+        raise HTTPException(
+            status_code=408, detail="Chat request timed out after 60 seconds"
+        ) from None
 
     if not result.success or not result.content:
         raise HTTPException(
@@ -654,9 +663,11 @@ async def extend_dialog(
             result = await asyncio.wait_for(agent.extend_sequential(dialog_input), timeout=120)
         else:
             result = await asyncio.wait_for(agent.extend(dialog_input), timeout=120)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Dialog extension timed out after 120s: timepoint={timepoint_id}")
-        raise HTTPException(status_code=408, detail="Dialog generation timed out after 120 seconds")
+        raise HTTPException(
+            status_code=408, detail="Dialog generation timed out after 120 seconds"
+        ) from None
 
     if not result.success or not result.content:
         raise HTTPException(
@@ -812,9 +823,11 @@ async def survey_characters(
     )
     try:
         result = await asyncio.wait_for(agent.survey(survey_input), timeout=60)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Survey timed out after 60s: timepoint={timepoint_id}")
-        raise HTTPException(status_code=408, detail="Survey request timed out after 60 seconds")
+        raise HTTPException(
+            status_code=408, detail="Survey request timed out after 60 seconds"
+        ) from None
 
     if not result.success or not result.content:
         raise HTTPException(

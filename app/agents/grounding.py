@@ -91,14 +91,11 @@ class GroundedContext(BaseModel):
     verified_date: str = Field(
         description="Verified date in 'Month Day, Year' format (e.g., 'May 11, 1997')"
     )
-    verified_year: int = Field(
-        description="Verified year as integer"
-    )
+    verified_year: int = Field(description="Verified year as integer")
 
     # Participant verification
     verified_participants: list[str] = Field(
-        default_factory=list,
-        description="List of verified people who were actually present"
+        default_factory=list, description="List of verified people who were actually present"
     )
 
     # Setting details
@@ -109,31 +106,31 @@ class GroundedContext(BaseModel):
     # Event mechanics - HOW the event physically worked
     event_mechanics: str = Field(
         default="",
-        description="How the event physically worked: setup, who interacted with whom, where equipment was located"
+        description="How the event physically worked: setup, who interacted with whom, where equipment was located",
     )
 
     # Visible technology/equipment
     visible_technology: str = Field(
         default="",
-        description="What technology/equipment was visible in the scene, with period-accurate descriptions"
+        description="What technology/equipment was visible in the scene, with period-accurate descriptions",
     )
 
     # What a photograph would show
     photographic_reality: str = Field(
         default="",
-        description="What an actual photograph of this scene would show - the literal visual reality"
+        description="What an actual photograph of this scene would show - the literal visual reality",
     )
 
     # Physical presence - WHO was literally visible (critical for image generation)
     physical_participants: list[str] = Field(
         default_factory=list,
-        description="List of people who were PHYSICALLY VISIBLE in photographs - with their positions (e.g., 'Kasparov sitting at the chess board', 'IBM operator sitting across from Kasparov')"
+        description="List of people who were PHYSICALLY VISIBLE in photographs - with their positions (e.g., 'Kasparov sitting at the chess board', 'IBM operator sitting across from Kasparov')",
     )
 
     # Entity representations - how to show non-human entities (as list of "Entity: Representation" strings)
     entity_representations: list[str] = Field(
         default_factory=list,
-        description="How to visually represent non-human entities. Format: 'Entity Name: visual representation' (e.g., 'Deep Blue: IBM operator sitting across from Kasparov, relaying the computer moves to the board')"
+        description="How to visually represent non-human entities. Format: 'Entity Name: visual representation' (e.g., 'Deep Blue: IBM operator sitting across from Kasparov, relaying the computer moves to the board')",
     )
 
     # Additional context
@@ -143,14 +140,14 @@ class GroundedContext(BaseModel):
 
     # Source citations (for transparency)
     source_citations: list[str] = Field(
-        default_factory=list,
-        description="URLs of sources used for grounding"
+        default_factory=list, description="URLs of sources used for grounding"
     )
 
     # Confidence
     grounding_confidence: float = Field(
-        ge=0.0, le=1.0,
-        description="Confidence in the grounding (1.0 = high confidence, 0.5 = moderate)"
+        ge=0.0,
+        le=1.0,
+        description="Confidence in the grounding (1.0 = high confidence, 0.5 = moderate)",
     )
 
 
@@ -367,9 +364,7 @@ class GroundingAgent(BaseAgent[GroundingInput, GroundedContext]):
         """
         return query_type in cls.GROUNDING_REQUIRED_TYPES
 
-    async def run(
-        self, input_data: GroundingInput
-    ) -> AgentResult[GroundedContext]:
+    async def run(self, input_data: GroundingInput) -> AgentResult[GroundedContext]:
         """Execute grounding research with Google Search.
 
         Uses a two-step process:
@@ -389,7 +384,11 @@ class GroundingAgent(BaseAgent[GroundingInput, GroundedContext]):
 
         # Check if grounding is needed (based on query type AND detected figures)
         if not input_data.needs_grounding():
-            reason = "no historical figures detected" if input_data.query_type == QueryType.HISTORICAL else f"query type: {input_data.query_type.value}"
+            reason = (
+                "no historical figures detected"
+                if input_data.query_type == QueryType.HISTORICAL
+                else f"query type: {input_data.query_type.value}"
+            )
             logger.info(f"Skipping grounding: {reason}")
             return AgentResult(
                 success=False,
@@ -431,7 +430,9 @@ class GroundingAgent(BaseAgent[GroundingInput, GroundedContext]):
                         if "web" in chunk and "uri" in chunk["web"]:
                             sources.append(chunk["web"]["uri"])
 
-            logger.info(f"Grounded text received ({len(grounded_text)} chars), {len(sources)} sources")
+            logger.info(
+                f"Grounded text received ({len(grounded_text)} chars), {len(sources)} sources"
+            )
             logger.debug(f"Grounded text preview: {grounded_text[:500]}...")
 
             # Step 2: Parse grounded text into structured output

@@ -18,9 +18,7 @@ class AppleSignInRequest(BaseModel):
 class GoogleSignInRequest(BaseModel):
     """Request body for Google Sign-In."""
 
-    id_token: str = Field(
-        ..., description="Google ID token JWT from Google Sign-In"
-    )
+    id_token: str = Field(..., description="Google ID token JWT from Google Sign-In")
 
 
 class TokenResponse(BaseModel):
@@ -85,9 +83,7 @@ class DevTokenRequest(BaseModel):
     """Request body for dev token creation."""
 
     email: str = Field(..., description="Email for the test user")
-    display_name: str | None = Field(
-        default=None, description="Optional display name"
-    )
+    display_name: str | None = Field(default=None, description="Optional display name")
 
 
 class ServiceTokenRequest(BaseModel):
@@ -105,9 +101,7 @@ class AdminGrantRequest(BaseModel):
         default=None,
         description="Ledger transaction type (e.g. stripe_purchase, apple_iap). Defaults to admin_grant.",
     )
-    description: str | None = Field(
-        default="Manual top-up", description="Ledger note"
-    )
+    description: str | None = Field(default="Manual top-up", description="Ledger note")
 
 
 class AdminGrantResponse(BaseModel):

@@ -75,12 +75,14 @@ class StorageService:
             mime = "image/png" if ext == "png" else "image/jpeg"
             image_path = f"{full_path}/image.{ext}"
             await self.backend.write_file(image_path, image_data)
-            file_entries.append(FileEntry(
-                filename=f"image.{ext}",
-                mime_type=mime,
-                size_bytes=len(image_data),
-                sha256=hashlib.sha256(image_data).hexdigest(),
-            ))
+            file_entries.append(
+                FileEntry(
+                    filename=f"image.{ext}",
+                    mime_type=mime,
+                    size_bytes=len(image_data),
+                    sha256=hashlib.sha256(image_data).hexdigest(),
+                )
+            )
 
         # 2. Write JSON sidecars from TDF payload
         p = getattr(timepoint, "tdf_payload", None) or {}
@@ -104,24 +106,28 @@ class StorageService:
                 text = json.dumps(data, indent=2, default=str)
                 text_bytes = text.encode("utf-8")
                 await self.backend.write_text(f"{full_path}/{filename}", text)
-                file_entries.append(FileEntry(
-                    filename=filename,
-                    mime_type="application/json",
-                    size_bytes=len(text_bytes),
-                    sha256=hashlib.sha256(text_bytes).hexdigest(),
-                ))
+                file_entries.append(
+                    FileEntry(
+                        filename=filename,
+                        mime_type="application/json",
+                        size_bytes=len(text_bytes),
+                        sha256=hashlib.sha256(text_bytes).hexdigest(),
+                    )
+                )
 
         # 3. Write image prompt text
         image_prompt = p.get("image_prompt")
         if image_prompt:
             prompt_bytes = image_prompt.encode("utf-8")
             await self.backend.write_text(f"{full_path}/image_prompt.txt", image_prompt)
-            file_entries.append(FileEntry(
-                filename="image_prompt.txt",
-                mime_type="text/plain",
-                size_bytes=len(prompt_bytes),
-                sha256=hashlib.sha256(prompt_bytes).hexdigest(),
-            ))
+            file_entries.append(
+                FileEntry(
+                    filename="image_prompt.txt",
+                    mime_type="text/plain",
+                    size_bytes=len(prompt_bytes),
+                    sha256=hashlib.sha256(prompt_bytes).hexdigest(),
+                )
+            )
 
         # 4. Write generation log
         if generation_logs:
@@ -130,22 +136,26 @@ class StorageService:
                 if hasattr(log, "to_dict"):
                     log_data.append(log.to_dict())
                 else:
-                    log_data.append({
-                        "step": getattr(log, "step", "unknown"),
-                        "status": getattr(log, "status", "unknown"),
-                        "latency_ms": getattr(log, "latency_ms", None),
-                        "model_used": getattr(log, "model_used", None),
-                        "error_message": getattr(log, "error_message", None),
-                    })
+                    log_data.append(
+                        {
+                            "step": getattr(log, "step", "unknown"),
+                            "status": getattr(log, "status", "unknown"),
+                            "latency_ms": getattr(log, "latency_ms", None),
+                            "model_used": getattr(log, "model_used", None),
+                            "error_message": getattr(log, "error_message", None),
+                        }
+                    )
             log_text = json.dumps(log_data, indent=2, default=str)
             log_bytes = log_text.encode("utf-8")
             await self.backend.write_text(f"{full_path}/generation_log.json", log_text)
-            file_entries.append(FileEntry(
-                filename="generation_log.json",
-                mime_type="application/json",
-                size_bytes=len(log_bytes),
-                sha256=hashlib.sha256(log_bytes).hexdigest(),
-            ))
+            file_entries.append(
+                FileEntry(
+                    filename="generation_log.json",
+                    mime_type="application/json",
+                    size_bytes=len(log_bytes),
+                    sha256=hashlib.sha256(log_bytes).hexdigest(),
+                )
+            )
 
         # 5. Write provenance stub
         provenance_data = {
@@ -159,12 +169,14 @@ class StorageService:
         prov_text = json.dumps(provenance_data, indent=2)
         prov_bytes = prov_text.encode("utf-8")
         await self.backend.write_text(f"{full_path}/provenance.json", prov_text)
-        file_entries.append(FileEntry(
-            filename="provenance.json",
-            mime_type="application/json",
-            size_bytes=len(prov_bytes),
-            sha256=hashlib.sha256(prov_bytes).hexdigest(),
-        ))
+        file_entries.append(
+            FileEntry(
+                filename="provenance.json",
+                mime_type="application/json",
+                size_bytes=len(prov_bytes),
+                sha256=hashlib.sha256(prov_bytes).hexdigest(),
+            )
+        )
 
         # 6. Write sequence.json if part of a sequence
         if sequence_members or getattr(timepoint, "sequence_id", None):
@@ -175,12 +187,14 @@ class StorageService:
             seq_text = json.dumps(seq_data, indent=2, default=str)
             seq_bytes = seq_text.encode("utf-8")
             await self.backend.write_text(f"{full_path}/sequence.json", seq_text)
-            file_entries.append(FileEntry(
-                filename="sequence.json",
-                mime_type="application/json",
-                size_bytes=len(seq_bytes),
-                sha256=hashlib.sha256(seq_bytes).hexdigest(),
-            ))
+            file_entries.append(
+                FileEntry(
+                    filename="sequence.json",
+                    mime_type="application/json",
+                    size_bytes=len(seq_bytes),
+                    sha256=hashlib.sha256(seq_bytes).hexdigest(),
+                )
+            )
 
         # 7. Build and write manifest
         log_steps = []

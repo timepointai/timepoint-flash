@@ -34,18 +34,18 @@ logger = logging.getLogger(__name__)
 # These are conservative estimates based on observed provider behavior
 TIER_RATE_LIMITS: dict[str, dict[str, float]] = {
     "free": {
-        "rpm": 8,          # Requests per minute (conservative for :free models)
-        "burst": 2,        # Max burst capacity
+        "rpm": 8,  # Requests per minute (conservative for :free models)
+        "burst": 2,  # Max burst capacity
         "refill_rate": 0.13,  # ~8 per minute = 0.13 per second
     },
     "paid": {
-        "rpm": 45,         # OpenRouter paid tier
-        "burst": 5,        # Allow small bursts
+        "rpm": 45,  # OpenRouter paid tier
+        "burst": 5,  # Allow small bursts
         "refill_rate": 0.75,  # ~45 per minute = 0.75 per second
     },
     "native": {
-        "rpm": 58,         # Google native (leave headroom from 60)
-        "burst": 8,        # Higher burst for native
+        "rpm": 58,  # Google native (leave headroom from 60)
+        "burst": 8,  # Higher burst for native
         "refill_rate": 0.97,  # ~58 per minute
     },
 }
@@ -102,7 +102,7 @@ class TokenBucket:
             True if token was acquired, False if timeout or disabled
 
         Raises:
-            asyncio.TimeoutError: If timeout exceeded (only when timeout > 0)
+            TimeoutError: If timeout exceeded (only when timeout > 0)
         """
         # Graceful degradation: if rate limiter is disabled, allow through
         if TokenBucket._disabled:
@@ -288,9 +288,7 @@ def get_tier_from_model(model_id: str) -> str:
         return "free"
 
     # Native Google models (no provider prefix or explicit gemini)
-    if model_lower.startswith("gemini-") or (
-        "/" not in model_lower and "gemini" in model_lower
-    ):
+    if model_lower.startswith("gemini-") or ("/" not in model_lower and "gemini" in model_lower):
         return "native"
 
     # Everything else is paid (OpenRouter with provider/model format)

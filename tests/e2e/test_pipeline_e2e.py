@@ -130,8 +130,12 @@ class TestTimelineAgentE2E:
         assert result.success, f"Agent failed: {result.error}"
         assert result.content.year == 1776, f"Expected 1776, got {result.content.year}"
         # Accept July (adoption) or August (formal signing) - both are historically valid
-        assert result.content.month in [7, 8], f"Expected July or August, got month {result.content.month}"
-        assert "Philadelphia" in result.content.location or "Independence" in result.content.location
+        assert result.content.month in [7, 8], (
+            f"Expected July or August, got month {result.content.month}"
+        )
+        assert (
+            "Philadelphia" in result.content.location or "Independence" in result.content.location
+        )
 
     @pytest.mark.asyncio
     async def test_extracts_ancient_date(self, real_router):
@@ -302,7 +306,9 @@ class TestFullPipelineE2E:
             location=timeline_result.content.location,
             setting=scene_result.content.setting,
             atmosphere=scene_result.content.atmosphere,
-            tension_level=scene_result.content.tension_level if hasattr(scene_result.content, "tension_level") else "medium",
+            tension_level=scene_result.content.tension_level
+            if hasattr(scene_result.content, "tension_level")
+            else "medium",
             speaking_characters=[c.name for c in characters_result.content.characters[:3]],
         )
         dialog_result = await dialog.run(dialog_input)
@@ -314,7 +320,9 @@ class TestFullPipelineE2E:
             query=query,
             setting=scene_result.content.setting,
             atmosphere=scene_result.content.atmosphere,
-            tension_level=scene_result.content.tension_level if hasattr(scene_result.content, "tension_level") else "medium",
+            tension_level=scene_result.content.tension_level
+            if hasattr(scene_result.content, "tension_level")
+            else "medium",
             focal_point=characters_result.content.focal_character,
         )
         camera_result = await camera.run(camera_input)
@@ -328,8 +336,7 @@ class TestFullPipelineE2E:
             era=timeline_result.content.era,
             location=timeline_result.content.location,
             characters=[
-                {"name": c.name, "role": c.role.value}
-                for c in characters_result.content.characters
+                {"name": c.name, "role": c.role.value} for c in characters_result.content.characters
             ],
         )
         graph_result = await graph.run(graph_input)
@@ -347,7 +354,9 @@ class TestFullPipelineE2E:
                 f"{c.name}: {c.description}" for c in characters_result.content.characters
             ],
             focal_point=camera_result.content.focal_point if camera_result.content else None,
-            lighting=scene_result.content.lighting if hasattr(scene_result.content, "lighting") else None,
+            lighting=scene_result.content.lighting
+            if hasattr(scene_result.content, "lighting")
+            else None,
         )
         image_prompt_result = await image_prompt.run(image_prompt_input)
         assert image_prompt_result.success, f"ImagePrompt failed: {image_prompt_result.error}"
@@ -388,6 +397,7 @@ class TestAPIEndpointsE2E:
     async def test_generate_endpoint_accepts_query(self, test_client, e2e_test_db):
         """Test generate endpoint accepts and starts processing."""
         import uuid
+
         # Use unique query to avoid slug collision in repeated test runs
         unique_query = f"moon landing 1969 {uuid.uuid4().hex[:8]}"
         response = await test_client.post(

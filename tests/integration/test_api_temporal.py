@@ -211,7 +211,5 @@ class TestNavigationErrors:
 
     def test_sequence_nonexistent_timepoint(self, client, test_db):
         """Test sequence with non-existent timepoint."""
-        response = client.get(
-            "/api/v1/temporal/00000000-0000-0000-0000-000000000000/sequence"
-        )
+        response = client.get("/api/v1/temporal/00000000-0000-0000-0000-000000000000/sequence")
         assert response.status_code == 404

@@ -143,8 +143,7 @@ class EvalComparison(BaseModel):
         self.success_count = len(successful)
         self.failure_count = self.models_tested - self.success_count
         self.success_rate = (
-            (self.success_count / self.models_tested * 100)
-            if self.models_tested > 0 else 0.0
+            (self.success_count / self.models_tested * 100) if self.models_tested > 0 else 0.0
         )
 
         if successful:
@@ -177,12 +176,8 @@ class EvalRequest(BaseModel):
     """
 
     query: str = Field(..., min_length=1, description="Prompt to evaluate")
-    models: list[EvalModelConfig] | None = Field(
-        None, description="Specific models to test"
-    )
-    preset: ModelPreset | None = Field(
-        None, description="Predefined model set to use"
-    )
+    models: list[EvalModelConfig] | None = Field(None, description="Specific models to test")
+    preset: ModelPreset | None = Field(None, description="Predefined model set to use")
     prompt_type: str = Field("text", description="Type of prompt")
     timeout_seconds: int = Field(120, ge=10, le=600, description="Timeout per model")
 
@@ -201,9 +196,5 @@ class EvalModelsResponse(BaseModel):
         models: All available model configurations
     """
 
-    presets: dict[str, int] = Field(
-        default_factory=dict, description="Preset name -> model count"
-    )
-    models: list[EvalModelConfig] = Field(
-        default_factory=list, description="All available models"
-    )
+    presets: dict[str, int] = Field(default_factory=dict, description="Preset name -> model count")
+    models: list[EvalModelConfig] = Field(default_factory=list, description="All available models")

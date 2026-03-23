@@ -55,9 +55,7 @@ def decode_access_token(token: str) -> str:
     """
     settings = get_settings()
     try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=["HS256"]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError as e:
         raise ValueError("Access token has expired") from e
     except jwt.InvalidTokenError as e:
@@ -77,9 +75,7 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def create_refresh_token(
-    session: AsyncSession, user_id: str
-) -> tuple[str, str]:
+async def create_refresh_token(session: AsyncSession, user_id: str) -> tuple[str, str]:
     """Create a new refresh token and store its hash in the database.
 
     Args:
@@ -94,9 +90,7 @@ async def create_refresh_token(
     raw_token = secrets.token_urlsafe(48)
     token_hash = _hash_token(raw_token)
 
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.JWT_REFRESH_EXPIRE_DAYS
-    )
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
 
     rt = RefreshToken(
         user_id=user_id,
@@ -108,9 +102,7 @@ async def create_refresh_token(
     return raw_token, token_hash
 
 
-async def rotate_refresh_token(
-    session: AsyncSession, raw_old_token: str
-) -> tuple[str, str]:
+async def rotate_refresh_token(session: AsyncSession, raw_old_token: str) -> tuple[str, str]:
     """Revoke the old refresh token and issue a new one.
 
     Args:
@@ -125,9 +117,7 @@ async def rotate_refresh_token(
     """
     old_hash = _hash_token(raw_old_token)
 
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == old_hash)
-    )
+    result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == old_hash))
     old_rt = result.scalar_one_or_none()
 
     if old_rt is None:
@@ -135,9 +125,7 @@ async def rotate_refresh_token(
 
     if old_rt.is_revoked:
         # Possible token reuse — revoke all tokens for this user as a safety measure
-        logger.warning(
-            f"Reuse of revoked refresh token detected for user {old_rt.user_id}"
-        )
+        logger.warning(f"Reuse of revoked refresh token detected for user {old_rt.user_id}")
         all_tokens = await session.execute(
             select(RefreshToken).where(
                 RefreshToken.user_id == old_rt.user_id,

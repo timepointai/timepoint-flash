@@ -10,6 +10,7 @@ Tests:
 
 Run with: pytest tests/test_e2e_api.py -v
 """
+
 import asyncio
 
 import pytest
@@ -22,17 +23,14 @@ from tests.utils.test_helpers import generate_unique_test_email
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_rate_limiting_email_based(
-    client: TestClient,
-    db_session: Session,
-    openrouter_api_key: str
+    client: TestClient, db_session: Session, openrouter_api_key: str
 ):
     """Test email-based rate limiting (1/hour by default in production)."""
     email = generate_unique_test_email("test-ratelimit-email")
 
     # First request should succeed
     response1 = client.post(
-        "/api/timepoint/create",
-        json={"input_query": "Test query 1", "requester_email": email}
+        "/api/timepoint/create", json={"input_query": "Test query 1", "requester_email": email}
     )
     assert response1.status_code in [200, 201], f"First request failed: {response1.text}"
     print("✓ First request accepted")
@@ -41,8 +39,7 @@ async def test_rate_limiting_email_based(
     # In test environment, MAX_TIMEPOINTS_PER_HOUR is set to 100, so this won't fail
     # But in production it would be rate limited
     response2 = client.post(
-        "/api/timepoint/create",
-        json={"input_query": "Test query 2", "requester_email": email}
+        "/api/timepoint/create", json={"input_query": "Test query 2", "requester_email": email}
     )
 
     if response2.status_code == 429:
@@ -54,9 +51,7 @@ async def test_rate_limiting_email_based(
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_rate_limiting_ip_based(
-    client: TestClient,
-    db_session: Session,
-    openrouter_api_key: str
+    client: TestClient, db_session: Session, openrouter_api_key: str
 ):
     """Test IP-based rate limiting for anonymous requests."""
     # Anonymous requests (no email) should be rate limited per IP (10/hour default)
@@ -67,7 +62,7 @@ async def test_rate_limiting_ip_based(
     for i in range(max_attempts):
         response = client.post(
             "/api/timepoint/create",
-            json={"input_query": f"Anonymous test query {i}"}
+            json={"input_query": f"Anonymous test query {i}"},
             # No email provided - uses IP-based rate limiting
         )
 
@@ -85,11 +80,7 @@ async def test_rate_limiting_ip_based(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_feed_pagination(
-    client: TestClient,
-    db_session: Session,
-    openrouter_api_key: str
-):
+async def test_feed_pagination(client: TestClient, db_session: Session, openrouter_api_key: str):
     """Test that feed endpoint supports pagination."""
     # Test basic feed retrieval
     response = client.get("/api/feed?limit=5&offset=0")
@@ -109,9 +100,7 @@ async def test_feed_pagination(
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_invalid_query_handling(
-    client: TestClient,
-    db_session: Session,
-    openrouter_api_key: str
+    client: TestClient, db_session: Session, openrouter_api_key: str
 ):
     """Test handling of invalid/malformed queries."""
     email = generate_unique_test_email("test-invalid")
@@ -132,27 +121,25 @@ async def test_invalid_query_handling(
 
         # Should reject with 400 or 422
         if response.status_code in [400, 422]:
-            print(f"✓ Case {i+1}: Correctly rejected invalid input")
+            print(f"✓ Case {i + 1}: Correctly rejected invalid input")
         else:
-            print(f"⚠ Case {i+1}: Accepted potentially invalid input (status {response.status_code})")
+            print(
+                f"⚠ Case {i + 1}: Accepted potentially invalid input (status {response.status_code})"
+            )
 
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_concurrent_requests(
-    client: TestClient,
-    db_session: Session,
-    openrouter_api_key: str
+    client: TestClient, db_session: Session, openrouter_api_key: str
 ):
     """Test handling of multiple concurrent requests."""
+
     async def create_timepoint(index: int):
         email = generate_unique_test_email(f"test-concurrent-{index}")
         response = client.post(
             "/api/timepoint/create",
-            json={
-                "input_query": f"Test concurrent query {index}",
-                "requester_email": email
-            }
+            json={"input_query": f"Test concurrent query {index}", "requester_email": email},
         )
         return response.status_code
 
@@ -169,10 +156,7 @@ async def test_concurrent_requests(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_timepoint_details_404_on_invalid_slug(
-    client: TestClient,
-    db_session: Session
-):
+async def test_timepoint_details_404_on_invalid_slug(client: TestClient, db_session: Session):
     """Test that invalid slugs return 404."""
     response = client.get("/api/timepoint/details/nonexistent-slug-12345")
 
@@ -182,10 +166,7 @@ async def test_timepoint_details_404_on_invalid_slug(
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_health_endpoint_responds(
-    client: TestClient,
-    db_session: Session
-):
+async def test_health_endpoint_responds(client: TestClient, db_session: Session):
     """Test that health endpoint is responsive."""
     response = client.get("/health")
 

@@ -124,7 +124,10 @@ class TestGenerateFolderPath:
     def test_year_month_extraction(self):
         date = datetime(2025, 11, 15, tzinfo=timezone.utc)
         path, _ = generate_folder_path(
-            root="./out", query="x", date=date, uuid_str="000000",
+            root="./out",
+            query="x",
+            date=date,
+            uuid_str="000000",
         )
         assert "/2025/11/" in path
 

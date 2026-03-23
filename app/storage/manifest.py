@@ -106,13 +106,15 @@ class BlobManifest(BaseModel):
     access: AccessInfo = Field(default_factory=AccessInfo)
     generation_version: int = 1
 
-    stubs: dict[str, str] = Field(default_factory=lambda: {
-        "cloud_storage": "coming soon",
-        "c2pa_credentials": "coming soon",
-        "vr_spatial_render": "coming soon",
-        "nsfw_detection": "coming soon",
-        "video_render": "coming soon",
-    })
+    stubs: dict[str, str] = Field(
+        default_factory=lambda: {
+            "cloud_storage": "coming soon",
+            "c2pa_credentials": "coming soon",
+            "vr_spatial_render": "coming soon",
+            "nsfw_detection": "coming soon",
+            "video_render": "coming soon",
+        }
+    )
 
 
 def build_manifest(
@@ -145,9 +147,7 @@ def build_manifest(
     p = getattr(timepoint, "tdf_payload", None) or {}
     cam = p.get("camera_data")
     if cam and isinstance(cam, dict):
-        synthetic_camera = {
-            f"{{synthetic}}{k}": v for k, v in cam.items()
-        }
+        synthetic_camera = {f"{{synthetic}}{k}": v for k, v in cam.items()}
 
     # Extract tags
     tags: list[str] = []

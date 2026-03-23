@@ -13,6 +13,7 @@ Usage:
     pytest -m e2e  # Real API calls
     USE_MOCKS=true pytest -m e2e  # Mock responses
 """
+
 import base64
 import os
 from io import BytesIO
@@ -27,10 +28,7 @@ def is_mocking_enabled() -> bool:
 
 
 def create_mock_image(
-    width: int = 1024,
-    height: int = 1024,
-    text: str = "Mock Image",
-    format: str = "PNG"
+    width: int = 1024, height: int = 1024, text: str = "Mock Image", format: str = "PNG"
 ) -> str:
     """
     Create a mock base64-encoded image for testing.
@@ -45,7 +43,7 @@ def create_mock_image(
         Base64-encoded image string with data URI prefix
     """
     # Create a simple colored image
-    img = Image.new('RGB', (width, height), color=(73, 109, 137))
+    img = Image.new("RGB", (width, height), color=(73, 109, 137))
 
     # Add text
     draw = ImageDraw.Draw(img)
@@ -74,7 +72,7 @@ def create_mock_image(
     buffer = BytesIO()
     img.save(buffer, format=format)
     img_bytes = buffer.getvalue()
-    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
     # Return with data URI prefix
     return f"data:image/{format.lower()};base64,{img_b64}"
@@ -85,24 +83,24 @@ MOCK_LLM_RESPONSES = {
     "judge_valid": {
         "is_valid": True,
         "cleaned_query": "Medieval marketplace in London, winter 1250",
-        "rejection_reason": None
+        "rejection_reason": None,
     },
     "judge_invalid_future": {
         "is_valid": False,
         "cleaned_query": "",
-        "rejection_reason": "Query contains a far-future date beyond 2024"
+        "rejection_reason": "Query contains a far-future date beyond 2024",
     },
     "judge_invalid_fictional": {
         "is_valid": False,
         "cleaned_query": "",
-        "rejection_reason": "Query appears to be asking for a fictional or fantasy scene"
+        "rejection_reason": "Query appears to be asking for a fictional or fantasy scene",
     },
     "timeline_medieval": {
         "year": 1250,
         "season": "winter",
         "location": "London, England",
         "exact_date": None,
-        "slug": "london-marketplace-1250-winter"
+        "slug": "london-marketplace-1250-winter",
     },
     "scene_medieval": {
         "setting": {
@@ -111,29 +109,29 @@ MOCK_LLM_RESPONSES = {
             "time_of_day": "10:23 AM",
             "architecture_style": "Medieval timber-frame buildings",
             "time_period_details": "Wattle and daub construction, thatched roofs",
-            "atmosphere": "Busy and lively with merchants calling out"
+            "atmosphere": "Busy and lively with merchants calling out",
         },
         "weather": {
             "condition": "Overcast with light snow",
             "temperature": "Cold",
-            "lighting": "Dim and gray"
+            "lighting": "Dim and gray",
         },
         "props": [
             {
                 "name": "Wooden stall",
                 "description": "Rough-hewn timber market stall with goods displayed",
                 "location": "Center of scene",
-                "historical_significance": "Common marketplace structure"
+                "historical_significance": "Common marketplace structure",
             },
             {
                 "name": "Iron pot",
                 "description": "Cast iron cooking pot hanging from a hook",
                 "location": "Merchant stall on left",
-                "historical_significance": "Essential cooking vessel"
-            }
+                "historical_significance": "Essential cooking vessel",
+            },
         ],
         "background_details": "Narrow cobblestone streets, medieval buildings with overhanging upper floors",
-        "historical_context": "13th century London during the reign of Henry III"
+        "historical_context": "13th century London during the reign of Henry III",
     },
     "characters_medieval": {
         "characters": [
@@ -147,7 +145,7 @@ MOCK_LLM_RESPONSES = {
                 "social_class": "Merchant class",
                 "personality": "Shrewd but fair trader",
                 "background": "Third-generation cloth merchant",
-                "motivations": "Provide for his family, expand business"
+                "motivations": "Provide for his family, expand business",
             },
             {
                 "name": "Eleanor the Baker's Wife",
@@ -159,11 +157,11 @@ MOCK_LLM_RESPONSES = {
                 "social_class": "Craftsman class",
                 "personality": "Warm and generous",
                 "background": "Married to the local baker",
-                "motivations": "Support her husband's business"
-            }
+                "motivations": "Support her husband's business",
+            },
         ],
         "crowd_present": True,
-        "crowd_description": "Various townspeople browsing the market stalls"
+        "crowd_description": "Various townspeople browsing the market stalls",
     },
     "dialog_medieval": {
         "lines": [
@@ -171,17 +169,17 @@ MOCK_LLM_RESPONSES = {
                 "speaker": "Thomas the Merchant",
                 "text": "Fine Flemish cloth, milady! Warmest wool in all of London!",
                 "tone": "Enthusiastic",
-                "action": "Gesturing to fabric bolts on his stall"
+                "action": "Gesturing to fabric bolts on his stall",
             },
             {
                 "speaker": "Eleanor the Baker's Wife",
                 "text": "Fresh bread, baked this morning! Tuppence a loaf!",
                 "tone": "Cheerful",
-                "action": "Holding up a round loaf"
-            }
+                "action": "Holding up a round loaf",
+            },
         ],
-        "context": "Merchants calling out to potential customers in the marketplace"
-    }
+        "context": "Merchants calling out to potential customers in the marketplace",
+    },
 }
 
 
@@ -224,12 +222,7 @@ def get_mock_llm_response(model: str, prompt: str, response_type: str = "auto") 
 
 
 # Mock Image Generation Response
-MOCK_IMAGE = create_mock_image(
-    width=1024,
-    height=1024,
-    text="Mock Medieval Scene",
-    format="PNG"
-)
+MOCK_IMAGE = create_mock_image(width=1024, height=1024, text="Mock Medieval Scene", format="PNG")
 
 
 def get_mock_image(prompt: str) -> str:
@@ -265,20 +258,18 @@ MOCK_TIMEPOINT_COMPLETE = {
         "nodes": [
             {"id": "char_1", "type": "character", "name": "Thomas the Merchant"},
             {"id": "char_2", "type": "character", "name": "Eleanor the Baker's Wife"},
-            {"id": "prop_1", "type": "prop", "name": "Wooden stall"}
+            {"id": "prop_1", "type": "prop", "name": "Wooden stall"},
         ],
-        "edges": [
-            {"source": "char_1", "target": "prop_1", "relation": "stands_behind"}
-        ]
+        "edges": [{"source": "char_1", "target": "prop_1", "relation": "stands_behind"}],
     },
     "metadata_json": {
         "setting": MOCK_LLM_RESPONSES["scene_medieval"]["setting"],
         "weather": MOCK_LLM_RESPONSES["scene_medieval"]["weather"],
-        "historical_context": MOCK_LLM_RESPONSES["scene_medieval"]["historical_context"]
+        "historical_context": MOCK_LLM_RESPONSES["scene_medieval"]["historical_context"],
     },
     "processing_time_ms": 45000,
     "created_at": "2024-11-26T12:00:00Z",
-    "status": "completed"
+    "status": "completed",
 }
 
 

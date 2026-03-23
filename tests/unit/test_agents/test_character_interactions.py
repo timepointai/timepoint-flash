@@ -389,8 +389,18 @@ class TestDialogExtensionAgent:
         agent = DialogExtensionAgent()
 
         characters = [
-            Character(name="John Adams", role=CharacterRole.PRIMARY, description="Patriot", speaks_in_scene=True),
-            Character(name="Ben Franklin", role=CharacterRole.PRIMARY, description="Inventor", speaks_in_scene=True),
+            Character(
+                name="John Adams",
+                role=CharacterRole.PRIMARY,
+                description="Patriot",
+                speaks_in_scene=True,
+            ),
+            Character(
+                name="Ben Franklin",
+                role=CharacterRole.PRIMARY,
+                description="Inventor",
+                speaks_in_scene=True,
+            ),
         ]
 
         filtered = agent._filter_characters(characters, None)
@@ -435,8 +445,18 @@ class TestDialogExtensionAgent:
         agent = DialogExtensionAgent(router=mock_router)
 
         characters = [
-            Character(name="John Adams", role=CharacterRole.PRIMARY, description="Patriot", speaks_in_scene=True),
-            Character(name="Ben Franklin", role=CharacterRole.PRIMARY, description="Inventor", speaks_in_scene=True),
+            Character(
+                name="John Adams",
+                role=CharacterRole.PRIMARY,
+                description="Patriot",
+                speaks_in_scene=True,
+            ),
+            Character(
+                name="Ben Franklin",
+                role=CharacterRole.PRIMARY,
+                description="Inventor",
+                speaks_in_scene=True,
+            ),
         ]
 
         input_data = DialogExtensionInput(
@@ -478,7 +498,14 @@ class TestDialogExtensionAgent:
         agent = DialogExtensionAgent(router=mock_router)
 
         input_data = DialogExtensionInput(
-            characters=[Character(name="Test", role=CharacterRole.PRIMARY, description="Test", speaks_in_scene=True)],
+            characters=[
+                Character(
+                    name="Test",
+                    role=CharacterRole.PRIMARY,
+                    description="Test",
+                    speaks_in_scene=True,
+                )
+            ],
             existing_dialog=[],
             year=1776,
             location="Test",
@@ -827,7 +854,9 @@ class TestSurveyInput:
             characters=[
                 Character(name="John Adams", role=CharacterRole.PRIMARY, description="Patriot"),
                 Character(name="Ben Franklin", role=CharacterRole.PRIMARY, description="Inventor"),
-                Character(name="Thomas Jefferson", role=CharacterRole.PRIMARY, description="Author"),
+                Character(
+                    name="Thomas Jefferson", role=CharacterRole.PRIMARY, description="Author"
+                ),
             ],
             focal_character="John Adams",
         )

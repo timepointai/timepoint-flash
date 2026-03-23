@@ -89,7 +89,10 @@ class TestTemporalPointCreation:
         assert TemporalPoint(year=2000, month=6, day=15).precision == "day"
         assert TemporalPoint(year=2000, month=6, day=15, hour=12).precision == "hour"
         assert TemporalPoint(year=2000, month=6, day=15, hour=12, minute=30).precision == "minute"
-        assert TemporalPoint(year=2000, month=6, day=15, hour=12, minute=30, second=45).precision == "second"
+        assert (
+            TemporalPoint(year=2000, month=6, day=15, hour=12, minute=30, second=45).precision
+            == "second"
+        )
 
 
 @pytest.mark.fast

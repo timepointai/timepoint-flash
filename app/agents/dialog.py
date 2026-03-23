@@ -143,10 +143,13 @@ class DialogInput:
             Relationship if found, None otherwise
         """
         for rel in self.relationships:
-            if (rel.from_character.lower() == char1.lower() and
-                rel.to_character.lower() == char2.lower()) or \
-               (rel.from_character.lower() == char2.lower() and
-                rel.to_character.lower() == char1.lower()):
+            if (
+                rel.from_character.lower() == char1.lower()
+                and rel.to_character.lower() == char2.lower()
+            ) or (
+                rel.from_character.lower() == char2.lower()
+                and rel.to_character.lower() == char1.lower()
+            ):
                 return rel
         return None
 
@@ -314,7 +317,9 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         # Append narrative arc context if available
         beat_context = ""
         if beat is not None:
-            intensity_label = "high" if beat.intensity >= 0.7 else "moderate" if beat.intensity >= 0.4 else "low"
+            intensity_label = (
+                "high" if beat.intensity >= 0.7 else "moderate" if beat.intensity >= 0.4 else "low"
+            )
             beat_context = (
                 f"\n\nNARRATIVE ROLE: Your line should {beat.narrative_function.value} the scene."
                 f"\nTarget emotion: {beat.emotional_target}. Intensity: {intensity_label}."
@@ -338,7 +343,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             text = response.content.strip()
             # Remove leading character name if present
             if text.lower().startswith(character.name.lower()):
-                text = text[len(character.name):].lstrip(":").strip()
+                text = text[len(character.name) :].lstrip(":").strip()
             # Remove surrounding quotes
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
@@ -473,6 +478,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             AgentResult containing DialogData with generated lines
         """
         import time
+
         start_time = time.time()
 
         characters = input_data.speaking_characters

@@ -65,15 +65,11 @@ class PromptIssue(BaseModel):
     issue_type: str = Field(
         description="Type: 'anachronism', 'overload', 'hallucination', 'contradiction'"
     )
-    description: str = Field(
-        description="Brief description of the issue"
-    )
+    description: str = Field(description="Brief description of the issue")
     severity: str = Field(
         description="'critical' (must fix), 'warning' (should fix), 'minor' (optional)"
     )
-    fix_applied: str = Field(
-        description="How this was addressed in the optimized prompt"
-    )
+    fix_applied: str = Field(description="How this was addressed in the optimized prompt")
 
 
 class ImagePromptOptimizerOutput(BaseModel):
@@ -86,33 +82,23 @@ class ImagePromptOptimizerOutput(BaseModel):
         description="Compressed prompt optimized for image generation (50-150 words)"
     )
 
-    word_count: int = Field(
-        description="Word count of the optimized prompt"
-    )
+    word_count: int = Field(description="Word count of the optimized prompt")
 
     focal_elements: list[str] = Field(
-        default_factory=list,
-        description="The 3-5 key visual elements preserved in the prompt"
+        default_factory=list, description="The 3-5 key visual elements preserved in the prompt"
     )
 
     removed_elements: list[str] = Field(
-        default_factory=list,
-        description="Elements removed to reduce complexity"
+        default_factory=list, description="Elements removed to reduce complexity"
     )
 
     issues_found: list[PromptIssue | str] = Field(
-        default_factory=list,
-        description="Quality issues detected and addressed"
+        default_factory=list, description="Quality issues detected and addressed"
     )
 
-    quality_score: int = Field(
-        ge=1, le=10,
-        description="Overall prompt quality score (1-10)"
-    )
+    quality_score: int = Field(ge=1, le=10, description="Overall prompt quality score (1-10)")
 
-    optimization_notes: str = Field(
-        description="Brief explanation of optimization decisions"
-    )
+    optimization_notes: str = Field(description="Brief explanation of optimization decisions")
 
 
 SYSTEM_PROMPT = """You are an expert image prompt optimizer for historical scene generation.
@@ -183,8 +169,8 @@ def get_optimizer_prompt(
     if tension_arc or emotional_beats:
         emotion_section = f"""
 EMOTIONAL CONTEXT (translate into VISIBLE body language, do NOT discard):
-- Tension arc: {tension_arc or 'not specified'}
-- Emotional beats: {', '.join(emotional_beats) if emotional_beats else 'not specified'}
+- Tension arc: {tension_arc or "not specified"}
+- Emotional beats: {", ".join(emotional_beats) if emotional_beats else "not specified"}
 Convert these into physical cues: facial expressions, posture, gestures, environmental urgency.
 The image must FEEL the emotion, not just depict a static scene."""
 
@@ -264,9 +250,7 @@ class ImagePromptOptimizerAgent(BaseAgent[ImagePromptOptimizerInput, ImagePrompt
         """
         original_words = len(input_data.full_prompt.split())
 
-        logger.info(
-            f"Optimizing prompt: {original_words} words -> target {input_data.max_words}"
-        )
+        logger.info(f"Optimizing prompt: {original_words} words -> target {input_data.max_words}")
 
         result = await self._call_llm(input_data, temperature=0.4)
 
@@ -281,7 +265,8 @@ class ImagePromptOptimizerAgent(BaseAgent[ImagePromptOptimizerInput, ImagePrompt
 
             # Log significant issues
             critical_issues = [
-                i for i in result.content.issues_found
+                i
+                for i in result.content.issues_found
                 if isinstance(i, PromptIssue) and i.severity == "critical"
             ]
             if critical_issues:

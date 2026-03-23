@@ -179,8 +179,11 @@ class GenerateRequest(BaseModel):
             "Image model ID. OpenRouter format ('org/model') or Google native "
             "(gemini-2.5-flash-image, gemini-3-pro-image-preview)."
         ),
-        examples=["gemini-2.5-flash-image", "gemini-3-pro-image-preview",
-                   "google/gemini-2.5-flash-image-preview"],
+        examples=[
+            "gemini-2.5-flash-image",
+            "gemini-3-pro-image-preview",
+            "google/gemini-2.5-flash-image-preview",
+        ],
     )
     write_blob: bool = Field(
         default=False,
@@ -221,6 +224,7 @@ class GenerateRequest(BaseModel):
 # Image model is resolved at runtime via get_image_fallback_model().
 _DEFAULT_PERMISSIVE_TEXT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
+
 def _get_permissive_text_model() -> str:
     """Pick the best available permissive text model from the registry."""
     try:
@@ -237,14 +241,14 @@ def _get_permissive_text_model() -> str:
             "meta-llama/llama-4-scout-17b-16e-instruct",
             "meta-llama/llama-4-maverick-17b-128e-instruct",
             "nvidia/llama-3.3-nemotron-super-49b-v1.5",  # Nemotron Super, fast MoE
-            "nousresearch/hermes-4-70b",             # Hermes 4 70B, strong reasoning
-            "deepseek/deepseek-chat-v3-0324",        # Fast chat model
-            "qwen/qwen3-30b-a3b",                    # Fast MoE model
-            "nvidia/nemotron-3-nano-30b-a3b",        # Nemotron Nano, very fast
-            "nousresearch/hermes-3-llama-3.1-70b",   # Hermes 3 70B fallback
+            "nousresearch/hermes-4-70b",  # Hermes 4 70B, strong reasoning
+            "deepseek/deepseek-chat-v3-0324",  # Fast chat model
+            "qwen/qwen3-30b-a3b",  # Fast MoE model
+            "nvidia/nemotron-3-nano-30b-a3b",  # Nemotron Nano, very fast
+            "nousresearch/hermes-3-llama-3.1-70b",  # Hermes 3 70B fallback
             "mistralai/mistral-small-3.2-24b-instruct",
-            "qwen/qwen3-235b-a22b",                  # Large but non-thinking
-            "deepseek/deepseek-r1-0528",             # Thinking model — slow, last resort
+            "qwen/qwen3-235b-a22b",  # Large but non-thinking
+            "deepseek/deepseek-r1-0528",  # Thinking model — slow, last resort
         ]
         for model_id in preference:
             if registry.is_model_available(model_id):
@@ -304,6 +308,7 @@ def resolve_model_policy(
             logger.info("model_policy=permissive → text_model=%s", text_model)
         if not image_model:
             from app.core.llm_router import get_image_fallback_model
+
             image_model = get_image_fallback_model(permissive_only=True)
             logger.info("model_policy=permissive → image_model=%s", image_model)
 
@@ -573,7 +578,9 @@ def timepoint_to_response(
 
     # Redact sensitive fields for private timepoints when viewer is not the owner
     if vis == "private":
-        is_owner = current_user is not None and tp.user_id is not None and current_user.id == tp.user_id
+        is_owner = (
+            current_user is not None and tp.user_id is not None and current_user.id == tp.user_id
+        )
         if not is_owner:
             response.characters = None
             response.dialog = None
@@ -631,9 +638,9 @@ async def stream_generation(
         PipelineStep.TIMELINE: 20,
         PipelineStep.SCENE: 30,
         PipelineStep.CHARACTERS: 50,  # Includes CharID + Graph + parallel Bios
-        PipelineStep.MOMENT: 65,      # Parallel with Camera
-        PipelineStep.CAMERA: 65,      # Parallel with Moment
-        PipelineStep.GRAPH: 50,       # Legacy (now inside Characters)
+        PipelineStep.MOMENT: 65,  # Parallel with Camera
+        PipelineStep.CAMERA: 65,  # Parallel with Moment
+        PipelineStep.GRAPH: 50,  # Legacy (now inside Characters)
         PipelineStep.DIALOG: 80,
         PipelineStep.IMAGE_PROMPT: 90,
         PipelineStep.IMAGE_GENERATION: 100,
@@ -655,122 +662,141 @@ async def stream_generation(
     start_time = time.perf_counter()
 
     # Debug log to verify generate_image value
-    logger.info(f"Stream generation: query='{query}', generate_image={generate_image}, preset={preset}, text_model={text_model}, image_model={image_model}")
+    logger.info(
+        f"Stream generation: query='{query}', generate_image={generate_image}, preset={preset}, text_model={text_model}, image_model={image_model}"
+    )
 
     try:
-      async with asyncio.timeout(360):
-        # Send start event
-        yield format_sse(StreamEvent(
-            event="start",
-            step="initialization",
-            data={
-                "query": query,
-                "generate_image": generate_image,
-                "preset": preset.value if preset else "balanced",
-            },
-            progress=0,
-        ))
+        async with asyncio.timeout(360):
+            # Send start event
+            yield format_sse(
+                StreamEvent(
+                    event="start",
+                    step="initialization",
+                    data={
+                        "query": query,
+                        "generate_image": generate_image,
+                        "preset": preset.value if preset else "balanced",
+                    },
+                    progress=0,
+                )
+            )
 
-        # Stream pipeline execution - yields after each step completes
-        async for step, result, current_state in pipeline.run_streaming(query, generate_image):
-            # Check if client disconnected before processing next step
-            if disconnect_check is not None:
+            # Stream pipeline execution - yields after each step completes
+            async for step, result, current_state in pipeline.run_streaming(query, generate_image):
+                # Check if client disconnected before processing next step
+                if disconnect_check is not None:
+                    try:
+                        if await disconnect_check():
+                            logger.info("Client disconnected during stream generation, aborting")
+                            return
+                    except Exception:
+                        pass  # If check fails, continue generating
+
+                state = current_state  # Keep reference to final state
+                progress = step_progress.get(step, 0)
+
+                if result.success:
+                    yield format_sse(
+                        StreamEvent(
+                            event="step_complete",
+                            step=step.value,
+                            data={
+                                "latency_ms": result.latency_ms,
+                                "model_used": result.model_used,
+                            },
+                            progress=progress,
+                        )
+                    )
+                else:
+                    yield format_sse(
+                        StreamEvent(
+                            event="step_error",
+                            step=step.value,
+                            error=result.error,
+                            progress=progress,
+                        )
+                    )
+
+            # Send final result if we have state
+            if state is not None:
+                total_time = int((time.perf_counter() - start_time) * 1000)
+                timepoint = pipeline.state_to_timepoint(state)
+
+                # Save to database
+                from app.database import get_session
+
                 try:
-                    if await disconnect_check():
-                        logger.info("Client disconnected during stream generation, aborting")
-                        return
-                except Exception:
-                    pass  # If check fails, continue generating
+                    async with get_session() as session:
+                        session.add(timepoint)
+                        await session.commit()
+                        await session.refresh(timepoint)
 
-            state = current_state  # Keep reference to final state
-            progress = step_progress.get(step, 0)
+                        # Also save generation logs
+                        logs = pipeline.state_to_generation_logs(state)
+                        for log in logs:
+                            session.add(log)
+                        await session.commit()
 
-            if result.success:
-                yield format_sse(StreamEvent(
-                    event="step_complete",
-                    step=step.value,
-                    data={
-                        "latency_ms": result.latency_ms,
-                        "model_used": result.model_used,
-                    },
-                    progress=progress,
-                ))
-            else:
-                yield format_sse(StreamEvent(
-                    event="step_error",
-                    step=step.value,
-                    error=result.error,
-                    progress=progress,
-                ))
+                        logger.info(
+                            f"Streaming generation saved: {timepoint.id} ({timepoint.status})"
+                        )
 
-        # Send final result if we have state
-        if state is not None:
-            total_time = int((time.perf_counter() - start_time) * 1000)
-            timepoint = pipeline.state_to_timepoint(state)
-
-            # Save to database
-            from app.database import get_session
-            try:
-                async with get_session() as session:
-                    session.add(timepoint)
-                    await session.commit()
-                    await session.refresh(timepoint)
-
-                    # Also save generation logs
-                    logs = pipeline.state_to_generation_logs(state)
-                    for log in logs:
-                        session.add(log)
-                    await session.commit()
-
-                    logger.info(f"Streaming generation saved: {timepoint.id} ({timepoint.status})")
-
-                    # Send done event ONLY after successful database save
-                    yield format_sse(StreamEvent(
-                        event="done",
-                        step="complete",
-                        data={
-                            "timepoint_id": timepoint.id,
-                            "slug": timepoint.slug,
-                            "status": timepoint.status.value,
-                            "year": timepoint.year,
-                            "location": timepoint.location,
-                            "total_latency_ms": total_time,
-                            "has_image": state.image_base64 is not None,
-                            "saved": True,
-                        },
-                        progress=100,
-                    ))
-            except Exception as db_error:
-                logger.error(f"Failed to save streaming result: {db_error}")
-                # Send error event when database save fails
-                yield format_sse(StreamEvent(
-                    event="error",
-                    step="database_save",
-                    error=f"Failed to save timepoint: {db_error}",
-                    data={
-                        "timepoint_id": timepoint.id,
-                        "status": "save_failed",
-                        "total_latency_ms": total_time,
-                        "saved": False,
-                    },
-                    progress=100,
-                ))
+                        # Send done event ONLY after successful database save
+                        yield format_sse(
+                            StreamEvent(
+                                event="done",
+                                step="complete",
+                                data={
+                                    "timepoint_id": timepoint.id,
+                                    "slug": timepoint.slug,
+                                    "status": timepoint.status.value,
+                                    "year": timepoint.year,
+                                    "location": timepoint.location,
+                                    "total_latency_ms": total_time,
+                                    "has_image": state.image_base64 is not None,
+                                    "saved": True,
+                                },
+                                progress=100,
+                            )
+                        )
+                except Exception as db_error:
+                    logger.error(f"Failed to save streaming result: {db_error}")
+                    # Send error event when database save fails
+                    yield format_sse(
+                        StreamEvent(
+                            event="error",
+                            step="database_save",
+                            error=f"Failed to save timepoint: {db_error}",
+                            data={
+                                "timepoint_id": timepoint.id,
+                                "status": "save_failed",
+                                "total_latency_ms": total_time,
+                                "saved": False,
+                            },
+                            progress=100,
+                        )
+                    )
 
     except TimeoutError:
         logger.error(f"Streaming generation timed out after 360s: {query}")
-        yield format_sse(StreamEvent(
-            event="error",
-            error="Stream generation timed out after 360 seconds",
-            progress=0,
-        ))
+        yield format_sse(
+            StreamEvent(
+                event="error",
+                error="Stream generation timed out after 360 seconds",
+                progress=0,
+            )
+        )
 
     except Exception as e:
         logger.error(f"Streaming generation failed: {e}")
-        yield format_sse(StreamEvent(
-            event="error",
-            error=str(e),
-            progress=0,
-        ))
+        yield format_sse(
+            StreamEvent(
+                event="error",
+                error=str(e),
+                progress=0,
+            )
+        )
 
 
 # Background Task for Generation
@@ -833,9 +859,7 @@ async def run_generation_task(
         # Update in database
         async with get_session() as session:
             # Get existing timepoint
-            result = await session.execute(
-                select(Timepoint).where(Timepoint.id == timepoint_id)
-            )
+            result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
             tp = result.scalar_one_or_none()
 
             if tp:
@@ -873,9 +897,7 @@ async def run_generation_task(
         logger.error(f"Background generation failed for {timepoint_id}: {e}")
         # Update status to failed and refund credits
         async with get_session() as session:
-            result = await session.execute(
-                select(Timepoint).where(Timepoint.id == timepoint_id)
-            )
+            result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
             tp = result.scalar_one_or_none()
             if tp:
                 tp.status = TimepointStatus.FAILED
@@ -887,23 +909,33 @@ async def run_generation_task(
                         preset_key = f"generate_{preset or 'balanced'}"
                         cost = CREDIT_COSTS.get(preset_key, CREDIT_COSTS["generate_balanced"])
                         await grant_credits(
-                            session, tp.user_id, cost, TransactionType.REFUND,
+                            session,
+                            tp.user_id,
+                            cost,
+                            TransactionType.REFUND,
                             description=f"Refund (background generation failed): {query[:60]}",
                         )
-                        logger.info(f"Refunded {cost} credits to user {tp.user_id} after background failure")
+                        logger.info(
+                            f"Refunded {cost} credits to user {tp.user_id} after background failure"
+                        )
                     except Exception as refund_err:
-                        logger.error(f"Credit refund failed after background generation error: {refund_err}")
+                        logger.error(
+                            f"Credit refund failed after background generation error: {refund_err}"
+                        )
 
                 await session.commit()
 
         # Fire callback with error if requested
         if callback_url:
-            await _fire_callback(callback_url, {
-                "id": timepoint_id,
-                "status": "failed",
-                "error": str(e),
-                "request_context": request_context,
-            })
+            await _fire_callback(
+                callback_url,
+                {
+                    "id": timepoint_id,
+                    "status": "failed",
+                    "error": str(e),
+                    "request_context": request_context,
+                },
+            )
 
 
 def _validate_callback_url(url: str) -> str:
@@ -938,9 +970,7 @@ def _validate_callback_url(url: str) -> str:
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip = ipaddress.ip_address(sockaddr[0])
         if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
-            raise ValueError(
-                f"callback_url host {hostname!r} resolves to private/reserved IP {ip}"
-            )
+            raise ValueError(f"callback_url host {hostname!r} resolves to private/reserved IP {ip}")
 
     return url
 
@@ -955,6 +985,7 @@ async def _fire_callback(url: str, payload: dict[str, Any]) -> None:
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(url, json=payload)
             logger.info(f"Callback to {url}: {r.status_code}")
@@ -996,7 +1027,10 @@ async def generate_timepoint(
         preset_key = f"generate_{request.preset or 'balanced'}"
         cost = CREDIT_COSTS.get(preset_key, CREDIT_COSTS["generate_balanced"])
         await spend_credits(
-            session, user.id, cost, TransactionType.GENERATION,
+            session,
+            user.id,
+            cost,
+            TransactionType.GENERATION,
             description=f"Generate ({request.preset or 'balanced'}): {request.query[:60]}",
         )
 
@@ -1075,7 +1109,10 @@ async def generate_timepoint_sync(
             preset_key = f"generate_{request.preset or 'balanced'}"
             cost = CREDIT_COSTS.get(preset_key, CREDIT_COSTS["generate_balanced"])
             await spend_credits(
-                session, user.id, cost, TransactionType.GENERATION,
+                session,
+                user.id,
+                cost,
+                TransactionType.GENERATION,
                 description=f"Generate ({request.preset or 'balanced'}): {request.query[:60]}",
             )
 
@@ -1096,26 +1133,33 @@ async def generate_timepoint_sync(
             text_model=text_model,
             image_model=image_model,
             model_policy=request.model_policy,
-            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
+            llm_params=request.llm_params.model_dump(exclude_none=True)
+            if request.llm_params
+            else None,
         )
         try:
             state = await asyncio.wait_for(
                 pipeline.run(request.query, request.generate_image),
                 timeout=300,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Sync generation timed out after 300s: {request.query}")
             if user is not None:
                 try:
                     await grant_credits(
-                        session, user.id, cost, TransactionType.REFUND,
+                        session,
+                        user.id,
+                        cost,
+                        TransactionType.REFUND,
                         description=f"Refund (timeout): {request.query[:60]}",
                     )
                     await session.commit()
                     logger.info(f"Refunded {cost} credits to user {user.id} after timeout")
                 except Exception as refund_err:
                     logger.error(f"Credit refund failed after timeout: {refund_err}")
-            raise HTTPException(status_code=504, detail="Generation timed out after 300 seconds")
+            raise HTTPException(
+                status_code=504, detail="Generation timed out after 300 seconds"
+            ) from None
 
         # Convert to timepoint
         timepoint = pipeline.state_to_timepoint(state)
@@ -1143,13 +1187,15 @@ async def generate_timepoint_sync(
         if request.write_blob or app_settings.BLOB_STORAGE_ENABLED:
             try:
                 from app.storage import StorageConfig, StorageService
+
                 storage_config = StorageConfig(
                     enabled=True,
                     root=app_settings.BLOB_STORAGE_ROOT,
                 )
                 storage_service = StorageService.from_config(storage_config)
                 full_path, folder_name = await storage_service.write_blob(
-                    timepoint, generation_logs=logs,
+                    timepoint,
+                    generation_logs=logs,
                 )
                 timepoint.blob_path = full_path
                 timepoint.blob_folder_name = folder_name
@@ -1172,7 +1218,10 @@ async def generate_timepoint_sync(
         if user is not None:
             try:
                 await grant_credits(
-                    session, user.id, cost, TransactionType.REFUND,
+                    session,
+                    user.id,
+                    cost,
+                    TransactionType.REFUND,
                     description=f"Refund (generation failed): {request.query[:60]}",
                 )
                 await session.commit()
@@ -1205,9 +1254,7 @@ async def get_timepoint(
     Raises:
         HTTPException: If timepoint not found or private and not owner
     """
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -1215,7 +1262,9 @@ async def get_timepoint(
 
     check_visibility_access(timepoint, user)
 
-    return timepoint_to_response(timepoint, include_full=full, include_image=include_image, current_user=user)
+    return timepoint_to_response(
+        timepoint, include_full=full, include_image=include_image, current_user=user
+    )
 
 
 @router.get("/{timepoint_id}/characters", response_model=CharacterBiosResponse)
@@ -1264,9 +1313,7 @@ async def get_character_bios(
         ```
     """
     # Fetch timepoint
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -1435,9 +1482,7 @@ async def list_timepoints(
 
     # Get total count
     count_subquery = query.subquery()
-    count_result = await session.execute(
-        select(func.count()).select_from(count_subquery)
-    )
+    count_result = await session.execute(select(func.count()).select_from(count_subquery))
     total = count_result.scalar() or 0
 
     # Apply pagination
@@ -1517,7 +1562,9 @@ async def generate_timepoint_stream(
             text_model=text_model,
             image_model=image_model,
             model_policy=request.model_policy,
-            llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
+            llm_params=request.llm_params.model_dump(exclude_none=True)
+            if request.llm_params
+            else None,
             disconnect_check=raw_request.is_disconnected,
         ),
         media_type="text/event-stream",
@@ -1568,9 +1615,7 @@ async def update_visibility(
             detail="Invalid visibility value. Must be 'public' or 'private'.",
         ) from None
 
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -1613,9 +1658,7 @@ async def delete_timepoint(
         HTTPException: 403 not owner, 404 not found
     """
     # Check if exists
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -1632,6 +1675,7 @@ async def delete_timepoint(
         if timepoint.blob_path and app_settings.BLOB_STORAGE_ENABLED:
             try:
                 from app.storage import StorageConfig, StorageService
+
                 storage_config = StorageConfig(
                     enabled=True,
                     root=app_settings.BLOB_STORAGE_ROOT,
@@ -1665,6 +1709,7 @@ async def delete_timepoint(
         if timepoint.blob_path and app_settings.BLOB_STORAGE_ENABLED:
             try:
                 from app.storage import StorageConfig, StorageService
+
                 storage_config = StorageConfig(
                     enabled=True,
                     root=app_settings.BLOB_STORAGE_ROOT,
@@ -1704,9 +1749,7 @@ async def export_timepoint_blob(
     Raises:
         HTTPException: If timepoint not found or blob write fails
     """
-    result = await session.execute(
-        select(Timepoint).where(Timepoint.id == timepoint_id)
-    )
+    result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
     timepoint = result.scalar_one_or_none()
 
     if not timepoint:
@@ -1726,6 +1769,7 @@ async def export_timepoint_blob(
 
     try:
         from app.storage import StorageConfig, StorageService
+
         app_settings = get_settings()
         storage_config = StorageConfig(
             enabled=True,
@@ -1733,7 +1777,8 @@ async def export_timepoint_blob(
         )
         storage_service = StorageService.from_config(storage_config)
         full_path, folder_name = await storage_service.reconstruct_blob(
-            timepoint, generation_logs=logs,
+            timepoint,
+            generation_logs=logs,
         )
         timepoint.blob_path = full_path
         timepoint.blob_folder_name = folder_name

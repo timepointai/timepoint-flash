@@ -43,9 +43,7 @@ async def get_balance(
             detail="Authentication required",
         )
 
-    result = await session.execute(
-        select(CreditAccount).where(CreditAccount.user_id == user.id)
-    )
+    result = await session.execute(select(CreditAccount).where(CreditAccount.user_id == user.id))
     account = result.scalar_one_or_none()
     if account is None:
         raise HTTPException(status_code=404, detail="Credit account not found")
@@ -108,9 +106,7 @@ async def admin_grant(
 ) -> AdminGrantResponse:
     """Grant credits to any user by user ID. Requires X-Admin-Key header."""
     # Verify user exists
-    result = await session.execute(
-        select(User).where(User.id == request.user_id)
-    )
+    result = await session.execute(select(User).where(User.id == request.user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
