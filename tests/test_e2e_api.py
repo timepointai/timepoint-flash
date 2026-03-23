@@ -11,10 +11,18 @@ Tests:
 Run with: pytest tests/test_e2e_api.py -v
 """
 
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 
 import pytest
+
 from tests.utils.test_helpers import generate_unique_test_email
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.skip(
     reason="Tests use non-existent fixtures and /api/timepoint/create endpoint — needs rewrite"
