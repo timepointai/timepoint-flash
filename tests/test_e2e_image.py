@@ -24,7 +24,7 @@ GENERATE_ENDPOINT = "/api/v1/timepoints/generate"
 GET_BY_ID_ENDPOINT = "/api/v1/timepoints/{id}"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_image_generation_creates_valid_png(test_client, e2e_test_db):
@@ -75,7 +75,7 @@ async def test_image_generation_creates_valid_png(test_client, e2e_test_db):
         pytest.skip("Image generation timed out or no image URL")
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_image_has_reasonable_dimensions(test_client, e2e_test_db):
@@ -147,7 +147,7 @@ async def test_image_has_reasonable_dimensions(test_client, e2e_test_db):
         pytest.skip("Image generation timed out or no image URL")
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_image_generation_with_query(test_client, e2e_test_db):

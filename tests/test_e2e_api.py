@@ -24,7 +24,7 @@ GET_BY_SLUG_ENDPOINT = "/api/v1/timepoints/slug/{slug}"
 HEALTH_ENDPOINT = "/health"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_list_pagination(test_client, e2e_test_db):
     """Test that list endpoint supports pagination."""
@@ -46,7 +46,7 @@ async def test_list_pagination(test_client, e2e_test_db):
     assert response_page2.status_code == 200
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_invalid_query_handling(test_client, e2e_test_db):
     """Test handling of invalid/malformed queries."""
@@ -87,7 +87,7 @@ async def test_invalid_query_handling(test_client, e2e_test_db):
     )
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_concurrent_requests(test_client, e2e_test_db):
     """Test handling of multiple concurrent requests."""
@@ -108,7 +108,7 @@ async def test_concurrent_requests(test_client, e2e_test_db):
     assert successful >= 2, f"Only {successful}/3 concurrent requests succeeded"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_invalid_slug_returns_404(test_client, e2e_test_db):
     """Test that invalid slugs return 404."""
@@ -117,7 +117,7 @@ async def test_invalid_slug_returns_404(test_client, e2e_test_db):
     assert response.status_code == 404
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_health_endpoint_responds(test_client, e2e_test_db):
     """Test that health endpoint is responsive."""
@@ -131,7 +131,7 @@ async def test_health_endpoint_responds(test_client, e2e_test_db):
     assert "providers" in data
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_generate_returns_processing_status(test_client, e2e_test_db):
     """Test that generate endpoint returns processing status."""
@@ -147,7 +147,7 @@ async def test_generate_returns_processing_status(test_client, e2e_test_db):
     assert "message" in data
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_invalid_timepoint_id_returns_404(test_client, e2e_test_db):
     """Test that invalid timepoint ID returns 404."""

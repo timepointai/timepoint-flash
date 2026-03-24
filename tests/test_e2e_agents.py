@@ -21,7 +21,7 @@ GET_BY_ID_ENDPOINT = "/api/v1/timepoints/{id}"
 GET_BY_SLUG_ENDPOINT = "/api/v1/timepoints/slug/{slug}"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_judge_agent_accepts_valid_query(test_client, e2e_test_db):
     """Test that judge agent accepts valid historical queries."""
@@ -37,7 +37,7 @@ async def test_judge_agent_accepts_valid_query(test_client, e2e_test_db):
     assert data["status"] == "processing"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_judge_agent_rejects_far_future(test_client, e2e_test_db):
     """Test that judge agent rejects far-future dates."""
@@ -54,7 +54,7 @@ async def test_judge_agent_rejects_far_future(test_client, e2e_test_db):
         assert response.status_code == 200
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_judge_agent_rejects_fictional(test_client, e2e_test_db):
     """Test that judge agent rejects obvious fictional queries."""
@@ -71,7 +71,7 @@ async def test_judge_agent_rejects_fictional(test_client, e2e_test_db):
         assert response.status_code == 200
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_timeline_agent_extracts_correct_year(test_client, e2e_test_db):
@@ -118,7 +118,7 @@ async def test_timeline_agent_extracts_correct_year(test_client, e2e_test_db):
         pytest.skip("Timeline extraction timed out")
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_character_agent_generates_appropriate_count(test_client, e2e_test_db):
@@ -169,7 +169,7 @@ async def test_character_agent_generates_appropriate_count(test_client, e2e_test
         pytest.skip("Character generation timed out")
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_dialog_agent_uses_period_language(test_client, e2e_test_db):
@@ -240,7 +240,7 @@ async def test_dialog_agent_uses_period_language(test_client, e2e_test_db):
         pytest.skip("Dialog generation timed out")
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_minimal_query_handling(test_client, e2e_test_db):
     """Test handling of minimal/sparse queries."""
@@ -257,7 +257,7 @@ async def test_minimal_query_handling(test_client, e2e_test_db):
     assert data["status"] == "processing"
 
 
-@pytest.mark.e2e
+@pytest.mark.e2e_full
 @pytest.mark.asyncio
 async def test_complex_query_handling(test_client, e2e_test_db):
     """Test handling of complex queries with many details."""
