@@ -1285,6 +1285,8 @@ class GenerationPipeline:
                 logger.warning(f"Bio generation failed for {stub.name}: {result}")
                 characters.append(create_fallback_character(stub))
             elif result.success and result.content:
+                # Propagate entity_id from stub (LLM doesn't know about entity IDs)
+                result.content.entity_id = stub.entity_id
                 characters.append(result.content)
                 total_latency += result.latency_ms
                 if result.model_used and result.model_used not in models_used:

@@ -197,7 +197,7 @@ def create_fallback_character(stub: CharacterStub) -> Character:
         stub: CharacterStub to convert
 
     Returns:
-        Minimal Character with basic info
+        Minimal Character with basic info (including entity_id if resolved)
     """
     return Character(
         name=stub.name,
@@ -208,4 +208,5 @@ def create_fallback_character(stub: CharacterStub) -> Character:
         pose="Standing naturally",
         action="Observing the scene",
         speaks_in_scene=stub.speaks_in_scene,
+        entity_id=stub.entity_id,
     )

@@ -55,6 +55,11 @@ async def get_timepoint_tdf(
     if ts and ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
 
+    # Extract entity_ids from payload to top-level TDFRecord field
+    entity_ids = None
+    if tp.tdf_payload and isinstance(tp.tdf_payload, dict):
+        entity_ids = tp.tdf_payload.get("entity_ids")
+
     record = {
         "id": tp.id,
         "version": tp.tdf_version,
@@ -68,6 +73,7 @@ async def get_timepoint_tdf(
         },
         "payload": tp.tdf_payload,
         "tdf_hash": tp.tdf_hash,
+        "entity_ids": entity_ids,
     }
 
     return JSONResponse(content=record)
