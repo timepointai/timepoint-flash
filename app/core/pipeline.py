@@ -65,7 +65,7 @@ from app.agents.image_prompt_optimizer import (
 )
 from app.agents.scene import SceneInput
 from app.agents.timeline import TimelineInput
-from app.config import ParallelismMode, QualityPreset
+from app.config import ParallelismMode, QualityPreset, settings
 from app.core.llm_router import LLMRouter, ModelTier
 from app.core.providers.base import ModelCapability
 from app.models import GenerationLog, Timepoint, TimepointStatus, generate_slug
@@ -1211,6 +1211,18 @@ class GenerationPipeline:
         char_identification: CharacterIdentification = id_result.content
         logger.debug(f"Identified {len(char_identification.characters)} characters")
 
+        # === Entity Resolution (optional, between identification and bios) ===
+        if settings.ENTITY_RESOLUTION_ENABLED:
+            from app.core.entity_client import resolve_figures
+
+            character_names = [stub.name for stub in char_identification.characters]
+            entity_map = await resolve_figures(character_names)
+            if entity_map:
+                for stub in char_identification.characters:
+                    if stub.name in entity_map:
+                        stub.entity_id = entity_map[stub.name]
+                logger.debug(f"Entity resolution: mapped {len(entity_map)} character(s)")
+
         # === PHASE 2: Graph Generation (from stubs) ===
         # Generate relationship graph BEFORE bios so bios can use relationship context
         logger.debug("Characters Phase 2: Graph generation (relationships inform bios)")
@@ -1817,6 +1829,10 @@ class GenerationPipeline:
             payload["scene_data"] = state.scene_data.model_dump()
         if state.character_data:
             payload["character_data"] = state.character_data.model_dump()
+            # Extract entity IDs for Clockchain entity persistence
+            entity_ids = [c.entity_id for c in state.character_data.characters if c.entity_id]
+            if entity_ids:
+                payload["entity_ids"] = entity_ids
         if state.dialog_data:
             payload["dialog"] = [line.model_dump() for line in state.dialog_data.lines]
         if state.grounded_context:

@@ -499,9 +499,17 @@ class Settings(BaseSettings):
         default=False,
         description="Feature flag for entity resolution against Clockchain figures",
     )
+    CLOCKCHAIN_URL: str = Field(
+        default="",
+        description="Base URL for the Clockchain service (e.g. https://clockchain.timepointai.com).",
+    )
     CLOCKCHAIN_ENTITY_URL: str = Field(
         default="",
         description="URL for entity resolution API. Defaults to CLOCKCHAIN_URL if empty.",
+    )
+    CLOCKCHAIN_SERVICE_KEY: str = Field(
+        default="",
+        description="Service key for authenticating with Clockchain. Empty = no auth.",
     )
 
     # CORS
