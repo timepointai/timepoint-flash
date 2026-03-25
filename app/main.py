@@ -32,6 +32,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app import __version__
 from app.api.v1 import router as v1_router
 from app.config import get_settings, validate_presets_or_raise
+from app.core.request_context import set_request_id
 from app.database import check_db_connection, close_db, init_db
 
 # Configure logging
@@ -124,6 +125,30 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
+_CORRELATION_HEADER = "X-Request-ID"
+
+
+class CorrelationIDMiddleware(BaseHTTPMiddleware):
+    """Propagate X-Request-ID from Gateway into the async request context.
+
+    Reads the X-Request-ID header forwarded by the API Gateway and stores it
+    in a Python contextvar so that LLM call logging can include the correlation
+    ID without threading it explicitly through every function signature.
+
+    The header is also echoed back in the response so clients can correlate
+    their request with logs across all services.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get(_CORRELATION_HEADER)
+        set_request_id(request_id)
+        request.state.request_id = request_id
+        response = await call_next(request)
+        if request_id:
+            response.headers[_CORRELATION_HEADER] = request_id
+        return response
+
+
 # Service key middleware — gate all traffic when FLASH_SERVICE_KEY is set
 _OPEN_PATHS = {"/health", "/", "/docs", "/redoc", "/openapi.json"}
 
@@ -163,6 +188,9 @@ app = FastAPI(
 # Service key middleware (outermost — runs before CORS)
 if settings.FLASH_SERVICE_KEY:
     app.add_middleware(ServiceKeyMiddleware)
+
+# Correlation ID middleware — propagate X-Request-ID from Gateway
+app.add_middleware(CorrelationIDMiddleware)
 
 # CORS middleware (only when browser callers are expected)
 if settings.CORS_ENABLED:

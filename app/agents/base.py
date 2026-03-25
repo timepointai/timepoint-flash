@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from app.core.llm_router import LLMRouter
 from app.core.providers import ModelCapability
+from app.core.request_context import get_request_id
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +208,22 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
-            logger.debug(f"{self.name}: completed in {latency}ms")
+            tokens_in = response.usage.get(
+                "input_tokens", response.usage.get("prompt_tokens", 0)
+            )
+            tokens_out = response.usage.get(
+                "output_tokens", response.usage.get("completion_tokens", 0)
+            )
+            logger.info(
+                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d "
+                "latency_ms=%d request_id=%s",
+                self.name,
+                response.model,
+                tokens_in,
+                tokens_out,
+                latency,
+                get_request_id() or "none",
+            )
 
             return AgentResult(
                 success=True,
@@ -220,7 +236,13 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
             latency = int((time.perf_counter() - start_time) * 1000)
             error_msg = str(e)
 
-            logger.error(f"{self.name}: failed - {error_msg}")
+            logger.error(
+                "llm_call_failed agent=%s latency_ms=%d request_id=%s error=%s",
+                self.name,
+                latency,
+                get_request_id() or "none",
+                error_msg,
+            )
 
             return AgentResult(
                 success=False,
@@ -253,6 +275,23 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
+            tokens_in = response.usage.get(
+                "input_tokens", response.usage.get("prompt_tokens", 0)
+            )
+            tokens_out = response.usage.get(
+                "output_tokens", response.usage.get("completion_tokens", 0)
+            )
+            logger.info(
+                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d "
+                "latency_ms=%d request_id=%s",
+                self.name,
+                response.model,
+                tokens_in,
+                tokens_out,
+                latency,
+                get_request_id() or "none",
+            )
+
             return AgentResult(
                 success=True,
                 content=response.content,  # type: ignore
@@ -262,6 +301,14 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
         except Exception as e:
             latency = int((time.perf_counter() - start_time) * 1000)
+
+            logger.error(
+                "llm_call_failed agent=%s latency_ms=%d request_id=%s error=%s",
+                self.name,
+                latency,
+                get_request_id() or "none",
+                str(e),
+            )
 
             return AgentResult(
                 success=False,
