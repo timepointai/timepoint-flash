@@ -7,6 +7,8 @@ Examples:
     >>> prompt = get_prompt(query, timeline_data, characters)
 """
 
+from app.prompts.sanitize import sanitize_prompt_input
+
 SYSTEM_PROMPT = """You are a historical dialog writer for TIMEPOINT, an AI system that
 generates immersive visual scenes from temporal moments.
 
@@ -130,19 +132,21 @@ def get_prompt(
 
     # Use character_context if available, otherwise fall back to simple list
     if character_context:
-        context = character_context
+        context = sanitize_prompt_input(character_context)
     else:
         # Backwards compatibility - simple character name list
-        context = "\n".join(f"- {name}" for name in speaking_characters)
+        context = "\n".join(
+            f"- {sanitize_prompt_input(name)}" for name in speaking_characters
+        )
 
     return USER_PROMPT_TEMPLATE.format(
-        query=query,
+        query=sanitize_prompt_input(query),
         year=year_str,
-        era=era or "Unknown",
-        location=location,
-        setting=setting,
-        atmosphere=atmosphere,
-        tension_level=tension_level,
+        era=sanitize_prompt_input(era) if era else "Unknown",
+        location=sanitize_prompt_input(location),
+        setting=sanitize_prompt_input(setting),
+        atmosphere=sanitize_prompt_input(atmosphere),
+        tension_level=sanitize_prompt_input(tension_level),
         character_context=context,
     )
 
@@ -224,12 +228,12 @@ def get_sequential_first_turn_prompt(
         narrative_context = "\n".join(parts)
 
     return SEQUENTIAL_USER_FIRST_TURN.format(
-        query=query,
-        setting=setting,
-        atmosphere=atmosphere,
-        tension_level=tension_level,
-        narrative_context=narrative_context,
-        scene_context=scene_context or "",
+        query=sanitize_prompt_input(query),
+        setting=sanitize_prompt_input(setting),
+        atmosphere=sanitize_prompt_input(atmosphere),
+        tension_level=sanitize_prompt_input(tension_level),
+        narrative_context=sanitize_prompt_input(narrative_context),
+        scene_context=sanitize_prompt_input(scene_context) if scene_context else "",
     )
 
 
@@ -251,10 +255,10 @@ def get_sequential_response_prompt(
         Formatted prompt for response
     """
     return SEQUENTIAL_USER_RESPONSE.format(
-        conversation_history=conversation_history,
-        other_character=other_character,
-        last_line=last_line,
-        relationship_context=relationship_context,
+        conversation_history=sanitize_prompt_input(conversation_history),
+        other_character=sanitize_prompt_input(other_character),
+        last_line=sanitize_prompt_input(last_line),
+        relationship_context=sanitize_prompt_input(relationship_context),
     )
 
 

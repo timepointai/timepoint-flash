@@ -7,6 +7,8 @@ Examples:
     >>> prompt = get_prompt(timeline_data, "signing of the declaration")
 """
 
+from app.prompts.sanitize import sanitize_prompt_input
+
 SYSTEM_PROMPT = """You are a historical scene designer for TIMEPOINT, an AI system that
 generates immersive visual scenes from temporal moments.
 
@@ -104,13 +106,13 @@ def get_prompt(
     year_str = f"{abs(year)} BCE" if year < 0 else str(year)
 
     return USER_PROMPT_TEMPLATE.format(
-        query=query,
+        query=sanitize_prompt_input(query),
         year=year_str,
         era=era or "Unknown era",
         season=season or "Unknown season",
         time_of_day=time_of_day or "Unknown time",
-        location=location,
-        context=context or "No additional context",
+        location=sanitize_prompt_input(location),
+        context=sanitize_prompt_input(context) if context else "No additional context",
     )
 
 
