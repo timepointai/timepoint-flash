@@ -34,6 +34,9 @@ env/
 .env.production
 .env.staging
 
+# AI tools
+.claude/
+
 # IDE
 .idea/
 .vscode/
