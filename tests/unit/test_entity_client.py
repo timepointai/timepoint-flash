@@ -22,7 +22,12 @@ async def test_resolve_figures_success():
     """Mock successful batch resolve — returns name→entity_id mapping."""
     mock_response = httpx.Response(
         200,
-        json={"resolved": {"Julius Caesar": "fig_abc123", "Brutus": "fig_def456"}},
+        json={
+            "results": [
+                {"figure": {"id": "fig_abc123", "display_name": "Julius Caesar"}, "created": True},
+                {"figure": {"id": "fig_def456", "display_name": "Brutus"}, "created": False},
+            ]
+        },
         request=httpx.Request("POST", "http://test/api/v1/figures/resolve/batch"),
     )
 
@@ -45,7 +50,12 @@ async def test_resolve_figures_success():
     assert result == {"Julius Caesar": "fig_abc123", "Brutus": "fig_def456"}
     client_instance.post.assert_called_once()
     call_kwargs = client_instance.post.call_args
-    assert call_kwargs[1]["json"] == {"names": ["Julius Caesar", "Brutus"], "entity_type": "person"}
+    assert call_kwargs[1]["json"] == {
+        "names": [
+            {"display_name": "Julius Caesar", "entity_type": "person"},
+            {"display_name": "Brutus", "entity_type": "person"},
+        ]
+    }
     assert call_kwargs[1]["headers"]["X-Service-Key"] == "test-key"
 
 
@@ -123,7 +133,11 @@ async def test_resolve_figures_falls_back_to_clockchain_url():
     """When CLOCKCHAIN_ENTITY_URL is empty, should use CLOCKCHAIN_URL."""
     mock_response = httpx.Response(
         200,
-        json={"resolved": {"Napoleon": "fig_xyz"}},
+        json={
+            "results": [
+                {"figure": {"id": "fig_xyz", "display_name": "Napoleon"}, "created": True}
+            ]
+        },
         request=httpx.Request("POST", "http://clockchain/api/v1/figures/resolve/batch"),
     )
 
