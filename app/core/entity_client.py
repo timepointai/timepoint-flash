@@ -75,14 +75,26 @@ async def resolve_figures(
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(
                 url,
-                json={"names": names, "entity_type": entity_type},
+                json={
+                    "names": [
+                        {"display_name": n, "entity_type": entity_type}
+                        for n in names
+                    ]
+                },
                 headers=_get_headers(),
             )
             response.raise_for_status()
             data = response.json()
 
-            # Expected response: {"resolved": {"Name": "entity_id", ...}}
-            resolved: dict[str, str] = data.get("resolved", {})
+            # Response: {"results": [{"figure": {"id": "...", "display_name": "..."}, "created": bool}, ...]}
+            results: list[dict] = data.get("results", [])
+            resolved: dict[str, str] = {}
+            for item in results:
+                figure = item.get("figure", {})
+                display_name = figure.get("display_name", "")
+                figure_id = figure.get("id", "")
+                if display_name and figure_id:
+                    resolved[display_name] = figure_id
             logger.debug(f"Entity resolution: {len(resolved)}/{len(names)} names resolved")
             return resolved
 
