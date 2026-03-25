@@ -1,7 +1,5 @@
 """Unit tests for app.prompts.sanitize."""
 
-import pytest
-
 from app.prompts.sanitize import sanitize_prompt_input
 
 

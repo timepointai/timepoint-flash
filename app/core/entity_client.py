@@ -75,12 +75,7 @@ async def resolve_figures(
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(
                 url,
-                json={
-                    "names": [
-                        {"display_name": n, "entity_type": entity_type}
-                        for n in names
-                    ]
-                },
+                json={"names": [{"display_name": n, "entity_type": entity_type} for n in names]},
                 headers=_get_headers(),
             )
             response.raise_for_status()
