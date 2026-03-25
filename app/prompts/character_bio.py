@@ -8,6 +8,8 @@ Examples:
     >>> prompt = get_prompt(stub, cast_context, year, era, location, ...)
 """
 
+from app.prompts.sanitize import sanitize_prompt_input
+
 SYSTEM_PROMPT = """You are a historical character designer for TIMEPOINT, an AI system that
 generates immersive visual scenes from temporal moments.
 
@@ -144,32 +146,36 @@ def get_prompt(
         Formatted user prompt
     """
     year_str = f"{abs(year)} BCE" if year < 0 else str(year)
-    relations_str = ", ".join(key_relationships) if key_relationships else "None"
+    relations_str = (
+        ", ".join(sanitize_prompt_input(r) for r in key_relationships)
+        if key_relationships
+        else "None"
+    )
 
     # Format relationship section (only if graph data provided)
     relationship_section = ""
     if relationship_context:
         relationship_section = f"""RELATIONSHIP GRAPH (from scene analysis):
-{relationship_context}
+{sanitize_prompt_input(relationship_context)}
 
 Use these relationship dynamics to inform the character's expression, pose, and emotional state."""
 
     return USER_PROMPT_TEMPLATE.format(
-        character_name=character_name,
-        character_role=character_role,
-        character_brief=character_brief,
+        character_name=sanitize_prompt_input(character_name),
+        character_role=sanitize_prompt_input(character_role),
+        character_brief=sanitize_prompt_input(character_brief),
         speaks_in_scene="Yes" if speaks_in_scene else "No",
         speaks_in_scene_json="true" if speaks_in_scene else "false",
         key_relationships=relations_str,
-        cast_context=cast_context,
+        cast_context=sanitize_prompt_input(cast_context),
         relationship_section=relationship_section,
-        query=query,
+        query=sanitize_prompt_input(query),
         year=year_str,
-        era=era or "Unknown",
-        location=location,
-        setting=setting,
-        atmosphere=atmosphere,
-        tension_level=tension_level,
+        era=sanitize_prompt_input(era) if era else "Unknown",
+        location=sanitize_prompt_input(location),
+        setting=sanitize_prompt_input(setting),
+        atmosphere=sanitize_prompt_input(atmosphere),
+        tension_level=sanitize_prompt_input(tension_level),
     )
 
 
