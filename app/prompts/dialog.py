@@ -135,9 +135,7 @@ def get_prompt(
         context = sanitize_prompt_input(character_context)
     else:
         # Backwards compatibility - simple character name list
-        context = "\n".join(
-            f"- {sanitize_prompt_input(name)}" for name in speaking_characters
-        )
+        context = "\n".join(f"- {sanitize_prompt_input(name)}" for name in speaking_characters)
 
     return USER_PROMPT_TEMPLATE.format(
         query=sanitize_prompt_input(query),

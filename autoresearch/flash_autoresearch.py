@@ -10,6 +10,7 @@ Usage:
     python -m autoresearch.flash_autoresearch --dry-run --iterations 10
     python -m autoresearch.flash_autoresearch --iterations 50 --flash-url http://localhost:8000
 """
+
 from __future__ import annotations
 
 import argparse
@@ -102,6 +103,7 @@ NEGATIVE_PROMPTS: List[str] = [
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PromptConfig:
     """A single point in the prompt mutation space."""
@@ -159,6 +161,7 @@ class ParetoPoint:
 # Mutation engine
 # ---------------------------------------------------------------------------
 
+
 def random_config(rng: random.Random) -> PromptConfig:
     """Sample a random point in the mutation space."""
     return PromptConfig(
@@ -205,6 +208,7 @@ def mutate_config(cfg: PromptConfig, rng: random.Random) -> PromptConfig:
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
+
 
 def synthetic_clip_score(cfg: PromptConfig, rng: random.Random) -> Tuple[float, float]:
     """Deterministic-ish synthetic CLIP score for dry-run mode.
@@ -255,14 +259,14 @@ def live_score(
     Not implemented yet — placeholder for live mode.
     """
     raise NotImplementedError(
-        "Live scoring requires Flash API integration. "
-        "Use --dry-run for synthetic scoring."
+        "Live scoring requires Flash API integration. Use --dry-run for synthetic scoring."
     )
 
 
 # ---------------------------------------------------------------------------
 # Pareto frontier
 # ---------------------------------------------------------------------------
+
 
 def update_pareto(frontier: List[ParetoPoint], candidate: ParetoPoint) -> List[ParetoPoint]:
     """Add candidate to Pareto frontier if it is non-dominated.
@@ -293,6 +297,7 @@ def update_pareto(frontier: List[ParetoPoint], candidate: ParetoPoint) -> List[P
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
+
 
 def run_autoresearch(
     iterations: int,
@@ -377,7 +382,7 @@ def run_autoresearch(
                 improved = " *BEST*"
 
             print(
-                f"[{i+1:>4}/{iterations}] "
+                f"[{i + 1:>4}/{iterations}] "
                 f"CLIP={result.clip_score:.4f}  "
                 f"cost=${result.cost_usd:.4f}  "
                 f"Q/$={result.quality_per_dollar():.2f}  "
@@ -447,9 +452,7 @@ def main() -> None:
         default="autoresearch/results",
         help="Directory for output files (default: autoresearch/results)",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed (default: 42)"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     args = parser.parse_args()
 
     run_autoresearch(

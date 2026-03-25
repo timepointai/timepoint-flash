@@ -208,15 +208,12 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
-            tokens_in = response.usage.get(
-                "input_tokens", response.usage.get("prompt_tokens", 0)
-            )
+            tokens_in = response.usage.get("input_tokens", response.usage.get("prompt_tokens", 0))
             tokens_out = response.usage.get(
                 "output_tokens", response.usage.get("completion_tokens", 0)
             )
             logger.info(
-                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d "
-                "latency_ms=%d request_id=%s",
+                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d latency_ms=%d request_id=%s",
                 self.name,
                 response.model,
                 tokens_in,
@@ -275,15 +272,12 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
             latency = int((time.perf_counter() - start_time) * 1000)
 
-            tokens_in = response.usage.get(
-                "input_tokens", response.usage.get("prompt_tokens", 0)
-            )
+            tokens_in = response.usage.get("input_tokens", response.usage.get("prompt_tokens", 0))
             tokens_out = response.usage.get(
                 "output_tokens", response.usage.get("completion_tokens", 0)
             )
             logger.info(
-                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d "
-                "latency_ms=%d request_id=%s",
+                "llm_call agent=%s model=%s tokens_in=%d tokens_out=%d latency_ms=%d request_id=%s",
                 self.name,
                 response.model,
                 tokens_in,

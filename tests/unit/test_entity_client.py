@@ -134,9 +134,7 @@ async def test_resolve_figures_falls_back_to_clockchain_url():
     mock_response = httpx.Response(
         200,
         json={
-            "results": [
-                {"figure": {"id": "fig_xyz", "display_name": "Napoleon"}, "created": True}
-            ]
+            "results": [{"figure": {"id": "fig_xyz", "display_name": "Napoleon"}, "created": True}]
         },
         request=httpx.Request("POST", "http://clockchain/api/v1/figures/resolve/batch"),
     )

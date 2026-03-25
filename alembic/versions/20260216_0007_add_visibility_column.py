@@ -21,7 +21,9 @@ def upgrade() -> None:
     """Add visibility column to timepoints with index."""
     # Create the enum type (checkfirst=True handles PG idempotency;
     # SQLite ignores enum types entirely).
-    visibility_enum = sa.Enum("public", "private", name="timepointvisibility", create_constraint=True)
+    visibility_enum = sa.Enum(
+        "public", "private", name="timepointvisibility", create_constraint=True
+    )
     visibility_enum.create(op.get_bind(), checkfirst=True)
 
     op.add_column(

@@ -24,9 +24,16 @@ depends_on: Union[str, tuple[str, ...], None] = None
 
 def upgrade() -> None:
     # Add new TDF columns
-    op.add_column("timepoints", sa.Column("tdf_payload", sa.JSON(), nullable=False, server_default="{}"))
-    op.add_column("timepoints", sa.Column("tdf_hash", sa.String(64), nullable=False, server_default=""))
-    op.add_column("timepoints", sa.Column("tdf_version", sa.String(10), nullable=False, server_default="1.0.0"))
+    op.add_column(
+        "timepoints", sa.Column("tdf_payload", sa.JSON(), nullable=False, server_default="{}")
+    )
+    op.add_column(
+        "timepoints", sa.Column("tdf_hash", sa.String(64), nullable=False, server_default="")
+    )
+    op.add_column(
+        "timepoints",
+        sa.Column("tdf_version", sa.String(10), nullable=False, server_default="1.0.0"),
+    )
     op.create_index("ix_timepoints_tdf_hash", "timepoints", ["tdf_hash"])
 
     # --- DATA MIGRATION ---
@@ -52,25 +59,49 @@ def upgrade() -> None:
         payload = {}
         # metadata_json contained timeline, scene, moment, camera, graph sub-keys
         if row.metadata_json:
-            meta = row.metadata_json if isinstance(row.metadata_json, dict) else json.loads(row.metadata_json)
+            meta = (
+                row.metadata_json
+                if isinstance(row.metadata_json, dict)
+                else json.loads(row.metadata_json)
+            )
             if "graph" in meta:
                 payload["graph_data"] = meta["graph"]
             if "camera" in meta:
                 payload["camera_data"] = meta["camera"]
         if row.scene_data_json:
-            scene = row.scene_data_json if isinstance(row.scene_data_json, dict) else json.loads(row.scene_data_json)
+            scene = (
+                row.scene_data_json
+                if isinstance(row.scene_data_json, dict)
+                else json.loads(row.scene_data_json)
+            )
             payload["scene_data"] = scene
         if row.character_data_json:
-            chars = row.character_data_json if isinstance(row.character_data_json, dict) else json.loads(row.character_data_json)
+            chars = (
+                row.character_data_json
+                if isinstance(row.character_data_json, dict)
+                else json.loads(row.character_data_json)
+            )
             payload["character_data"] = chars
         if row.dialog_json:
-            dialog = row.dialog_json if isinstance(row.dialog_json, list) else json.loads(row.dialog_json)
+            dialog = (
+                row.dialog_json
+                if isinstance(row.dialog_json, list)
+                else json.loads(row.dialog_json)
+            )
             payload["dialog"] = dialog
         if row.grounding_data_json:
-            grounding = row.grounding_data_json if isinstance(row.grounding_data_json, dict) else json.loads(row.grounding_data_json)
+            grounding = (
+                row.grounding_data_json
+                if isinstance(row.grounding_data_json, dict)
+                else json.loads(row.grounding_data_json)
+            )
             payload["grounding_data"] = grounding
         if row.moment_data_json:
-            moment = row.moment_data_json if isinstance(row.moment_data_json, dict) else json.loads(row.moment_data_json)
+            moment = (
+                row.moment_data_json
+                if isinstance(row.moment_data_json, dict)
+                else json.loads(row.moment_data_json)
+            )
             payload["moment_data"] = moment
         if row.image_prompt:
             payload["image_prompt"] = row.image_prompt
@@ -79,7 +110,9 @@ def upgrade() -> None:
             canonical = json.dumps(payload, sort_keys=True, default=str)
             tdf_hash = hashlib.sha256(canonical.encode()).hexdigest()
             conn.execute(
-                sa.text("UPDATE timepoints SET tdf_payload = :payload, tdf_hash = :hash WHERE id = :id"),
+                sa.text(
+                    "UPDATE timepoints SET tdf_payload = :payload, tdf_hash = :hash WHERE id = :id"
+                ),
                 {"payload": json.dumps(payload), "hash": tdf_hash, "id": row.id},
             )
 
