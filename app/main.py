@@ -33,6 +33,7 @@ from app import __version__
 from app.api.v1 import router as v1_router
 from app.config import get_settings, validate_presets_or_raise
 from app.database import check_db_connection, close_db, init_db
+from app.feature_flags import init_posthog, shutdown_posthog
 
 # Configure logging
 logging.basicConfig(
@@ -70,6 +71,9 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info(f"Starting TIMEPOINT Flash v{__version__}")
+
+    # Initialize PostHog for feature flags and analytics
+    init_posthog()
 
     # Validate presets use only verified models
     # This will raise ValueError and prevent startup if any preset uses an invalid model
@@ -122,6 +126,7 @@ async def lifespan(app: FastAPI):
         pass
 
     await close_db()
+    shutdown_posthog()
 
 
 # Service key middleware — gate all traffic when FLASH_SERVICE_KEY is set

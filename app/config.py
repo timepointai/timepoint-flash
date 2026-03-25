@@ -425,6 +425,14 @@ class Settings(BaseSettings):
         default=None,
         description="Logfire token for monitoring",
     )
+    POSTHOG_API_KEY: str = Field(
+        default="",
+        description="PostHog project API key for analytics and feature flags",
+    )
+    POSTHOG_HOST: str = Field(
+        default="https://us.i.posthog.com",
+        description="PostHog ingest host",
+    )
 
     # Application Settings
     ENVIRONMENT: Environment = Field(
