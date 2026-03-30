@@ -26,7 +26,7 @@ import re
 from datetime import datetime, timezone
 
 from app.core.llm_router import LLMRouter
-from app.schemas.grounding_profile import GroundingProfile, SearchResult
+from app.schemas.grounding_profile import GroundingProfile
 
 logger = logging.getLogger(__name__)
 
