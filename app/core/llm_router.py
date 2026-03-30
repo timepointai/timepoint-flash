@@ -308,6 +308,14 @@ class LLMRouter:
             )
         return self.providers[provider_type]
 
+    def get_provider(self, provider_type: ProviderType) -> LLMProvider:
+        """Public accessor for provider instances.
+
+        Used by EntityGroundingAgent to get the OpenRouter provider directly
+        for web search plugin calls.
+        """
+        return self._get_provider(provider_type)
+
     def _get_model_for_capability(
         self,
         capability: ModelCapability,
