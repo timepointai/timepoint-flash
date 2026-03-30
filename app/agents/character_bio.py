@@ -51,6 +51,7 @@ class CharacterBioInput:
     atmosphere: str = ""
     tension_level: str = "medium"
     graph_data: GraphData | None = None  # Relationships for this character
+    grounded_profile: dict | None = None  # Grounded entity profile (optional)
 
     @classmethod
     def from_identification(
@@ -65,6 +66,7 @@ class CharacterBioInput:
         atmosphere: str,
         tension_level: str,
         graph_data: GraphData | None = None,
+        grounded_profile: dict | None = None,
     ) -> CharacterBioInput:
         """Create input for a specific character bio.
 
@@ -79,6 +81,7 @@ class CharacterBioInput:
             atmosphere: Scene atmosphere
             tension_level: Tension level
             graph_data: Optional relationship graph for context
+            grounded_profile: Optional grounded entity profile dict
 
         Returns:
             CharacterBioInput for this character
@@ -94,6 +97,7 @@ class CharacterBioInput:
             atmosphere=atmosphere,
             tension_level=tension_level,
             graph_data=graph_data,
+            grounded_profile=grounded_profile,
         )
 
 
@@ -168,6 +172,7 @@ class CharacterBioAgent(BaseAgent[CharacterBioInput, Character]):
             atmosphere=input_data.atmosphere,
             tension_level=input_data.tension_level,
             relationship_context=relationship_context,
+            grounded_profile=input_data.grounded_profile,
         )
 
     async def run(self, input_data: CharacterBioInput) -> AgentResult[Character]:
