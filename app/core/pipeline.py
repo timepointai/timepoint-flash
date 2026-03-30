@@ -164,7 +164,6 @@ class PipelineState:
     query: str
     judge_result: JudgeResult | None = None
     grounded_context: GroundedContext | None = None  # Verified historical facts
-    entity_grounding_profiles: dict | None = None  # Entity grounding via web search
     timeline_data: TimelineData | None = None
     scene_data: SceneData | None = None
     character_data: CharacterData | None = None
@@ -815,9 +814,20 @@ class GenerationPipeline:
             state.graph_data = graph_data
             logger.debug(f"Graph: {len(graph_data.relationships)} relationships")
 
+        # Inject grounding profiles onto stubs (optimized flow)
+        if state.entity_grounding_profiles:
+            for stub in char_identification.characters:
+                profile = state.entity_grounding_profiles.get(stub.name)
+                if profile and isinstance(profile, dict):
+                    stub.grounded_appearance = profile.get("appearance_description")
+                    stub.grounded_biography = profile.get("biography_summary")
+
         # Generate bios in parallel (now that we have graph data)
         async def generate_bio(stub):
             async with self._semaphore:
+                grounded_profile = None
+                if state.entity_grounding_profiles:
+                    grounded_profile = state.entity_grounding_profiles.get(stub.name)
                 bio_input = CharacterBioInput.from_identification(
                     stub=stub,
                     full_cast=char_identification,
@@ -829,6 +839,7 @@ class GenerationPipeline:
                     atmosphere=state.scene_data.atmosphere,
                     tension_level=state.scene_data.tension_level or "medium",
                     graph_data=graph_data,
+                    grounded_profile=grounded_profile,
                 )
                 return await self._char_bio_agent.run(bio_input)
 
@@ -2140,6 +2151,8 @@ class GenerationPipeline:
             payload["dialog"] = [line.model_dump() for line in state.dialog_data.lines]
         if state.grounded_context:
             payload["grounding_data"] = state.grounded_context.model_dump()
+        if state.entity_grounding_profiles:
+            payload["entity_grounding_data"] = state.entity_grounding_profiles
         if state.moment_data:
             payload["moment_data"] = state.moment_data.model_dump()
         if state.graph_data:

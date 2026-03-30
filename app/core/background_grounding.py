@@ -64,25 +64,7 @@ async def _deep_ground_entity(
         Enriched GroundingProfile (or the original on failure).
     """
     try:
-        from app.agents.entity_grounding import (
-            GROUNDING_MODEL,
-            _call_grok_x_search,
-            _call_openrouter_web_search,
-            _parse_biography_text,
-        )
-
-        # Re-run web search with higher max_results
         import httpx
-
-        from app.agents.entity_grounding import (
-            ENTITY_RESEARCH_SYSTEM,
-            GROK_MODEL,
-            OPENROUTER_BASE_URL,
-            OPENROUTER_TIMEOUT,
-            _build_entity_research_prompt,
-            _extract_annotations,
-            _get_openrouter_headers,
-        )
 
         if not settings.OPENROUTER_API_KEY:
             logger.debug(
@@ -90,44 +72,66 @@ async def _deep_ground_entity(
             )
             return existing_profile
 
+        # Use direct OpenRouter call with deeper search (more results than pipeline pass)
+        grounding_model = "perplexity/sonar"
+        prompt = (
+            f"Research {entity_name} in depth. Provide: detailed biographical summary, "
+            f"physical appearance description, all known affiliations and roles, "
+            f"recent notable activity. Be thorough and cite sources."
+        )
+
         payload: dict[str, Any] = {
-            "model": GROUNDING_MODEL,
+            "model": grounding_model,
             "messages": [
-                {"role": "system", "content": ENTITY_RESEARCH_SYSTEM},
-                {"role": "user", "content": _build_entity_research_prompt(entity_name)},
+                {"role": "system", "content": "You are a research assistant. Provide factual, well-sourced information."},
+                {"role": "user", "content": prompt},
             ],
             "plugins": [{"id": "web", "max_results": _DEEP_MAX_RESULTS}],
             "temperature": 0.2,
             "max_tokens": 2048,
         }
 
-        async with httpx.AsyncClient(
-            base_url=OPENROUTER_BASE_URL,
-            timeout=OPENROUTER_TIMEOUT,
-            headers=_get_openrouter_headers(),
-        ) as client:
-            resp = await client.post("/chat/completions", json=payload)
+        headers = {
+            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                json=payload,
+                headers=headers,
+            )
             resp.raise_for_status()
             data = resp.json()
 
         message = data["choices"][0]["message"]
         biography_text: str = message.get("content") or ""
-        search_results = _extract_annotations(message)
 
         if not biography_text:
             return existing_profile
 
-        enriched = _parse_biography_text(
-            entity_name=entity_name,
-            text=biography_text,
-            search_results=search_results,
-            entity_id=existing_profile.entity_id,
-            model=GROUNDING_MODEL,
-        )
+        # Extract citations from annotations
+        annotations = message.get("annotations", [])
+        citations = []
+        for ann in annotations:
+            url_citation = ann.get("url_citation", {})
+            url = url_citation.get("url", "")
+            if url:
+                citations.append(url)
 
-        # Carry over X posts if we already have them
-        if existing_profile.x_posts and not enriched.x_posts:
-            enriched.x_posts = existing_profile.x_posts
+        enriched = GroundingProfile(
+            entity_name=entity_name,
+            entity_id=existing_profile.entity_id,
+            grounding_model=grounding_model,
+            grounded_at=datetime.now(UTC),
+            biography_summary=biography_text[:2000],
+            appearance_description=existing_profile.appearance_description,
+            known_affiliations=existing_profile.known_affiliations,
+            recent_activity_summary="",
+            source_citations=citations or existing_profile.source_citations,
+            confidence=min(existing_profile.confidence + 0.1, 1.0),
+        )
 
         logger.debug(
             f"Background grounding: deep pass for '{entity_name}' "
