@@ -178,6 +178,7 @@ class PipelineState:
     step_results: list[StepResult] = field(default_factory=list)
     timepoint_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     entity_grounding_profiles: dict[str, dict] | None = None  # name -> grounding profile dict
+    entity_ids: list[str] | None = None  # Pre-selected entity IDs from entity library
 
     @property
     def is_valid(self) -> bool:
@@ -275,6 +276,7 @@ class GenerationPipeline:
         max_parallelism: int | None = None,
         model_policy: str | None = None,
         llm_params: dict[str, Any] | None = None,
+        entity_ids: list[str] | None = None,
     ) -> None:
         """Initialize pipeline.
 
@@ -286,6 +288,9 @@ class GenerationPipeline:
             max_parallelism: Maximum parallel LLM calls (default from settings)
             model_policy: Model licensing policy (e.g. "permissive" for Google-free)
             llm_params: LLM hyperparameters that override agent/preset defaults
+            entity_ids: Optional Clockchain figure IDs for entity library reuse.
+                When provided, these entities are resolved from Clockchain and
+                pre-populated as CharacterStubs before character identification.
         """
 
         self._router = router
@@ -293,6 +298,7 @@ class GenerationPipeline:
         self._text_model = text_model
         self._image_model = image_model
         self._model_policy = model_policy
+        self._entity_ids = entity_ids
 
         # Build effective llm_params: apply permissive speed defaults
         # when no preset is set and caller hasn't specified max_tokens.
@@ -504,11 +510,12 @@ class GenerationPipeline:
         """
         self._init_agents()
         self._plan_execution()  # Determine tier-based parallelism
-        state = PipelineState(query=query)
+        state = PipelineState(query=query, entity_ids=self._entity_ids)
         logger.info(
             f"Starting pipeline for query: {query} "
             f"(tier={self._model_tier.value}, mode={self._parallelism_mode.value}, "
             f"parallelism={self._max_parallelism})"
+            + (f", entity_ids={len(self._entity_ids)}" if self._entity_ids else "")
         )
 
         # === SEQUENTIAL PHASE 1: Foundation steps ===
@@ -695,6 +702,71 @@ class GenerationPipeline:
             return await self._step_characters_fallback(state)
 
         char_identification: CharacterIdentification = id_result.content
+
+        # === Entity Library: pre-populate from entity_ids (optimized flow) ===
+        if state.entity_ids:
+            from app.core.entity_client import fetch_figures_by_ids
+
+            library_figures = await fetch_figures_by_ids(state.entity_ids)
+            if library_figures:
+                library_by_name: dict[str, tuple[str, Any]] = {}
+                for eid, fig in library_figures.items():
+                    library_by_name[fig.display_name.lower()] = (eid, fig)
+                    for alias in fig.aliases:
+                        library_by_name[alias.lower()] = (eid, fig)
+
+                for stub in char_identification.characters:
+                    match = library_by_name.get(stub.name.lower())
+                    if match:
+                        eid, fig = match
+                        stub.entity_id = fig.id
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+
+                existing_ids = {s.entity_id for s in char_identification.characters if s.entity_id}
+                from app.schemas.character_identification import CharacterStub
+                from app.schemas.characters import CharacterRole
+
+                for eid, fig in library_figures.items():
+                    if fig.id not in existing_ids and len(char_identification.characters) < 6:
+                        new_stub = CharacterStub(
+                            name=fig.display_name,
+                            role=CharacterRole.SECONDARY,
+                            brief_description=f"Entity from library: {fig.display_name}",
+                            speaks_in_scene=False,
+                            entity_id=fig.id,
+                        )
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            new_stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                new_stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+                        char_identification.characters.append(new_stub)
+                        existing_ids.add(fig.id)
+
+                logger.debug(
+                    f"Entity library (optimized): {len(library_figures)} figures from library"
+                )
+
         character_names = [stub.name for stub in char_identification.characters]
         logger.debug(f"Identified {len(character_names)} characters: {character_names}")
 
@@ -875,7 +947,7 @@ class GenerationPipeline:
         """
         self._init_agents()
         self._plan_execution()  # Determine tier-based parallelism
-        state = PipelineState(query=query)
+        state = PipelineState(query=query, entity_ids=self._entity_ids)
         logger.info(
             f"Starting streaming pipeline for query: {query} (tier={self._model_tier.value}, parallelism={self._max_parallelism})"
         )
@@ -1319,17 +1391,118 @@ class GenerationPipeline:
         char_identification: CharacterIdentification = id_result.content
         logger.debug(f"Identified {len(char_identification.characters)} characters")
 
-        # === Entity Resolution (optional, between identification and bios) ===
-        if settings.ENTITY_RESOLUTION_ENABLED:
-            from app.core.entity_client import resolve_figures
+        # === Entity Library: pre-populate from entity_ids ===
+        if state.entity_ids:
+            from app.core.entity_client import fetch_figures_by_ids
 
-            character_names = [stub.name for stub in char_identification.characters]
-            entity_map = await resolve_figures(character_names)
-            if entity_map:
+            library_figures = await fetch_figures_by_ids(state.entity_ids)
+            if library_figures:
+                # Build a name-lookup for matching library entities to identified characters
+                library_by_name: dict[str, tuple[str, Any]] = {}
+                for eid, fig in library_figures.items():
+                    library_by_name[fig.display_name.lower()] = (eid, fig)
+                    for alias in fig.aliases:
+                        library_by_name[alias.lower()] = (eid, fig)
+
+                matched_count = 0
                 for stub in char_identification.characters:
-                    if stub.name in entity_map:
-                        stub.entity_id = entity_map[stub.name]
-                logger.debug(f"Entity resolution: mapped {len(entity_map)} character(s)")
+                    match = library_by_name.get(stub.name.lower())
+                    if match:
+                        eid, fig = match
+                        stub.entity_id = fig.id
+                        matched_count += 1
+                        # Pre-populate grounding data from cached profile
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+
+                # Add library entities not yet in cast as additional characters
+                existing_ids = {s.entity_id for s in char_identification.characters if s.entity_id}
+                from app.schemas.character_identification import CharacterStub
+                from app.schemas.characters import CharacterRole
+
+                for eid, fig in library_figures.items():
+                    if fig.id not in existing_ids and len(char_identification.characters) < 6:
+                        new_stub = CharacterStub(
+                            name=fig.display_name,
+                            role=CharacterRole.SECONDARY,
+                            brief_description=f"Entity from library: {fig.display_name}",
+                            speaks_in_scene=False,
+                            entity_id=fig.id,
+                        )
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            new_stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                new_stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+                        char_identification.characters.append(new_stub)
+                        existing_ids.add(fig.id)
+
+                logger.debug(
+                    f"Entity library: {matched_count} matched to identified chars, "
+                    f"{len(library_figures)} total from library"
+                )
+
+        # === Entity Resolution (optional, between identification and bios) ===
+        elif settings.ENTITY_RESOLUTION_ENABLED:
+            if settings.ENTITY_GROUNDING_ENABLED:
+                # Rich resolution: full grounding data from Clockchain
+                from app.core.entity_client import resolve_figures_with_data
+
+                character_names = [stub.name for stub in char_identification.characters]
+                figure_map = await resolve_figures_with_data(character_names)
+                if figure_map:
+                    for stub in char_identification.characters:
+                        if stub.name in figure_map:
+                            fig = figure_map[stub.name]
+                            stub.entity_id = fig.id
+                            if fig.is_grounded:
+                                sources_hint = (
+                                    f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                    if fig.grounding_sources
+                                    else ""
+                                )
+                                stub.grounded_biography = (
+                                    f"Grounded entity: {fig.display_name}{sources_hint}"
+                                )
+                                if fig.aliases:
+                                    stub.grounded_biography += (
+                                        f". Also known as: {', '.join(fig.aliases[:5])}"
+                                    )
+                    grounded_count = sum(1 for f in figure_map.values() if f.is_grounded)
+                    logger.debug(
+                        f"Entity resolution (rich): mapped {len(figure_map)} character(s), "
+                        f"{grounded_count} grounded"
+                    )
+            else:
+                # Simple resolution: name -> ID mapping only
+                from app.core.entity_client import resolve_figures
+
+                character_names = [stub.name for stub in char_identification.characters]
+                entity_map = await resolve_figures(character_names)
+                if entity_map:
+                    for stub in char_identification.characters:
+                        if stub.name in entity_map:
+                            stub.entity_id = entity_map[stub.name]
+                    logger.debug(f"Entity resolution: mapped {len(entity_map)} character(s)")
 
         # === Entity Grounding Profile Injection (optional, additive) ===
         # If grounding profiles were pre-computed and stored on state, propagate them

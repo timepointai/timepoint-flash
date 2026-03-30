@@ -217,6 +217,15 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Opaque context passed through to response (e.g. source, job_id, user_id)",
     )
+    entity_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional list of Clockchain figure IDs to pre-populate as characters. "
+            "Enables entity library reuse — previously grounded entities skip re-grounding "
+            "and are preferred during character identification."
+        ),
+        examples=[["/figures/person/julius-caesar", "/figures/person/marcus-brutus"]],
+    )
 
 
 # Default permissive text model — used when model_policy="permissive" and no
@@ -612,6 +621,7 @@ async def stream_generation(
     model_policy: str | None = None,
     llm_params: dict[str, Any] | None = None,
     disconnect_check=None,
+    entity_ids: list[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -626,6 +636,7 @@ async def stream_generation(
         image_model: Custom image model override
         model_policy: Model licensing policy (e.g. "permissive")
         disconnect_check: Optional async callable that returns True if client disconnected
+        entity_ids: Optional Clockchain figure IDs for entity library reuse
 
     Yields:
         SSE-formatted event strings
@@ -657,6 +668,7 @@ async def stream_generation(
         image_model=image_model,
         model_policy=model_policy,
         llm_params=llm_params,
+        entity_ids=entity_ids,
     )
     state = None
     start_time = time.perf_counter()
@@ -814,6 +826,7 @@ async def run_generation_task(
     request_context: dict[str, Any] | None = None,
     model_policy: str | None = None,
     llm_params: dict[str, Any] | None = None,
+    entity_ids: list[str] | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -828,6 +841,7 @@ async def run_generation_task(
         callback_url: URL to POST results to on completion
         request_context: Opaque context to pass through to callback
         model_policy: Model licensing policy (e.g. "permissive")
+        entity_ids: Optional Clockchain figure IDs for entity library reuse
     """
     from app.database import get_session
 
@@ -850,6 +864,7 @@ async def run_generation_task(
             image_model=image_model,
             model_policy=model_policy,
             llm_params=llm_params,
+            entity_ids=entity_ids,
         )
         state = await pipeline.run(query, generate_image)
 
@@ -1068,6 +1083,7 @@ async def generate_timepoint(
         request_context=request.request_context,
         model_policy=request.model_policy,
         llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
+        entity_ids=request.entity_ids,
     )
 
     return GenerateResponse(
@@ -1136,6 +1152,7 @@ async def generate_timepoint_sync(
             llm_params=request.llm_params.model_dump(exclude_none=True)
             if request.llm_params
             else None,
+            entity_ids=request.entity_ids,
         )
         try:
             state = await asyncio.wait_for(
@@ -1566,6 +1583,7 @@ async def generate_timepoint_stream(
             if request.llm_params
             else None,
             disconnect_check=raw_request.is_disconnected,
+            entity_ids=request.entity_ids,
         ),
         media_type="text/event-stream",
         headers={
