@@ -691,6 +691,71 @@ class GenerationPipeline:
             return await self._step_characters_fallback(state)
 
         char_identification: CharacterIdentification = id_result.content
+
+        # === Entity Library: pre-populate from entity_ids (optimized flow) ===
+        if state.entity_ids:
+            from app.core.entity_client import fetch_figures_by_ids
+
+            library_figures = await fetch_figures_by_ids(state.entity_ids)
+            if library_figures:
+                library_by_name: dict[str, tuple[str, Any]] = {}
+                for eid, fig in library_figures.items():
+                    library_by_name[fig.display_name.lower()] = (eid, fig)
+                    for alias in fig.aliases:
+                        library_by_name[alias.lower()] = (eid, fig)
+
+                for stub in char_identification.characters:
+                    match = library_by_name.get(stub.name.lower())
+                    if match:
+                        eid, fig = match
+                        stub.entity_id = fig.id
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+
+                existing_ids = {s.entity_id for s in char_identification.characters if s.entity_id}
+                from app.schemas.character_identification import CharacterStub
+                from app.schemas.characters import CharacterRole
+
+                for eid, fig in library_figures.items():
+                    if fig.id not in existing_ids and len(char_identification.characters) < 6:
+                        new_stub = CharacterStub(
+                            name=fig.display_name,
+                            role=CharacterRole.SECONDARY,
+                            brief_description=f"Entity from library: {fig.display_name}",
+                            speaks_in_scene=False,
+                            entity_id=fig.id,
+                        )
+                        if fig.is_grounded:
+                            sources_hint = (
+                                f" (sources: {', '.join(fig.grounding_sources[:3])})"
+                                if fig.grounding_sources
+                                else ""
+                            )
+                            new_stub.grounded_biography = (
+                                f"Grounded entity: {fig.display_name}{sources_hint}"
+                            )
+                            if fig.aliases:
+                                new_stub.grounded_biography += (
+                                    f". Also known as: {', '.join(fig.aliases[:5])}"
+                                )
+                        char_identification.characters.append(new_stub)
+                        existing_ids.add(fig.id)
+
+                logger.debug(
+                    f"Entity library (optimized): {len(library_figures)} figures from library"
+                )
+
         character_names = [stub.name for stub in char_identification.characters]
         logger.debug(f"Identified {len(character_names)} characters: {character_names}")
 
