@@ -507,6 +507,10 @@ class Settings(BaseSettings):
         default=False,
         description="Feature flag for entity resolution against Clockchain figures",
     )
+    ENTITY_GROUNDING_ENABLED: bool = Field(
+        default=False,
+        description="Feature flag for entity grounding via web search (OpenRouter plugins)",
+    )
     CLOCKCHAIN_URL: str = Field(
         default="",
         description="Base URL for the Clockchain service (e.g. https://clockchain.timepointai.com).",

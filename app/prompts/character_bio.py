@@ -108,6 +108,51 @@ IMPORTANT:
 - Do NOT use modern English idioms (e.g., "six feet under", "beat around the bush")"""
 
 
+def format_grounded_context(profile: dict) -> str:
+    """Format grounded profile data for injection into bio prompt.
+
+    Converts a raw grounding profile dict (as stored on PipelineState or
+    passed from CharacterBioInput) into a concise text block suitable for
+    prepending to the character bio prompt.
+
+    Args:
+        profile: Grounding profile dict (may be a GroundingProfile.model_dump()
+                 or a plain dict with compatible keys).
+
+    Returns:
+        Formatted grounded context string, or empty string if profile is empty.
+    """
+    if not profile:
+        return ""
+
+    lines = ["GROUNDED ENTITY DATA (factual — use to anchor physical details and biography):"]
+
+    biography = profile.get("biography_summary", "").strip()
+    if biography:
+        lines.append(f"Biography: {sanitize_prompt_input(biography)}")
+
+    appearance = profile.get("appearance_description", "").strip()
+    if appearance:
+        lines.append(f"Appearance: {sanitize_prompt_input(appearance)}")
+
+    affiliations = profile.get("known_affiliations", [])
+    if affiliations:
+        safe_affiliations = [sanitize_prompt_input(a) for a in affiliations if a]
+        if safe_affiliations:
+            lines.append(f"Affiliations: {', '.join(safe_affiliations)}")
+
+    citations = profile.get("source_citations", [])
+    if citations:
+        lines.append(f"Sources: {len(citations)} reference(s) used for grounding")
+
+    confidence = profile.get("confidence")
+    if confidence is not None:
+        lines.append(f"Grounding confidence: {confidence:.2f}")
+
+    lines.append("Use this grounded data to ensure factual accuracy in the bio.")
+    return "\n".join(lines)
+
+
 def get_prompt(
     character_name: str,
     character_role: str,
@@ -123,6 +168,7 @@ def get_prompt(
     atmosphere: str,
     tension_level: str,
     relationship_context: str = "",
+    grounded_profile: dict | None = None,
 ) -> str:
     """Get the user prompt for character bio generation.
 
@@ -141,9 +187,10 @@ def get_prompt(
         atmosphere: Scene atmosphere
         tension_level: Dramatic tension level
         relationship_context: Detailed relationship info from graph (optional)
+        grounded_profile: Optional grounded entity profile dict (optional)
 
     Returns:
-        Formatted user prompt
+        Formatted user prompt, with grounded context prepended when available
     """
     year_str = f"{abs(year)} BCE" if year < 0 else str(year)
     relations_str = (
@@ -160,7 +207,7 @@ def get_prompt(
 
 Use these relationship dynamics to inform the character's expression, pose, and emotional state."""
 
-    return USER_PROMPT_TEMPLATE.format(
+    base_prompt = USER_PROMPT_TEMPLATE.format(
         character_name=sanitize_prompt_input(character_name),
         character_role=sanitize_prompt_input(character_role),
         character_brief=sanitize_prompt_input(character_brief),
@@ -177,6 +224,14 @@ Use these relationship dynamics to inform the character's expression, pose, and 
         atmosphere=sanitize_prompt_input(atmosphere),
         tension_level=sanitize_prompt_input(tension_level),
     )
+
+    # Prepend grounded context when available
+    if grounded_profile:
+        grounded_block = format_grounded_context(grounded_profile)
+        if grounded_block:
+            return grounded_block + "\n\n" + base_prompt
+
+    return base_prompt
 
 
 def get_system_prompt() -> str:

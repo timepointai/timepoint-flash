@@ -43,6 +43,7 @@ from app.agents.critique import (
     CritiqueOutput,
 )
 from app.agents.dialog import DialogAgent
+from app.agents.entity_grounding import EntityGroundingAgent
 from app.agents.dialog_extension import (
     DialogExtensionAgent,
     DialogExtensionInput,
@@ -91,6 +92,8 @@ __all__ = [
     "CritiqueAgent",
     "CritiqueInput",
     "CritiqueOutput",
+    # Entity Grounding
+    "EntityGroundingAgent",
     # Grounding
     "GroundingAgent",
     "GroundingInput",

@@ -247,6 +247,14 @@ class OpenRouterProvider(LLMProvider):
             "messages": messages,
         }
 
+        # Web search plugins support (e.g. [{"id": "web", "max_results": 5}])
+        if "plugins" in kwargs:
+            payload["plugins"] = kwargs.pop("plugins")
+
+        # xAI Grok X/Twitter search filter support
+        if "x_search_filter" in kwargs:
+            payload["x_search_filter"] = kwargs.pop("x_search_filter")
+
         # Standard OpenRouter parameters
         for param in (
             "temperature",
@@ -302,8 +310,10 @@ class OpenRouterProvider(LLMProvider):
             data = response.json()
             latency_ms = int((time.perf_counter() - start_time) * 1000)
 
-            # Extract content
-            raw_content = data["choices"][0]["message"]["content"]
+            # Extract content and annotations (from web search plugins)
+            message_data = data["choices"][0]["message"]
+            raw_content = message_data["content"]
+            annotations = message_data.get("annotations", [])
 
             # Parse response
             if response_model is not None and raw_content:
@@ -341,6 +351,11 @@ class OpenRouterProvider(LLMProvider):
                 "output_tokens": usage_data.get("completion_tokens", 0),
             }
 
+            # Build metadata with annotations if present
+            response_metadata: dict[str, Any] = {}
+            if annotations:
+                response_metadata["annotations"] = annotations
+
             return LLMResponse(
                 content=content,
                 raw_response=raw_content,
@@ -348,6 +363,7 @@ class OpenRouterProvider(LLMProvider):
                 provider=self.provider_type,
                 usage=usage,
                 latency_ms=latency_ms,
+                metadata=response_metadata,
             )
 
         except httpx.HTTPError as e:
