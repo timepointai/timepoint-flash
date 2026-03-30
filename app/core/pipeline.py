@@ -177,6 +177,7 @@ class PipelineState:
     image_base64: str | None = None
     step_results: list[StepResult] = field(default_factory=list)
     timepoint_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    entity_grounding_profiles: dict[str, dict] | None = None  # name -> grounding profile dict
 
     @property
     def is_valid(self) -> bool:
@@ -1330,6 +1331,20 @@ class GenerationPipeline:
                         stub.entity_id = entity_map[stub.name]
                 logger.debug(f"Entity resolution: mapped {len(entity_map)} character(s)")
 
+        # === Entity Grounding Profile Injection (optional, additive) ===
+        # If grounding profiles were pre-computed and stored on state, propagate them
+        # onto the stubs so bio generation can use factual data.
+        if state.entity_grounding_profiles:
+            for stub in char_identification.characters:
+                profile = state.entity_grounding_profiles.get(stub.name)
+                if profile:
+                    stub.grounded_appearance = profile.get("appearance_description") or stub.grounded_appearance
+                    stub.grounded_biography = profile.get("biography_summary") or stub.grounded_biography
+            logger.debug(
+                f"Grounding profiles: injected for "
+                f"{sum(1 for s in char_identification.characters if s.grounded_biography)} character(s)"
+            )
+
         # === PHASE 2: Graph Generation (from stubs) ===
         # Generate relationship graph BEFORE bios so bios can use relationship context
         logger.debug("Characters Phase 2: Graph generation (relationships inform bios)")
@@ -1361,6 +1376,11 @@ class GenerationPipeline:
         async def generate_bio_with_semaphore(stub):
             """Generate bio for one character with semaphore control."""
             async with self._semaphore:
+                # Look up grounding profile for this character (if available)
+                grounded_profile: dict | None = None
+                if state.entity_grounding_profiles:
+                    grounded_profile = state.entity_grounding_profiles.get(stub.name)
+
                 bio_input = CharacterBioInput.from_identification(
                     stub=stub,
                     full_cast=char_identification,
@@ -1372,6 +1392,7 @@ class GenerationPipeline:
                     atmosphere=state.scene_data.atmosphere,
                     tension_level=state.scene_data.tension_level or "medium",
                     graph_data=graph_data,  # Pass graph for relationship context
+                    grounded_profile=grounded_profile,  # Pass grounded profile if available
                 )
                 return await self._char_bio_agent.run(bio_input)
 

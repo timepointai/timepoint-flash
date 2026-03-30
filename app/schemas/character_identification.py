@@ -73,6 +73,14 @@ class CharacterStub(BaseModel):
         default=None,
         description="Social register: elite/educated/common/servant/child",
     )
+    grounded_appearance: str | None = Field(
+        default=None,
+        description="Documented physical appearance from entity grounding pipeline",
+    )
+    grounded_biography: str | None = Field(
+        default=None,
+        description="Factual biography summary from entity grounding pipeline",
+    )
 
 
 class CharacterIdentification(BaseModel):
