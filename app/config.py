@@ -511,6 +511,14 @@ class Settings(BaseSettings):
         default=False,
         description="Feature flag for entity grounding via web search (OpenRouter plugins)",
     )
+    ENTITY_GROUNDING_BACKGROUND_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Feature flag for post-generation background grounding task. "
+            "Fires a deeper grounding pass after generation completes, "
+            "updates Clockchain figures, and enriches timepoint grounding_data."
+        ),
+    )
     CLOCKCHAIN_URL: str = Field(
         default="",
         description="Base URL for the Clockchain service (e.g. https://clockchain.timepointai.com).",

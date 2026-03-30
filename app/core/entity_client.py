@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 import httpx
 
@@ -307,3 +308,59 @@ async def search_figures(
     except Exception:
         logger.warning("Entity search failed", exc_info=True)
         return []
+
+
+async def ground_figure(
+    figure_id: str,
+    grounding_status: str = "grounded",
+    grounding_model: str = "",
+    grounding_confidence: float | None = None,
+    grounding_sources: list[str] | None = None,
+    grounded_at: datetime | None = None,
+) -> bool:
+    """Update a Clockchain figure's grounding metadata via PATCH /ground.
+
+    Returns True on success, False on any failure — grounding updates
+    must never block the caller.
+    """
+    base_url = _get_base_url()
+    if not base_url:
+        logger.debug("Figure grounding skipped: no CLOCKCHAIN_URL configured")
+        return False
+
+    if not figure_id:
+        logger.debug("Figure grounding skipped: no figure_id provided")
+        return False
+
+    if grounded_at is None:
+        grounded_at = datetime.now(timezone.utc)
+
+    clean_id = figure_id.lstrip("/")
+    url = f"{base_url.rstrip('/')}/api/v1/figures/{clean_id}/ground"
+    payload: dict = {
+        "grounding_status": grounding_status,
+        "grounded_at": grounded_at.isoformat(),
+    }
+    if grounding_model:
+        payload["grounding_model"] = grounding_model
+    if grounding_confidence is not None:
+        payload["grounding_confidence"] = grounding_confidence
+    if grounding_sources is not None:
+        payload["grounding_sources"] = grounding_sources
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.patch(url, json=payload, headers=_get_headers())
+            response.raise_for_status()
+            logger.debug(f"Figure grounding updated: {figure_id} → {grounding_status}")
+            return True
+
+    except httpx.TimeoutException:
+        logger.warning(f"Figure grounding timed out for {figure_id}")
+        return False
+    except httpx.HTTPStatusError as exc:
+        logger.warning(f"Figure grounding HTTP {exc.response.status_code} for {figure_id}")
+        return False
+    except Exception:
+        logger.warning(f"Figure grounding failed for {figure_id}", exc_info=True)
+        return False
