@@ -622,6 +622,7 @@ async def stream_generation(
     llm_params: dict[str, Any] | None = None,
     disconnect_check=None,
     entity_ids: list[str] | None = None,
+    user_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -637,6 +638,7 @@ async def stream_generation(
         model_policy: Model licensing policy (e.g. "permissive")
         disconnect_check: Optional async callable that returns True if client disconnected
         entity_ids: Optional Clockchain figure IDs for entity library reuse
+        user_id: Optional user ID for entity visibility filtering
 
     Yields:
         SSE-formatted event strings
@@ -669,6 +671,7 @@ async def stream_generation(
         model_policy=model_policy,
         llm_params=llm_params,
         entity_ids=entity_ids,
+        user_id=user_id,
     )
     state = None
     start_time = time.perf_counter()
@@ -827,6 +830,7 @@ async def run_generation_task(
     model_policy: str | None = None,
     llm_params: dict[str, Any] | None = None,
     entity_ids: list[str] | None = None,
+    user_id: str | None = None,
 ) -> None:
     """Background task to run generation pipeline.
 
@@ -842,6 +846,7 @@ async def run_generation_task(
         request_context: Opaque context to pass through to callback
         model_policy: Model licensing policy (e.g. "permissive")
         entity_ids: Optional Clockchain figure IDs for entity library reuse
+        user_id: Optional user ID for entity visibility filtering
     """
     from app.database import get_session
 
@@ -865,6 +870,7 @@ async def run_generation_task(
             model_policy=model_policy,
             llm_params=llm_params,
             entity_ids=entity_ids,
+            user_id=user_id,
         )
         state = await pipeline.run(query, generate_image)
 
@@ -1084,6 +1090,7 @@ async def generate_timepoint(
         model_policy=request.model_policy,
         llm_params=request.llm_params.model_dump(exclude_none=True) if request.llm_params else None,
         entity_ids=request.entity_ids,
+        user_id=user.id if user is not None else None,
     )
 
     return GenerateResponse(
@@ -1153,6 +1160,7 @@ async def generate_timepoint_sync(
             if request.llm_params
             else None,
             entity_ids=request.entity_ids,
+            user_id=user.id if user is not None else None,
         )
         try:
             state = await asyncio.wait_for(
@@ -1584,6 +1592,7 @@ async def generate_timepoint_stream(
             else None,
             disconnect_check=raw_request.is_disconnected,
             entity_ids=request.entity_ids,
+            user_id=user.id if user is not None else None,
         ),
         media_type="text/event-stream",
         headers={

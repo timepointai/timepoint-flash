@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.core.entity_client import search_figures
@@ -61,6 +61,7 @@ class EntitySearchResponse(BaseModel):
 
 @router.get("/search", response_model=EntitySearchResponse)
 async def search_entities(
+    request: Request,
     q: str = Query(
         ...,
         min_length=1,
@@ -83,7 +84,11 @@ async def search_entities(
     Proxies to Clockchain figures search endpoint with fuzzy matching.
     Used by the generation form to offer entity library autocomplete.
 
+    Forwards X-User-ID header (if present) to Clockchain so the user
+    can see their own private entities in search results.
+
     Args:
+        request: FastAPI request (used to extract X-User-ID header).
         q: Search query string.
         entity_type: Optional entity type filter.
         limit: Maximum results to return.
@@ -94,7 +99,8 @@ async def search_entities(
     Raises:
         HTTPException: 503 if Clockchain is unavailable.
     """
-    results = await search_figures(query=q, entity_type=entity_type, limit=limit)
+    user_id = request.headers.get("X-User-ID")
+    results = await search_figures(query=q, entity_type=entity_type, limit=limit, user_id=user_id)
 
     return EntitySearchResponse(
         results=[
