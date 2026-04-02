@@ -178,6 +178,7 @@ class PipelineState:
     timepoint_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     entity_grounding_profiles: dict[str, dict] | None = None  # name -> grounding profile dict
     entity_ids: list[str] | None = None  # Pre-selected entity IDs from entity library
+    user_id: str | None = None  # Authenticated user ID for entity visibility filtering
 
     @property
     def is_valid(self) -> bool:

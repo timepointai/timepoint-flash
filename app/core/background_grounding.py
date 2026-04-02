@@ -21,6 +21,7 @@ Examples:
     >>> asyncio.create_task(run_background_grounding(
     ...     timepoint_id="tp_abc123",
     ...     entity_profiles={"Marc Andreessen": profile},
+    ...     user_id="user_xyz",
     ... ))
 
 Tests:
@@ -151,6 +152,7 @@ async def _patch_clockchain_figure(
     entity_name: str,
     profile: GroundingProfile,
     semaphore: asyncio.Semaphore,
+    user_id: str | None = None,
 ) -> None:
     """PATCH a Clockchain figure with grounding metadata from a GroundingProfile.
 
@@ -160,6 +162,7 @@ async def _patch_clockchain_figure(
         entity_name: Human-readable name (for logging).
         profile: The grounding profile with entity_id and metadata.
         semaphore: Concurrency limiter.
+        user_id: Optional user ID forwarded as X-User-ID for visibility filtering.
     """
     if not profile.entity_id:
         logger.debug(
@@ -175,6 +178,7 @@ async def _patch_clockchain_figure(
             grounding_confidence=profile.confidence,
             grounding_sources=profile.source_citations,
             grounded_at=profile.grounded_at,
+            user_id=user_id,
         )
         if ok:
             logger.info(
@@ -241,6 +245,7 @@ async def _update_flash_timepoint(
 async def run_background_grounding(
     timepoint_id: str,
     entity_profiles: dict[str, GroundingProfile],
+    user_id: str | None = None,
 ) -> None:
     """Run post-generation background grounding for a completed timepoint.
 
@@ -256,6 +261,8 @@ async def run_background_grounding(
         timepoint_id: Flash timepoint ID for the completed generation.
         entity_profiles: Initial grounding profiles from the pipeline pass,
                          keyed by entity name.
+        user_id: Optional user ID forwarded as X-User-ID to Clockchain
+                 for visibility-filtered entity lookups.
     """
     if not entity_profiles:
         logger.debug(
@@ -277,7 +284,7 @@ async def run_background_grounding(
     # Step 2: PATCH Clockchain figure records (concurrently)
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_PATCHES)
     patch_tasks = [
-        _patch_clockchain_figure(name, profile, semaphore)
+        _patch_clockchain_figure(name, profile, semaphore, user_id=user_id)
         for name, profile in enriched_profiles.items()
     ]
     if patch_tasks:

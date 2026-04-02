@@ -45,18 +45,26 @@ def _get_base_url() -> str:
     return settings.CLOCKCHAIN_ENTITY_URL or settings.CLOCKCHAIN_URL
 
 
-def _get_headers() -> dict[str, str]:
-    """Return auth headers for Clockchain requests."""
+def _get_headers(user_id: str | None = None) -> dict[str, str]:
+    """Return auth headers for Clockchain requests.
+
+    Args:
+        user_id: Optional user ID to forward as X-User-ID for
+                 visibility-filtered entity lookups.
+    """
     headers: dict[str, str] = {"Content-Type": "application/json"}
     key = settings.CLOCKCHAIN_SERVICE_KEY
     if key:
         headers["X-Service-Key"] = key
+    if user_id:
+        headers["X-User-ID"] = user_id
     return headers
 
 
 async def resolve_figures(
     names: list[str],
     entity_type: str = "person",
+    user_id: str | None = None,
 ) -> dict[str, str]:
     """Resolve character names to Clockchain entity IDs.
 
@@ -67,6 +75,7 @@ async def resolve_figures(
     Args:
         names: List of character names to resolve.
         entity_type: Entity type hint (default "person").
+        user_id: Optional user ID forwarded as X-User-ID for visibility filtering.
 
     Returns:
         Mapping of {name: entity_id} for successfully resolved names.
@@ -88,7 +97,7 @@ async def resolve_figures(
             response = await client.post(
                 url,
                 json={"names": [{"display_name": n, "entity_type": entity_type} for n in names]},
-                headers=_get_headers(),
+                headers=_get_headers(user_id=user_id),
             )
             response.raise_for_status()
             data = response.json()
@@ -121,6 +130,7 @@ async def resolve_figures(
 async def resolve_figures_with_data(
     names: list[str],
     entity_type: str = "person",
+    user_id: str | None = None,
 ) -> dict[str, FigureData]:
     """Resolve names to Clockchain figures with full grounding data.
 
@@ -135,6 +145,7 @@ async def resolve_figures_with_data(
     Args:
         names: List of character names to resolve.
         entity_type: Entity type hint (default "person").
+        user_id: Optional user ID forwarded as X-User-ID for visibility filtering.
 
     Returns:
         Mapping of {display_name: FigureData} for successfully resolved names.
@@ -156,7 +167,7 @@ async def resolve_figures_with_data(
             response = await client.post(
                 url,
                 json={"names": [{"display_name": n, "entity_type": entity_type} for n in names]},
-                headers=_get_headers(),
+                headers=_get_headers(user_id=user_id),
             )
             response.raise_for_status()
             data = response.json()
@@ -192,6 +203,7 @@ async def resolve_figures_with_data(
 
 async def fetch_figures_by_ids(
     entity_ids: list[str],
+    user_id: str | None = None,
 ) -> dict[str, FigureData]:
     """Fetch rich FigureData for known Clockchain entity IDs.
 
@@ -203,6 +215,7 @@ async def fetch_figures_by_ids(
 
     Args:
         entity_ids: List of Clockchain figure IDs (e.g. "/figures/person/julius-caesar").
+        user_id: Optional user ID forwarded as X-User-ID for visibility filtering.
 
     Returns:
         Mapping of {entity_id: FigureData} for successfully fetched figures.
@@ -217,13 +230,15 @@ async def fetch_figures_by_ids(
         )
         return {}
 
+    req_headers = _get_headers(user_id=user_id)
+
     async def _fetch_one(client: httpx.AsyncClient, entity_id: str) -> tuple[str, FigureData | None]:
         """Fetch a single figure by ID."""
         # Clockchain expects the ID path without leading slash in the URL
         clean_id = entity_id.lstrip("/")
         url = f"{base_url.rstrip('/')}/api/v1/figures/{clean_id}"
         try:
-            response = await client.get(url, headers=_get_headers())
+            response = await client.get(url, headers=req_headers)
             response.raise_for_status()
             figure = response.json()
             return entity_id, FigureData.from_api_response(figure)
@@ -266,6 +281,7 @@ async def search_figures(
     query: str,
     entity_type: str | None = None,
     limit: int = 20,
+    user_id: str | None = None,
 ) -> list[dict]:
     """Search Clockchain figures by display name.
 
@@ -276,6 +292,7 @@ async def search_figures(
         query: Search query string.
         entity_type: Optional entity type filter (person, organization, place).
         limit: Maximum results to return (default 20, max 100).
+        user_id: Optional user ID forwarded as X-User-ID for visibility filtering.
 
     Returns:
         List of search result dicts with id, display_name, entity_type, score.
@@ -293,7 +310,7 @@ async def search_figures(
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.get(url, params=params, headers=_get_headers())
+            response = await client.get(url, params=params, headers=_get_headers(user_id=user_id))
             response.raise_for_status()
             results = response.json()
             logger.debug(f"Entity search '{query}': {len(results)} results")
@@ -317,11 +334,21 @@ async def ground_figure(
     grounding_confidence: float | None = None,
     grounding_sources: list[str] | None = None,
     grounded_at: datetime | None = None,
+    user_id: str | None = None,
 ) -> bool:
     """Update a Clockchain figure's grounding metadata via PATCH /ground.
 
     Returns True on success, False on any failure — grounding updates
     must never block the caller.
+
+    Args:
+        figure_id: Clockchain figure ID.
+        grounding_status: New grounding status.
+        grounding_model: Model used for grounding.
+        grounding_confidence: Confidence score.
+        grounding_sources: List of source URLs.
+        grounded_at: Timestamp of grounding.
+        user_id: Optional user ID forwarded as X-User-ID for ownership verification.
     """
     base_url = _get_base_url()
     if not base_url:
@@ -350,7 +377,7 @@ async def ground_figure(
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.patch(url, json=payload, headers=_get_headers())
+            response = await client.patch(url, json=payload, headers=_get_headers(user_id=user_id))
             response.raise_for_status()
             logger.debug(f"Figure grounding updated: {figure_id} → {grounding_status}")
             return True
