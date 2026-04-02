@@ -277,6 +277,7 @@ class GenerationPipeline:
         model_policy: str | None = None,
         llm_params: dict[str, Any] | None = None,
         entity_ids: list[str] | None = None,
+        user_id: str | None = None,
     ) -> None:
         """Initialize pipeline.
 
@@ -291,6 +292,9 @@ class GenerationPipeline:
             entity_ids: Optional Clockchain figure IDs for entity library reuse.
                 When provided, these entities are resolved from Clockchain and
                 pre-populated as CharacterStubs before character identification.
+            user_id: Optional user ID for entity visibility filtering.
+                Forwarded as X-User-ID to Clockchain so private entities
+                owned by or shared with this user are visible.
         """
 
         self._router = router
@@ -298,6 +302,7 @@ class GenerationPipeline:
         self._text_model = text_model
         self._image_model = image_model
         self._model_policy = model_policy
+        self._user_id = user_id
         self._entity_ids = entity_ids
 
         # Build effective llm_params: apply permissive speed defaults
@@ -510,7 +515,7 @@ class GenerationPipeline:
         """
         self._init_agents()
         self._plan_execution()  # Determine tier-based parallelism
-        state = PipelineState(query=query, entity_ids=self._entity_ids)
+        state = PipelineState(query=query, entity_ids=self._entity_ids, user_id=self._user_id)
         logger.info(
             f"Starting pipeline for query: {query} "
             f"(tier={self._model_tier.value}, mode={self._parallelism_mode.value}, "
@@ -707,7 +712,7 @@ class GenerationPipeline:
         if state.entity_ids:
             from app.core.entity_client import fetch_figures_by_ids
 
-            library_figures = await fetch_figures_by_ids(state.entity_ids)
+            library_figures = await fetch_figures_by_ids(state.entity_ids, user_id=state.user_id)
             if library_figures:
                 library_by_name: dict[str, tuple[str, Any]] = {}
                 for eid, fig in library_figures.items():
@@ -959,7 +964,7 @@ class GenerationPipeline:
         """
         self._init_agents()
         self._plan_execution()  # Determine tier-based parallelism
-        state = PipelineState(query=query, entity_ids=self._entity_ids)
+        state = PipelineState(query=query, entity_ids=self._entity_ids, user_id=self._user_id)
         logger.info(
             f"Starting streaming pipeline for query: {query} (tier={self._model_tier.value}, parallelism={self._max_parallelism})"
         )
@@ -1407,7 +1412,7 @@ class GenerationPipeline:
         if state.entity_ids:
             from app.core.entity_client import fetch_figures_by_ids
 
-            library_figures = await fetch_figures_by_ids(state.entity_ids)
+            library_figures = await fetch_figures_by_ids(state.entity_ids, user_id=state.user_id)
             if library_figures:
                 # Build a name-lookup for matching library entities to identified characters
                 library_by_name: dict[str, tuple[str, Any]] = {}
@@ -1480,7 +1485,7 @@ class GenerationPipeline:
                 from app.core.entity_client import resolve_figures_with_data
 
                 character_names = [stub.name for stub in char_identification.characters]
-                figure_map = await resolve_figures_with_data(character_names)
+                figure_map = await resolve_figures_with_data(character_names, user_id=state.user_id)
                 if figure_map:
                     for stub in char_identification.characters:
                         if stub.name in figure_map:
@@ -1509,7 +1514,7 @@ class GenerationPipeline:
                 from app.core.entity_client import resolve_figures
 
                 character_names = [stub.name for stub in char_identification.characters]
-                entity_map = await resolve_figures(character_names)
+                entity_map = await resolve_figures(character_names, user_id=state.user_id)
                 if entity_map:
                     for stub in char_identification.characters:
                         if stub.name in entity_map:

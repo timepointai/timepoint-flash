@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.auth.dependencies import require_service_key
@@ -83,7 +83,9 @@ class TaskStatusResponse(BaseModel):
 # ── Background grounding task ─────────────────────────────────────────────────
 
 
-async def _run_reground(task_id: str, entity_id: str, deep: bool, x_handle: str | None) -> None:
+async def _run_reground(
+    task_id: str, entity_id: str, deep: bool, x_handle: str | None, user_id: str | None = None,
+) -> None:
     """Background coroutine that grounds an entity and patches Clockchain."""
     settings = get_settings()
     record = _tasks[task_id]
@@ -100,6 +102,8 @@ async def _run_reground(task_id: str, entity_id: str, deep: bool, x_handle: str 
         cc_headers: dict[str, str] = {"Content-Type": "application/json"}
         if settings.CLOCKCHAIN_SERVICE_KEY:
             cc_headers["X-Service-Key"] = settings.CLOCKCHAIN_SERVICE_KEY
+        if user_id:
+            cc_headers["X-User-ID"] = user_id
 
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
             fig_resp = await client.get(
@@ -268,6 +272,7 @@ async def _run_reground(task_id: str, entity_id: str, deep: bool, x_handle: str 
 @router.post("/{entity_id}/reground", response_model=RegroundResponse, status_code=202)
 async def reground_entity(
     entity_id: str,
+    request: Request,
     body: RegroundRequest = RegroundRequest(),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     _key: None = Depends(require_service_key),
@@ -283,6 +288,7 @@ async def reground_entity(
 
     Args:
         entity_id: Clockchain figure ID (may include leading slash).
+        request: FastAPI request (used to extract X-User-ID header).
         body: Optional parameters — deep mode, X handle.
 
     Returns:
@@ -299,12 +305,16 @@ async def reground_entity(
         "confidence": None,
     }
 
+    # Extract user_id from forwarded header for Clockchain visibility
+    user_id = request.headers.get("X-User-Id") or request.headers.get("X-User-ID")
+
     background_tasks.add_task(
         _run_reground,
         task_id=task_id,
         entity_id=entity_id,
         deep=body.deep,
         x_handle=body.x_handle,
+        user_id=user_id,
     )
     logger.info("Entity re-grounding queued: entity=%s task=%s deep=%s", entity_id, task_id, body.deep)
     return RegroundResponse(task_id=task_id, status="queued", entity_id=entity_id)
