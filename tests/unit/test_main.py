@@ -33,12 +33,12 @@ class TestHealthEndpoint:
 
     @pytest.mark.asyncio
     async def test_health_returns_status(self, test_client):
-        """Test health endpoint returns status."""
+        """Test health endpoint returns status instantly (no I/O)."""
         response = await test_client.get("/health")
         assert response.status_code == 200
 
         data = response.json()
-        assert "status" in data
+        assert data["status"] == "healthy"
         assert "version" in data
         assert "database" in data
         assert "providers" in data
@@ -52,6 +52,18 @@ class TestHealthEndpoint:
         # Should have provider info (configured via test env)
         assert "google" in data["providers"]
         assert "openrouter" in data["providers"]
+
+    @pytest.mark.asyncio
+    async def test_health_deep_returns_status(self, test_client):
+        """Test deep health endpoint verifies DB connectivity."""
+        response = await test_client.get("/health/deep")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "status" in data
+        assert "version" in data
+        assert "database" in data
+        assert "providers" in data
 
 
 @pytest.mark.fast

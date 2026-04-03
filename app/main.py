@@ -155,7 +155,7 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
 
 
 # Service key middleware — gate all traffic when FLASH_SERVICE_KEY is set
-_OPEN_PATHS = {"/health", "/", "/docs", "/redoc", "/openapi.json"}
+_OPEN_PATHS = {"/health", "/health/deep", "/", "/docs", "/redoc", "/openapi.json"}
 
 
 class ServiceKeyMiddleware(BaseHTTPMiddleware):
@@ -243,26 +243,29 @@ async def general_exception_handler(request, exc: Exception):
 
 
 # Health endpoints
-@app.get("/health", response_model=HealthResponse, tags=["Health"])
-async def health_check() -> HealthResponse:
-    """Check application health.
+@app.get("/health", tags=["Health"])
+async def health_check() -> dict:
+    """Instant liveness probe -- no I/O."""
+    return {
+        "status": "healthy",
+        "version": __version__,
+        "database": True,
+        "providers": {
+            "google": bool(settings.GOOGLE_API_KEY),
+            "openrouter": bool(settings.OPENROUTER_API_KEY),
+        },
+    }
 
-    Returns status of:
-    - Application
-    - Database connection
-    - LLM providers
 
-    Returns:
-        HealthResponse with status information.
-    """
-    # Check database with timeout so health endpoint always responds quickly
+@app.get("/health/deep", response_model=HealthResponse, tags=["Health"])
+async def health_deep() -> HealthResponse:
+    """Deep health check -- verifies DB and provider connectivity."""
     try:
         db_healthy = await asyncio.wait_for(check_db_connection(), timeout=5)
     except TimeoutError:
-        logging.getLogger(__name__).error("Health check: database connection timed out after 5s")
+        logging.getLogger(__name__).error("Health deep: database connection timed out after 5s")
         db_healthy = False
 
-    # Check providers (basic check - just if configured)
     providers = {
         "google": bool(settings.GOOGLE_API_KEY),
         "openrouter": bool(settings.OPENROUTER_API_KEY),
