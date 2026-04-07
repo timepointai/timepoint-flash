@@ -30,22 +30,29 @@ from typing import ClassVar
 logger = logging.getLogger(__name__)
 
 
+# Default burst values per tier — used as minimums when deriving from RATE_LIMIT
+DEFAULT_BURST: dict[str, int] = {
+    "free": 5,
+    "paid": 12,
+    "native": 20,
+}
+
 # Rate limits per tier (requests per minute and burst capacity)
-# These are conservative estimates based on observed provider behavior
+# Burst values are dynamically derived from settings.RATE_LIMIT in RateLimiterRegistry
 TIER_RATE_LIMITS: dict[str, dict[str, float]] = {
     "free": {
         "rpm": 8,  # Requests per minute (conservative for :free models)
-        "burst": 2,  # Max burst capacity
+        "burst": 5,  # Max burst capacity (raised from 2)
         "refill_rate": 0.13,  # ~8 per minute = 0.13 per second
     },
     "paid": {
         "rpm": 45,  # OpenRouter paid tier
-        "burst": 5,  # Allow small bursts
+        "burst": 12,  # Allow bursts for concurrent users (raised from 5)
         "refill_rate": 0.75,  # ~45 per minute = 0.75 per second
     },
     "native": {
         "rpm": 58,  # Google native (leave headroom from 60)
-        "burst": 8,  # Higher burst for native
+        "burst": 20,  # Higher burst for native (raised from 8)
         "refill_rate": 0.97,  # ~58 per minute
     },
 }
@@ -187,19 +194,45 @@ class RateLimiterRegistry:
     """
 
     def __init__(self) -> None:
-        """Initialize the registry with tier-based limiters."""
+        """Initialize the registry with tier-based limiters.
+
+        Burst capacities are derived from settings.RATE_LIMIT (env var, default 60)
+        to allow tuning via Railway env var without redeploy:
+            native_burst = max(DEFAULT_BURST["native"], RATE_LIMIT // 3)
+            paid_burst   = max(DEFAULT_BURST["paid"],   RATE_LIMIT // 5)
+            free_burst   = max(DEFAULT_BURST["free"],   RATE_LIMIT // 12)
+        """
         self._limiters: dict[str, TokenBucket] = {}
         self._lock = asyncio.Lock()
 
+        # Derive burst capacities from settings.RATE_LIMIT for dynamic control
+        try:
+            from app.config import get_settings
+            rate_limit = get_settings().RATE_LIMIT
+        except Exception:
+            rate_limit = 60  # safe default
+
+        burst_overrides = {
+            "native": max(DEFAULT_BURST["native"], rate_limit // 3),
+            "paid": max(DEFAULT_BURST["paid"], rate_limit // 5),
+            "free": max(DEFAULT_BURST["free"], rate_limit // 12),
+        }
+
+        logger.info(
+            f"Rate limiter init: RATE_LIMIT={rate_limit}, "
+            f"burst overrides={burst_overrides}"
+        )
+
         # Pre-create limiters for all tiers
         for tier, config in TIER_RATE_LIMITS.items():
+            burst = burst_overrides.get(tier, config["burst"])
             self._limiters[tier] = TokenBucket(
-                capacity=config["burst"],
+                capacity=burst,
                 refill_rate=config["refill_rate"],
             )
             logger.debug(
                 f"Created rate limiter for tier '{tier}': "
-                f"capacity={config['burst']}, rate={config['refill_rate']:.3f}/s"
+                f"capacity={burst}, rate={config['refill_rate']:.3f}/s"
             )
 
     def get_limiter(self, tier: str) -> TokenBucket:
