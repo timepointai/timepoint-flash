@@ -15,14 +15,37 @@ from app.models_auth import CreditAccount, CreditTransaction, TransactionType
 
 logger = logging.getLogger(__name__)
 
-# Credit costs per operation
+# Credit costs per operation — kept in sync with Gateway's cost table so
+# ``/credits/costs`` returns the same payload regardless of which service
+# answers the request.
 CREDIT_COSTS: dict[str, int] = {
+    # Flash generation
     "generate_balanced": 5,
     "generate_hd": 10,
     "generate_hyper": 5,
     "generate_gemini3": 5,
+    # Chat & navigation
     "chat": 1,
     "temporal_jump": 2,
+    # Conductor (Gateway meta-agent)
+    "conductor_base": 5,
+    "conductor_generate": 5,
+    "conductor_pro_sim": 15,
+    "conductor_compare": 10,
+    "conductor_campaign_sim": 15,
+    "conductor_campaign_survey": 5,
+    "conductor_compare_campaigns": 10,
+    # Funding Falcon
+    "falcon_discover": 2,
+    "falcon_pipeline": 10,
+    "falcon_simulate": 5,
+    "falcon_export": 1,
+    "falcon_run": 10,
+    # SkipMeetings
+    "meeting_generation": 1,
+    # Clockchain
+    "clockchain_ingest": 1,
+    "clockchain_index": 1,
 }
 
 
