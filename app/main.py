@@ -35,6 +35,8 @@ from app.config import get_settings, validate_presets_or_raise
 from app.core.request_context import set_request_id
 from app.database import check_db_connection, close_db, init_db
 from app.feature_flags import init_posthog, shutdown_posthog
+from app.mcp_server import get_mcp_app, get_mcp_session_manager
+from app.middleware.bearer_auth import BearerAuthMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -113,7 +115,12 @@ async def lifespan(app: FastAPI):
         await registry.initialize(api_key=_settings.OPENROUTER_API_KEY)
         registry.start_background_refresh(interval=3600)
 
-    yield
+    # Start the MCP Streamable HTTP session manager so the /mcp sub-app
+    # works.  The context manager must wrap ``yield`` so the transport is
+    # torn down cleanly on shutdown.
+    async with get_mcp_session_manager().run():
+        logger.info("MCP session manager started (mounted at /mcp)")
+        yield
 
     # Shutdown
     logger.info("Shutting down TIMEPOINT Flash")
@@ -157,6 +164,13 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
 # Edge auth middleware — gate all non-health traffic (API-4)
 _OPEN_PATHS = {"/health", "/health/deep", "/", "/docs", "/redoc", "/openapi.json"}
 
+# Path prefixes that bypass the Gateway HMAC check because they have their
+# own auth layer.  ``/mcp`` is gated by :class:`BearerAuthMiddleware`, which
+# requires ``Authorization: Bearer <token>`` — the Gateway HMAC path doesn't
+# apply because MCP clients connect directly to flash.timepointai.com, not
+# through api.timepointai.com.
+_OPEN_PATH_PREFIXES: tuple[str, ...] = ("/mcp",)
+
 
 class GatewayAuthMiddleware(BaseHTTPMiddleware):
     """Authenticate inbound traffic at the edge (API-4).
@@ -190,8 +204,10 @@ class GatewayAuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         # Always allow health/docs/root — these must be reachable for Railway
-        # health checks and OpenAPI discovery.
-        if path in _OPEN_PATHS:
+        # health checks and OpenAPI discovery.  ``/mcp`` also bypasses Gateway
+        # auth because it has its own Bearer-token middleware in front of the
+        # sub-app.
+        if path in _OPEN_PATHS or any(path.startswith(p) for p in _OPEN_PATH_PREFIXES):
             request.state.gateway_verified = False
             return await call_next(request)
 
@@ -310,6 +326,12 @@ if settings.CORS_ENABLED:
 
 # Include API v1 routes
 app.include_router(v1_router)
+
+# Mount the MCP (Model Context Protocol) server at /mcp behind the Bearer
+# auth middleware.  This exposes the ``tp_flash_generate`` tool to
+# MCP-compatible agents.  The Bearer auth middleware rejects unauthorized
+# requests with 401 before they reach the MCP dispatcher.
+app.mount("/mcp", BearerAuthMiddleware(get_mcp_app()))
 
 
 # Exception handlers

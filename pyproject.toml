@@ -54,6 +54,9 @@ dependencies = [
     # Utilities
     "python-dotenv>=1.0.0",
     "tenacity>=9.0.0",
+
+    # Model Context Protocol (MCP) — Streamable HTTP server at /mcp
+    "mcp>=1.18.0",
 ]
 
 [project.optional-dependencies]
