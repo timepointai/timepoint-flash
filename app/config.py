@@ -495,6 +495,34 @@ class Settings(BaseSettings):
         default="",
         description="Shared secret for service-to-service auth via X-Service-Key header. Empty = open access.",
     )
+    # Gateway HMAC signing (API-4 hardening)
+    GATEWAY_SIGNING_SECRET: str = Field(
+        default="",
+        description=(
+            "HMAC-SHA256 shared secret used to verify signed requests from the API "
+            "Gateway. When set, requests bearing valid X-Gateway-Signature / "
+            "X-Gateway-Timestamp headers are trusted to carry an authenticated "
+            "X-User-Id. Empty = gateway signing verification disabled (legacy mode)."
+        ),
+    )
+    REQUIRE_SIGNED_GATEWAY: bool = Field(
+        default=False,
+        description=(
+            "When True, non-health requests that do not carry a valid Gateway "
+            "HMAC signature are rejected with 403. Enable in production once all "
+            "upstream callers (Gateway) are signing their requests. Requires "
+            "GATEWAY_SIGNING_SECRET to be set."
+        ),
+    )
+    ALLOW_LEGACY_SERVICE_KEY: bool = Field(
+        default=True,
+        description=(
+            "When True, requests that present only a valid X-Service-Key (no "
+            "gateway signature) are allowed through as SYSTEM calls — they may "
+            "not claim a user identity via X-User-Id. Used by internal services "
+            "(Clockchain, Billing, MCP) during the migration to signed requests."
+        ),
+    )
 
     # Billing (set automatically when timepoint-billing is installed)
     BILLING_ENABLED: bool = Field(

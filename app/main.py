@@ -154,27 +154,120 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Service key middleware — gate all traffic when FLASH_SERVICE_KEY is set
+# Edge auth middleware — gate all non-health traffic (API-4)
 _OPEN_PATHS = {"/health", "/health/deep", "/", "/docs", "/redoc", "/openapi.json"}
 
 
-class ServiceKeyMiddleware(BaseHTTPMiddleware):
-    """Reject requests without a valid X-Service-Key header.
+class GatewayAuthMiddleware(BaseHTTPMiddleware):
+    """Authenticate inbound traffic at the edge (API-4).
 
-    When FLASH_SERVICE_KEY is empty, all requests are allowed (open access).
-    Health/docs endpoints are always exempt.
+    Two accepted request shapes:
+
+    1. **Signed gateway request** — carries a valid ``X-Gateway-Signature`` /
+       ``X-Gateway-Timestamp`` HMAC'd with ``GATEWAY_SIGNING_SECRET``. The
+       signature binds ``X-User-Id`` to the request, proving it was minted by
+       the Gateway (not an attacker with a leaked shared secret). These
+       requests are flagged ``request.state.gateway_verified = True`` so that
+       downstream dependencies can trust ``X-User-Id``.
+
+    2. **Legacy system call** — carries only a valid ``X-Service-Key`` matching
+       ``FLASH_SERVICE_KEY``. Permitted while ``ALLOW_LEGACY_SERVICE_KEY`` is
+       True, but these calls are treated as unauthenticated system traffic and
+       may NOT impersonate users (``get_current_user`` returns None for them).
+
+    Everything else is rejected:
+
+    * When ``REQUIRE_SIGNED_GATEWAY=True`` (production target), any
+      non-health request without a valid signature returns 403.
+    * When ``FLASH_SERVICE_KEY`` is set and no valid key/signature is
+      presented, the request is rejected 403.
+    * ``/health``, ``/health/deep``, ``/``, ``/docs``, ``/redoc``,
+      ``/openapi.json`` are always open.
     """
 
     async def dispatch(self, request: Request, call_next):
-        service_key = get_settings().FLASH_SERVICE_KEY
-        if service_key and request.url.path not in _OPEN_PATHS:
-            provided = request.headers.get("X-Service-Key", "")
-            if provided != service_key:
+        settings = get_settings()
+        path = request.url.path
+
+        # Always allow health/docs/root — these must be reachable for Railway
+        # health checks and OpenAPI discovery.
+        if path in _OPEN_PATHS:
+            request.state.gateway_verified = False
+            return await call_next(request)
+
+        # Try gateway HMAC verification first — this is the strong path.
+        from app.auth.gateway_signing import (
+            SIGNATURE_HEADER,
+            TIMESTAMP_HEADER,
+            verify_gateway_signature,
+        )
+
+        signature = request.headers.get(SIGNATURE_HEADER, "")
+        timestamp = request.headers.get(TIMESTAMP_HEADER, "")
+        user_id = request.headers.get("X-User-Id") or request.headers.get("X-User-ID") or ""
+
+        gateway_verified = False
+        if signature and timestamp and settings.GATEWAY_SIGNING_SECRET:
+            gateway_verified = verify_gateway_signature(
+                secret=settings.GATEWAY_SIGNING_SECRET,
+                method=request.method,
+                path=path,
+                user_id=user_id,
+                timestamp_header=timestamp,
+                signature_header=signature,
+            )
+            if not gateway_verified:
+                # A signature was presented but failed verification. Reject —
+                # don't silently fall through to legacy auth.
+                logger.warning(
+                    "Rejected request with invalid gateway signature: %s %s",
+                    request.method,
+                    path,
+                )
                 return JSONResponse(
                     status_code=403,
-                    content={"error": "Invalid or missing service key"},
+                    content={"error": "Invalid gateway signature"},
                 )
+
+        request.state.gateway_verified = gateway_verified
+
+        if gateway_verified:
+            return await call_next(request)
+
+        # No valid gateway signature. Fall back to legacy X-Service-Key path
+        # if configured.
+        if settings.FLASH_SERVICE_KEY:
+            provided = request.headers.get("X-Service-Key", "")
+            legacy_key_ok = provided == settings.FLASH_SERVICE_KEY
+
+            if settings.REQUIRE_SIGNED_GATEWAY:
+                # Strict mode: legacy key is not enough — must be signed.
+                logger.warning(
+                    "Rejected unsigned request (REQUIRE_SIGNED_GATEWAY=True): %s %s",
+                    request.method,
+                    path,
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": "Gateway signature required"},
+                )
+
+            if legacy_key_ok and settings.ALLOW_LEGACY_SERVICE_KEY:
+                # System call path — allowed through but not user-authenticated.
+                return await call_next(request)
+
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid or missing service key"},
+            )
+
+        # No FLASH_SERVICE_KEY configured — open access mode (dev only).
         return await call_next(request)
+
+
+# Backwards-compat alias — a few external imports may still reference the
+# old name. Kept so downstream code does not break during the rollout.
+ServiceKeyMiddleware = GatewayAuthMiddleware
 
 
 # Create FastAPI app
@@ -190,9 +283,12 @@ app = FastAPI(
     openapi_url="/openapi.json",  # Always available for client code generation
 )
 
-# Service key middleware (outermost — runs before CORS)
-if settings.FLASH_SERVICE_KEY:
-    app.add_middleware(ServiceKeyMiddleware)
+# Gateway auth middleware (outermost — runs before CORS).
+# Always installed so we enforce consistently whenever any edge-auth knob is
+# configured. When both FLASH_SERVICE_KEY and GATEWAY_SIGNING_SECRET are empty
+# the middleware falls through to open-access mode (dev/local).
+if settings.FLASH_SERVICE_KEY or settings.GATEWAY_SIGNING_SECRET:
+    app.add_middleware(GatewayAuthMiddleware)
 
 # Correlation ID middleware — propagate X-Request-ID from Gateway
 app.add_middleware(CorrelationIDMiddleware)

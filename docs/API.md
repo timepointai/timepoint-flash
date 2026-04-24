@@ -888,17 +888,41 @@ List available models and presets for evaluation.
 
 ## Service-to-Service Auth
 
-Flash supports service-key authentication for calls from other TIMEPOINT services (billing, clockchain).
+Flash supports three auth mechanisms for service and user traffic.
+
+### Signed Gateway requests (preferred, API-4)
+
+When `GATEWAY_SIGNING_SECRET` is set, every request from the API Gateway is
+HMAC-SHA256 signed with two extra headers:
+
+* `X-Gateway-Timestamp` — unix epoch seconds
+* `X-Gateway-Signature` — `v1=<hex>` HMAC-SHA256 over the canonical string
+  `v1\n{METHOD}\n{PATH}\n{X-User-Id}\n{timestamp}`
+
+The signature binds `X-User-Id` to the request, so an attacker who only holds
+the legacy `X-Service-Key` cannot impersonate arbitrary users. Timestamps
+must be within ±300 seconds of Flash's clock.
+
+Set `REQUIRE_SIGNED_GATEWAY=true` once all callers are signing to reject any
+non-health traffic that lacks a valid signature.
+
+### Legacy shared-secret (system calls, transitional)
 
 **Header:** `X-Service-Key: {FLASH_SERVICE_KEY}`
 
-Three auth paths are evaluated in order by `get_current_user`:
+`get_current_user` evaluates these paths in order:
 
 | Priority | Headers | Behavior | Use Case |
 |----------|---------|----------|----------|
-| 1 | `X-Service-Key` + `X-User-ID` | Validates key, looks up user by UUID or `external_id` | Billing relays user requests (credits deducted) |
-| 2 | `X-Service-Key` only | Validates key, returns no user context | Clockchain system calls (unmetered) |
-| 3 | `Authorization: Bearer <JWT>` | Validates JWT, returns authenticated user | Direct user auth (iOS app) |
+| 1 | Valid `X-Gateway-Signature` (+ `X-User-Id`) | Signature verifies, user trusted | Gateway forwards an authenticated user |
+| 2 | Valid `X-Gateway-Signature`, no `X-User-Id` | System call from Gateway, no user context | Gateway internal endpoints (image fetch, spend, etc.) |
+| 3 | `X-Service-Key` only (no signature) | System call — **`X-User-Id` is IGNORED** if set | Clockchain / Billing / MCP calling Flash directly (no user identity) |
+| 4 | `Authorization: Bearer <JWT>` | Validates JWT, returns authenticated user | Direct iOS auth |
+
+Path 3 is the critical change from pre-API-4 behavior: a leaked
+`X-Service-Key` can no longer be combined with an arbitrary `X-User-Id` to
+impersonate a user. Set `ALLOW_LEGACY_SERVICE_KEY=false` once all system
+callers have migrated to signed requests to close this path entirely.
 
 When `AUTH_ENABLED=false` and no service key is provided, all endpoints are open-access.
 

@@ -26,9 +26,15 @@ async def get_current_user(
 ) -> User | None:
     """Resolve the calling user from one of three auth paths:
 
-    1. **Service key + X-User-ID** — trusted forwarded identity from billing.
-       Looks up user by id, then by external_id.  Returns None if no
-       X-User-ID header (system/clockchain call → no credits deducted).
+    1. **Signed gateway forwarded identity (API-4)** — the inbound edge
+       middleware has already verified the Gateway HMAC signature and flagged
+       ``request.state.gateway_verified = True``. Only in that case do we
+       trust ``X-User-Id`` as an authenticated user.
+
+       A bare ``X-Service-Key`` is **no longer sufficient** to impersonate a
+       user — it authenticates a system call only. If a legacy caller sends
+       ``X-Service-Key`` + ``X-User-Id`` without signing, we log a warning
+       and return None (system call, no user context, no credits deducted).
     2. **Bearer JWT** — direct user auth (iOS app, dev tokens).
     3. **AUTH_ENABLED=false** — open access, returns None.
 
@@ -37,12 +43,13 @@ async def get_current_user(
     """
     settings = get_settings()
 
-    # Path 1: Service-key forwarded identity (billing / clockchain)
-    service_key = request.headers.get("X-Service-Key", "")
-    if settings.FLASH_SERVICE_KEY and service_key == settings.FLASH_SERVICE_KEY:
-        user_id = request.headers.get("X-User-ID")
+    # Path 1: Signed gateway forwarded identity.
+    gateway_verified = bool(getattr(request.state, "gateway_verified", False))
+    user_id = request.headers.get("X-User-Id") or request.headers.get("X-User-ID")
+
+    if gateway_verified:
         if not user_id:
-            return None  # System call (clockchain) — no credits
+            return None  # System call from Gateway — no user context.
 
         # Look up by primary key first, then by external_id
         result = await session.execute(select(User).where(User.id == user_id))
@@ -56,6 +63,21 @@ async def get_current_user(
                 detail=f"User {user_id} not found. Call POST /api/v1/users/resolve first.",
             )
         return user
+
+    # Legacy shared-secret path. We reached this branch because the edge
+    # middleware allowed the request through via X-Service-Key alone (legacy
+    # system call). If the caller ALSO set X-User-Id, do NOT trust it — that
+    # was the exact impersonation vulnerability API-4 is closing.
+    if user_id:
+        service_key = request.headers.get("X-Service-Key", "")
+        if settings.FLASH_SERVICE_KEY and service_key == settings.FLASH_SERVICE_KEY:
+            logger.warning(
+                "Ignoring X-User-Id on unsigned X-Service-Key request — "
+                "legacy impersonation path is closed. Caller should migrate "
+                "to signed Gateway requests. path=%s",
+                request.url.path,
+            )
+        return None
 
     # Path 2: Bearer JWT (direct user auth)
     if not settings.AUTH_ENABLED:
