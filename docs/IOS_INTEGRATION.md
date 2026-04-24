@@ -160,9 +160,9 @@ All endpoints are under `/api/v1`. Prefix with your deployment base URL (e.g. `h
 
 | Method | Path | Auth | Credits | Description |
 |--------|------|------|---------|-------------|
-| `POST` | `/timepoints/generate/sync` | Bearer | 5-10 | Synchronous generation (recommended for iOS) |
+| `POST` | `/timepoints/generate/sync` | Bearer | 5-10 | Synchronous generation (recommended for iOS with `URLSession`; **prefer `/stream` for MCP / short-timeout clients** — see [API.md](API.md)) |
 | `POST` | `/timepoints/generate` | Bearer | 5-10 | Background generation + poll |
-| `POST` | `/timepoints/generate/stream` | Bearer | 5-10 | SSE streaming (see SSE note below) |
+| `POST` | `/timepoints/generate/stream` | Bearer | 5-10 | SSE streaming (recommended for browsers, MCP, and any short-timeout HTTP client — see SSE note below) |
 
 ### Retrieval
 
@@ -200,20 +200,24 @@ All endpoints are under `/api/v1`. Prefix with your deployment base URL (e.g. `h
 
 ## 5. SSE Streaming Guidance
 
-`POST /timepoints/generate/stream` uses Server-Sent Events. The event format:
+`POST /timepoints/generate/stream` uses Server-Sent Events. The event format (see [API.md](API.md#event-schema) for the full schema):
 
 ```
-data: {"event": "start", "step": "initialization", "progress": 0}
-data: {"event": "step_complete", "step": "judge", "progress": 10}
+data: {"event": "start", "step": "initialization", "progress": 0, ...}
+data: {"event": "step_complete", "step": "judge", "progress": 10, ...}
 ...
-data: {"event": "done", "progress": 100, "data": {"timepoint_id": "...", "status": "completed"}}
+data: {"event": "done", "step": "complete", "progress": 100, "data": {"timepoint_id": "...", "status": "completed"}}
 ```
 
-**iOS recommendation:** `URLSession` does not natively support SSE. Options:
+After the `done` event, fetch the full scene via `GET /api/v1/timepoints/{timepoint_id}?full=true` — the stream body carries only progress signals plus the ID, not the final payload.
 
-1. **Preferred:** Use `POST /timepoints/generate/sync` — blocks until complete (30-120s). Set a generous `URLSession` timeout.
+**When to prefer `/stream` over `/sync`:** The stream endpoint is the default choice for MCP tool calls, LLM agent loops, browser clients, and any HTTP caller that sits behind a proxy with a short read timeout. Its keep-alive `step_complete` events prevent idle-connection 504s. The sync endpoint is only preferable when you control both ends of the connection and can hold a single request open for the full 30–150s generation budget.
+
+**iOS recommendation:** `URLSession` does not natively support SSE, and iOS can hold a long request open without an intermediate proxy dropping it. Options, in order of preference:
+
+1. **Preferred on iOS:** Use `POST /timepoints/generate/sync` — blocks until complete (30-120s). Set a generous `URLSession` timeout (≥180s).
 2. **Alternative:** Use `POST /timepoints/generate` (returns immediately) + poll `GET /timepoints/{id}` every 3-5 seconds until `status == "completed"`.
-3. **If SSE needed:** Use a third-party library like [EventSource](https://github.com/inaka/EventSource) or [LDSwiftEventSource](https://github.com/launchdarkly/swift-eventsource).
+3. **If SSE needed:** Use a third-party library like [EventSource](https://github.com/inaka/EventSource) or [LDSwiftEventSource](https://github.com/launchdarkly/swift-eventsource), then reassemble per the pattern in [API.md](API.md#client-reassembly-pattern).
 
 ---
 

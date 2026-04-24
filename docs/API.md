@@ -175,9 +175,18 @@ When `AUTH_ENABLED=true`, generation, chat, dialog, survey, and temporal endpoin
 
 ### POST /api/v1/timepoints/generate/stream (Recommended)
 
-Generate a scene with real-time progress updates via Server-Sent Events.
+Generate a scene with real-time progress updates via Server-Sent Events (SSE). **This is the recommended generation endpoint for any client that cannot block for 30–150s on a single HTTP request — specifically MCP tool calls, LLM agent loops, browser clients, and any proxy/gateway with a short read timeout.** The stream emits a keep-alive `step_complete` event roughly every 5–30s, which prevents idle-connection timeouts on upstream proxies.
 
-**Request:**
+**Response headers:**
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no
+```
+
+**Request body:**
 ```json
 {
   "query": "Oppenheimer watches the Trinity test 5:29 AM July 16 1945",
@@ -205,33 +214,218 @@ Generate a scene with real-time progress updates via Server-Sent Events.
 3. `preset` — use preset's default models
 4. Server defaults
 
-**Response:** SSE stream with events:
+#### Event schema
+
+Every event is delivered as one SSE `data:` line containing a single JSON object, followed by a blank line (the standard SSE message terminator):
 
 ```
-data: {"event": "start", "step": "initialization", "progress": 0}
-data: {"event": "step_complete", "step": "judge", "progress": 10}
-data: {"event": "step_complete", "step": "timeline", "progress": 20}
-data: {"event": "step_complete", "step": "scene", "progress": 30}
-data: {"event": "step_complete", "step": "characters", "progress": 50}
-data: {"event": "step_complete", "step": "moment", "progress": 65}
-data: {"event": "step_complete", "step": "camera", "progress": 65}
-data: {"event": "step_complete", "step": "dialog", "progress": 80}
-data: {"event": "step_complete", "step": "image_prompt", "progress": 90}
-data: {"event": "step_complete", "step": "image_generation", "progress": 100}
-data: {"event": "done", "progress": 100, "data": {"timepoint_id": "abc123", "slug": "...", "status": "completed"}}
+data: {"event": "step_complete", "step": "judge", "data": {"latency_ms": 1234, "model_used": "gemini-2.5-flash"}, "progress": 10, "error": null}
+\n
 ```
 
-Note: The `image_generation` step only appears when `generate_image: true`. Without it, `done` follows `image_prompt` directly.
+All events share the same envelope (see `StreamEvent` in `app/api/v1/timepoints.py`):
+
+| Field | Type | Always present | Description |
+|-------|------|----------------|-------------|
+| `event` | string | Yes | One of `start`, `step_complete`, `step_error`, `done`, `error` |
+| `step` | string \| null | No | Pipeline step label (see table below). `null` on some fatal `error` events. |
+| `data` | object \| null | No | Event-specific payload. See per-event tables. |
+| `progress` | int | Yes | 0–100. Monotonic except on fatal `error` (sent as `0`). |
+| `error` | string \| null | No | Human-readable error message. Present on `step_error` and `error`; `null` otherwise. |
+
+**Event types:**
+
+| `event` value | When | Terminal? | Payload |
+|---|---|---|---|
+| `start` | First event, after the pipeline is constructed | No | `data = {query, generate_image, preset}` |
+| `step_complete` | After each successful pipeline step | No | `data = {latency_ms, model_used}` |
+| `step_error` | A pipeline step failed but the pipeline continues (e.g. optional step) | No | `error = "..."`, `data = null` |
+| `done` | Pipeline finished **and** the timepoint was successfully persisted to the DB | **Yes** | `data = {timepoint_id, slug, status, year, location, total_latency_ms, has_image, saved: true}` |
+| `error` | Fatal failure (pipeline exception, 360s total-generation timeout, or DB save failure) | **Yes** | `error = "..."`; may include `data.timepoint_id` when the DB save specifically failed |
+
+**Pipeline step labels and progress percentages** (order is deterministic, but `moment` and `camera` run in parallel and either may emit first):
+
+| `step` | `progress` | Notes |
+|---|---:|---|
+| `initialization` | 0 | Only appears in the `start` event |
+| `judge` | 10 | Query validation / rejection |
+| `timeline` | 20 | Temporal anchoring |
+| `scene` | 30 | Setting and atmosphere |
+| `characters` | 50 | Character ID + graph + bios (all in one step) |
+| `moment` | 65 | Parallel with `camera` |
+| `camera` | 65 | Parallel with `moment` |
+| `dialog` | 80 | Anachronism-checked dialog |
+| `image_prompt` | 90 | Emitted whether or not an image is generated |
+| `image_generation` | 100 | **Only emitted when `generate_image: true`** |
+| `complete` | 100 | Only appears in the `done` event |
+| `database_save` | 100 | Only appears on the `error` event raised when DB save fails after generation |
+
+#### Example stream
+
+With `generate_image: true` and a successful run:
+
+```
+data: {"event":"start","step":"initialization","data":{"query":"...","generate_image":true,"preset":"hyper"},"progress":0,"error":null}
+
+data: {"event":"step_complete","step":"judge","data":{"latency_ms":1420,"model_used":"gemini-2.5-flash"},"progress":10,"error":null}
+
+data: {"event":"step_complete","step":"timeline","data":{"latency_ms":2103,"model_used":"gemini-2.5-flash"},"progress":20,"error":null}
+
+data: {"event":"step_complete","step":"scene","data":{"latency_ms":3011,"model_used":"gemini-2.5-flash"},"progress":30,"error":null}
+
+data: {"event":"step_complete","step":"characters","data":{"latency_ms":4820,"model_used":"gemini-2.5-flash"},"progress":50,"error":null}
+
+data: {"event":"step_complete","step":"moment","data":{"latency_ms":2910,"model_used":"gemini-2.5-flash"},"progress":65,"error":null}
+
+data: {"event":"step_complete","step":"camera","data":{"latency_ms":2715,"model_used":"gemini-2.5-flash"},"progress":65,"error":null}
+
+data: {"event":"step_complete","step":"dialog","data":{"latency_ms":6230,"model_used":"gemini-2.5-flash"},"progress":80,"error":null}
+
+data: {"event":"step_complete","step":"image_prompt","data":{"latency_ms":1840,"model_used":"gemini-2.5-flash"},"progress":90,"error":null}
+
+data: {"event":"step_complete","step":"image_generation","data":{"latency_ms":12400,"model_used":"gemini-2.5-flash-image"},"progress":100,"error":null}
+
+data: {"event":"done","step":"complete","data":{"timepoint_id":"550e8400-e29b-41d4-a716-446655440000","slug":"oppenheimer-trinity-a1b2c3","status":"completed","year":1945,"location":"Control bunker S-10000, Jornada del Muerto, New Mexico","total_latency_ms":37473,"has_image":true,"saved":true},"progress":100,"error":null}
+```
+
+When `generate_image: false`, the `image_generation` event is omitted and `done` follows directly after `image_prompt`.
+
+#### Client reassembly pattern
+
+The stream only delivers **progress signals plus a reference** to the final result — the full scene body is **not** inlined in any event. Clients reassemble in four steps:
+
+1. **Consume the SSE stream** line by line. Split on `\n\n` (SSE record delimiter) and strip the leading `data: ` prefix. Parse each record as JSON.
+2. **Track progress** from `step_complete` events for UI (progress bar, per-step latency, model used).
+3. **Detect completion**: the stream is finished when you receive either `event: "done"` *or* `event: "error"`. No other events terminate the stream. Always treat connection close without a terminal event as a timeout (see below).
+4. **Fetch the full result** after `done` by reading `data.timepoint_id` and calling:
+
+   ```
+   GET /api/v1/timepoints/{timepoint_id}?full=true
+   ```
+
+   Pass `include_image=true` if you also need the base64 image bytes inlined. The `share_url`, characters, dialog, scene, grounding, and moment data all come from this call — not from the stream.
+
+Minimal Python consumer:
+
+```python
+import json
+import httpx
+
+async def generate_and_fetch(query: str, base_url: str, token: str) -> dict:
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"query": query, "preset": "hyper", "generate_image": True}
+
+    timepoint_id = None
+    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=180, write=10, pool=10)) as c:
+        async with c.stream(
+            "POST",
+            f"{base_url}/api/v1/timepoints/generate/stream",
+            json=payload,
+            headers={**headers, "Accept": "text/event-stream"},
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                evt = json.loads(line[6:])
+                if evt["event"] == "done":
+                    timepoint_id = evt["data"]["timepoint_id"]
+                    break
+                if evt["event"] == "error":
+                    raise RuntimeError(evt.get("error", "stream failed"))
+
+    if not timepoint_id:
+        raise RuntimeError("stream closed before done event")
+
+    # Fetch the full result
+    async with httpx.AsyncClient() as c:
+        r = await c.get(
+            f"{base_url}/api/v1/timepoints/{timepoint_id}?full=true",
+            headers=headers,
+        )
+        r.raise_for_status()
+        return r.json()
+```
+
+Minimal curl + jq consumer (for scripts and CI):
+
+```bash
+curl -sfN -X POST "$BASE/api/v1/timepoints/generate/stream" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Apollo 11 landing 1969","preset":"hyper"}' \
+| while IFS= read -r line; do
+    case "$line" in
+      "data: "*)
+        evt=$(printf '%s' "${line#data: }")
+        event=$(jq -r '.event' <<<"$evt")
+        case "$event" in
+          done)
+            tp_id=$(jq -r '.data.timepoint_id' <<<"$evt")
+            curl -sf "$BASE/api/v1/timepoints/$tp_id?full=true" -H "Authorization: Bearer $TOKEN"
+            exit 0
+            ;;
+          error)
+            jq -r '.error' <<<"$evt" >&2
+            exit 1
+            ;;
+        esac
+        ;;
+    esac
+  done
+```
+
+#### Timeouts
+
+| Layer | Timeout | Behavior on expiry |
+|---|---|---|
+| **Flash pipeline (server-side)** | 360s end-to-end (`asyncio.timeout(360)` in `stream_generation`) | Emits a final `{"event":"error","error":"Stream generation timed out after 360 seconds"}` then closes the stream |
+| **API Gateway streaming proxy** (`api.timepointai.com`) | 120s **read timeout between bytes** — *not* a wall-clock cap | Gateway returns `504 Gateway Timeout` and closes the connection if no SSE event arrives for 120s. Because Flash emits a `step_complete` event every 5–30s, well-formed runs never hit this. |
+| **Client HTTP read timeout** | Set by you | Your HTTP library will abort. Use a long per-read timeout (**≥180s recommended** when targeting `api.timepointai.com` directly, ≥360s when targeting Flash directly). |
+| **Total wall-clock budget** | Preset-dependent | hyper ≈55s • balanced ≈90–110s • hd ≈120–150s • gemini3 ≈60s. Budget **≥180s** to tolerate provider fallback and retries. |
+
+**Recommended client settings:**
+
+| Context | Connect timeout | Read (between-events) timeout | Total timeout |
+|---|---|---|---|
+| Direct to Flash | 10s | 90s | 360s |
+| Through API Gateway | 10s | 115s (stay under the gateway's 120s) | 300s |
+| Browser `EventSource` | n/a | — (no app-level read timeout) | Rely on user cancel / tab close |
+
+**Non-retryability.** The gateway does **not** retry streaming requests — the `/stream` proxy bypasses the normal 3× retry logic because SSE responses are not idempotent (credits are already being spent and partial events may have been delivered). If a stream fails mid-flight:
+
+- If you received a `done` event → the timepoint is saved; `GET /api/v1/timepoints/{id}` will succeed.
+- If you received a `error` event → credits were refunded for known-fatal paths (pipeline timeout / server exception); check balance before retrying.
+- If the connection dropped with no terminal event → the timepoint **may or may not** have been saved. The safe recovery is to wait 10s and `GET /api/v1/users/me/timepoints?page=1&page_size=5` to look for a matching recent entry before retrying.
+
+**Disconnect detection.** The server checks `raw_request.is_disconnected()` between each pipeline step. Closing the TCP connection within ≤5s after the next `step_complete` aborts further pipeline work and releases the worker.
 
 ---
 
 ### POST /api/v1/timepoints/generate/sync
 
-Generate a scene synchronously. Blocks until complete (30-120 seconds).
+> **Prefer `/generate/stream` for MCP tools, LLM agent loops, and any short-timeout client.** This endpoint holds a single HTTP connection open for the full pipeline run, so any intermediate proxy with a read timeout shorter than the generation budget will drop the request with no way to recover the result. Use `/generate/stream` instead — the stream's keep-alive events prevent idle-connection timeouts and the final `timepoint_id` lets you fetch the scene via `GET /api/v1/timepoints/{id}?full=true`.
+
+Generate a scene synchronously. Blocks until complete.
 
 **Request:** Same as streaming endpoint.
 
-**Response:** Full `TimepointResponse` object.
+**Response:** Full `TimepointResponse` object with `preset_used`, `generation_time_ms`, and `request_context` populated.
+
+**Timeouts and failure behavior:**
+
+- **Server-side cap:** 300 seconds (`asyncio.wait_for`). Exceeding this returns `504 Gateway Timeout` and **refunds the credits** that were spent at request time.
+- **API Gateway proxy cap:** 30 seconds read timeout on non-`/stream` paths. **This is shorter than most generation runs** and will return `504` long before Flash finishes — which is why this endpoint is not suitable for clients going through `api.timepointai.com`. Call Flash directly (`flash.timepointai.com`) with service-key auth if you must use this endpoint.
+- **Pipeline exception:** Returns `500` with the exception message, refunds credits.
+- **Insufficient credits:** Returns `402` before starting the pipeline.
+
+**When this endpoint is still the right choice:**
+
+- You are calling Flash directly (not through the Gateway) with a service key and can set a long per-request read timeout.
+- You are inside a background worker where holding a 30–150s HTTP connection is acceptable.
+- You need the full `TimepointResponse` in a single call and do not want to issue a follow-up `GET /timepoints/{id}`.
+
+For every other client — especially MCP tools, gateway-fronted API consumers, and agent loops — use `/generate/stream`.
 
 ---
 
@@ -1113,4 +1307,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-03-11*
+*Last updated: 2026-04-24*
