@@ -156,6 +156,9 @@ The deployed version uses a separate billing microservice that handles Apple IAP
 
 ## Blob Storage
 
+> For the production cloud-storage decision (Cloudflare R2), env-var spec, and
+> provisioning runbook, see [STORAGE.md](./STORAGE.md).
+
 When `BLOB_STORAGE_ENABLED=true`, each generation writes a self-contained folder:
 
 ```
