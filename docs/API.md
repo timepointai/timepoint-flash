@@ -42,6 +42,8 @@ Control the speed/quality tradeoff with presets:
 | **hd** | ~120-150s | Best | `gemini-2.5-flash` (extended thinking) | Google Native |
 | **gemini3** | ~60s | Excellent | `google/gemini-3-flash-preview` | OpenRouter |
 
+> **Note on `hyper`:** the hyper preset is **text-only**. `generate_image: true` is silently ignored — responses will return `has_image: false` and no `image_url`. Use `balanced`, `hd`, or `gemini3` if you need an image. 
+
 **Usage:**
 ```json
 {
@@ -492,7 +494,7 @@ Get a completed scene.
   "time_of_day": "pre-dawn",
   "location": "Control bunker S-10000, Jornada del Muerto, New Mexico",
   "has_image": true,
-  "image_url": "data:image/jpeg;base64,...",
+  "image_url": "https://renders.timepointai.com/timepoints/2026/04/oppenheimer-trinity-abc123/image.png",
   "text_model_used": "gemini-2.5-flash",
   "image_model_used": "gemini-2.5-flash-image",
   "visibility": "public",
@@ -510,6 +512,14 @@ Get a completed scene.
   "image_prompt": "..."
 }
 ```
+
+#### Response field semantics
+
+| Field | Format | Notes |
+|-------|--------|-------|
+| `image_url` | Public CDN URL **or** `data:image/...;base64,...` URI | When the deployment has cloud blob storage provisioned (`BLOB_STORAGE_BACKEND=cloud` + `FLASH_BLOB_PUBLIC_BASE` set), `image_url` is a hosted URL on the CDN (e.g. `https://renders.timepointai.com/...`). Otherwise it falls back to an inline data URI containing the full base64-encoded image (multi-MB). Clients should handle both — check the prefix. See [docs/STORAGE.md](./STORAGE.md). |
+| `has_image` | bool | `false` for text-only presets (`hyper`) and for failed image generations. When `false`, `image_url` is absent or empty. |
+| `share_url` | URL | Pre-built public share link of the form `https://timepointai.com/t/<slug>`. Only present when (a) `SHARE_URL_BASE` is configured on the server and (b) the timepoint's visibility is `public`. Anyone with this link can view the rendered timepoint without auth. |
 
 ---
 

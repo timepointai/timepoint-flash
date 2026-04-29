@@ -223,10 +223,13 @@ After the `done` event, fetch the full scene via `GET /api/v1/timepoints/{timepo
 
 ## 6. Image Handling
 
-- **Default:** Request scenes with `include_image=false` (or omit the param). The response includes `image_url` (a hosted URL) and `has_image: true/false`.
-- **Display:** Load images from `image_url` using standard `URLSession` or `AsyncImage`.
-- **Offline/export:** Fetch with `include_image=true` to get `image_base64` (base64-encoded JPEG). Only do this when explicitly needed — the payload is large.
-- **Generation:** Set `generate_image: true` in the generation request to include image generation (costs the same credits).
+- **Default:** Request scenes with `include_image=false` (or omit the param). The response includes `image_url` and `has_image: true/false`.
+- **`image_url` is one of two formats** — clients must handle both:
+  - **CDN URL** (`https://renders.timepointai.com/...`) when the server is provisioned with cloud blob storage. Cheap to load, cacheable, ~hundreds of bytes in the JSON.
+  - **Data URI** (`data:image/jpeg;base64,...`) as a fallback when no CDN is configured. The full image bytes are inlined — payload can be multiple MB. Decode with `Data(base64Encoded:)` after stripping the `data:image/...;base64,` prefix.
+  - Branch on prefix: `image_url.hasPrefix("data:")` → decode inline; else → load via `URLSession`/`AsyncImage`.
+- **Generation:** Set `generate_image: true` in the generation request to include image generation. **Note:** the `hyper` preset is text-only and ignores `generate_image` — use `balanced`, `hd`, or `gemini3` for images.
+- **Sharing:** When the timepoint is public and `SHARE_URL_BASE` is configured server-side, the response includes `share_url` — a `timepointai.com/t/<slug>` link anyone can open without auth.
 
 ---
 
