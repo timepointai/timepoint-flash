@@ -100,3 +100,5 @@ temp/
 *.tmp
 
 .local/
+
+.stoneforge/
