@@ -624,7 +624,10 @@ class Settings(BaseSettings):
         # Soft validation - just track if any providers are available
         # The app will start but providers will be marked as unavailable
         self._has_any_provider = bool(
-            self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.OPENROUTER_API_KEYS or self.STABILITY_API_KEY
+            self.GOOGLE_API_KEY
+            or self.OPENROUTER_API_KEY
+            or self.OPENROUTER_API_KEYS
+            or self.STABILITY_API_KEY
         )
         return self
 

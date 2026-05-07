@@ -26,10 +26,10 @@ import pytest
 from app.core.providers.base import AuthenticationError, ProviderError
 from app.core.providers.openrouter import OpenRouterProvider
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _chat_response(content: str = "hello") -> dict[str, Any]:
     """Minimal OpenRouter /chat/completions success payload."""
@@ -94,6 +94,7 @@ def _make_provider_with_transport(
 # ---------------------------------------------------------------------------
 # config.py — openrouter_keys property
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.fast
 class TestOpenrouterKeysProperty:
@@ -175,6 +176,7 @@ class TestOpenrouterKeysProperty:
 # OpenRouterProvider init
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.fast
 class TestOpenRouterProviderInit:
     """Test OpenRouterProvider initialisation with various key inputs."""
@@ -205,6 +207,7 @@ class TestOpenRouterProviderInit:
 # _post_with_key_fallback — core iteration logic
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.fast
 @pytest.mark.asyncio
 class TestPostWithKeyFallback:
@@ -218,19 +221,23 @@ class TestPostWithKeyFallback:
 
     async def test_single_key_200(self):
         """Single key with 200 → returns response."""
-        transport = _SequenceTransport([
-            _make_response(200, _chat_response("ok")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(200, _chat_response("ok")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-key1"], transport)
         resp = await provider._post_with_key_fallback("/chat/completions", {"model": "x"})
         assert resp.status_code == 200
 
     async def test_first_401_second_200(self):
         """First key returns 401, second key returns 200 → success."""
-        transport = _SequenceTransport([
-            _make_response(401, _error_response(401, "User not found")),
-            _make_response(200, _chat_response("hi")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(401, _error_response(401, "User not found")),
+                _make_response(200, _chat_response("hi")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-dead", "sk-live"], transport)
         resp = await provider._post_with_key_fallback("/chat/completions", {"model": "x"})
         assert resp.status_code == 200
@@ -238,30 +245,36 @@ class TestPostWithKeyFallback:
 
     async def test_first_402_second_200(self):
         """402 (insufficient credits) is also retriable."""
-        transport = _SequenceTransport([
-            _make_response(402, _error_response(402, "Insufficient credits")),
-            _make_response(200, _chat_response("paid")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(402, _error_response(402, "Insufficient credits")),
+                _make_response(200, _chat_response("paid")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-broke", "sk-rich"], transport)
         resp = await provider._post_with_key_fallback("/chat/completions", {"model": "x"})
         assert resp.status_code == 200
 
     async def test_first_429_second_200(self):
         """429 (rate limit) is retriable — next key attempted."""
-        transport = _SequenceTransport([
-            _make_response(429, _error_response(429, "Rate limited")),
-            _make_response(200, _chat_response("ok")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(429, _error_response(429, "Rate limited")),
+                _make_response(200, _chat_response("ok")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-limited", "sk-free"], transport)
         resp = await provider._post_with_key_fallback("/chat/completions", {"model": "x"})
         assert resp.status_code == 200
 
     async def test_all_401_raises(self):
         """All keys return 401 → logs ERROR and raises AuthenticationError."""
-        transport = _SequenceTransport([
-            _make_response(401, _error_response(401, "bad key")),
-            _make_response(401, _error_response(401, "bad key")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(401, _error_response(401, "bad key")),
+                _make_response(401, _error_response(401, "bad key")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-a", "sk-b"], transport)
         with pytest.raises((AuthenticationError, ProviderError)):
             await provider._post_with_key_fallback("/chat/completions", {"model": "x"})
@@ -269,11 +282,13 @@ class TestPostWithKeyFallback:
     async def test_non_retriable_400_raises_immediately(self):
         """400 (bad model / bad request) → returned immediately, no next key tried."""
         # If the second response were consumed the SequenceTransport would fail
-        transport = _SequenceTransport([
-            _make_response(400, _error_response(400, "model not found")),
-            # This response must NOT be consumed:
-            _make_response(200, _chat_response("should_not_reach")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(400, _error_response(400, "model not found")),
+                # This response must NOT be consumed:
+                _make_response(200, _chat_response("should_not_reach")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-key1", "sk-key2"], transport)
         # _post_with_key_fallback returns non-retriable responses for caller to handle
         resp = await provider._post_with_key_fallback("/chat/completions", {"model": "bad-model"})
@@ -302,6 +317,7 @@ class TestPostWithKeyFallback:
 # call_text end-to-end through fallback
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.fast
 @pytest.mark.asyncio
 class TestCallTextMultiKey:
@@ -309,41 +325,47 @@ class TestCallTextMultiKey:
 
     async def test_call_text_single_key_200(self):
         """Basic call_text with one key succeeds."""
-        transport = _SequenceTransport([
-            _make_response(200, _chat_response("the answer")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(200, _chat_response("the answer")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-only"], transport)
         response = await provider.call_text(prompt="What is 2+2?", model="test/model")
         assert response.content == "the answer"
 
     async def test_call_text_first_401_second_200(self):
         """call_text falls back to second key after first returns 401."""
-        transport = _SequenceTransport([
-            _make_response(401, _error_response(401, "revoked")),
-            _make_response(200, _chat_response("fallback answer")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(401, _error_response(401, "revoked")),
+                _make_response(200, _chat_response("fallback answer")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-revoked", "sk-valid"], transport)
         response = await provider.call_text(prompt="Test", model="test/model")
         assert response.content == "fallback answer"
 
     async def test_call_text_all_401_raises(self):
         """call_text raises when all keys are invalid."""
-        transport = _SequenceTransport([
-            _make_response(401, _error_response(401, "bad")),
-            _make_response(401, _error_response(401, "also bad")),
-            _make_response(401, _error_response(401, "all bad")),
-        ])
-        provider = _make_provider_with_transport(
-            ["sk-a", "sk-b", "sk-c"], transport
+        transport = _SequenceTransport(
+            [
+                _make_response(401, _error_response(401, "bad")),
+                _make_response(401, _error_response(401, "also bad")),
+                _make_response(401, _error_response(401, "all bad")),
+            ]
         )
+        provider = _make_provider_with_transport(["sk-a", "sk-b", "sk-c"], transport)
         with pytest.raises((AuthenticationError, ProviderError)):
             await provider.call_text(prompt="Test", model="test/model")
 
     async def test_call_text_non_retriable_400_raises(self):
         """call_text raises immediately on 400 without trying next key."""
-        transport = _SequenceTransport([
-            _make_response(400, _error_response(400, "invalid model")),
-        ])
+        transport = _SequenceTransport(
+            [
+                _make_response(400, _error_response(400, "invalid model")),
+            ]
+        )
         provider = _make_provider_with_transport(["sk-key"], transport)
         with pytest.raises(ProviderError):
             await provider.call_text(prompt="Test", model="invalid/model")
