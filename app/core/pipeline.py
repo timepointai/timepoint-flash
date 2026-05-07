@@ -51,8 +51,8 @@ from app.agents.character_identification import (
 from app.agents.characters import CharactersInput
 from app.agents.critique import CritiqueAgent, CritiqueInput
 from app.agents.dialog import DialogInput
-from app.agents.graph import GraphInput
 from app.agents.entity_grounding import EntityGroundingAgent
+from app.agents.graph import GraphInput
 from app.agents.grounding import (
     GroundedContext,
     GroundingAgent,
@@ -743,7 +743,7 @@ class GenerationPipeline:
                 from app.schemas.character_identification import CharacterStub
                 from app.schemas.characters import CharacterRole
 
-                for eid, fig in library_figures.items():
+                for _eid, fig in library_figures.items():
                     if fig.id not in existing_ids and len(char_identification.characters) < 6:
                         new_stub = CharacterStub(
                             name=fig.display_name,
@@ -1448,7 +1448,7 @@ class GenerationPipeline:
                 from app.schemas.character_identification import CharacterStub
                 from app.schemas.characters import CharacterRole
 
-                for eid, fig in library_figures.items():
+                for _eid, fig in library_figures.items():
                     if fig.id not in existing_ids and len(char_identification.characters) < 6:
                         new_stub = CharacterStub(
                             name=fig.display_name,
