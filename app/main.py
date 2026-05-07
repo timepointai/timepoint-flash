@@ -108,11 +108,12 @@ async def lifespan(app: FastAPI):
             logger.error(f"Blob storage initialization failed: {e}")
 
     # Initialize OpenRouter model registry for dynamic fallback selection
-    if _settings.OPENROUTER_API_KEY:
+    _openrouter_keys = _settings.openrouter_keys
+    if _openrouter_keys:
         from app.core.model_registry import OpenRouterModelRegistry
 
         registry = OpenRouterModelRegistry.get_instance()
-        await registry.initialize(api_key=_settings.OPENROUTER_API_KEY)
+        await registry.initialize(api_key=_openrouter_keys[0])
         registry.start_background_refresh(interval=3600)
 
     # Start the MCP Streamable HTTP session manager so the /mcp sub-app

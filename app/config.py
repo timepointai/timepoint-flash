@@ -356,12 +356,14 @@ class Settings(BaseSettings):
     """Application settings with provider configuration.
 
     Settings are loaded from environment variables and .env file.
-    At least one provider API key (GOOGLE_API_KEY or OPENROUTER_API_KEY) is required.
+    At least one provider API key (GOOGLE_API_KEY, OPENROUTER_API_KEY, or
+    OPENROUTER_API_KEYS) is required.
 
     Attributes:
         DATABASE_URL: Database connection string (SQLite or PostgreSQL)
         GOOGLE_API_KEY: Google AI API key for Gemini models
-        OPENROUTER_API_KEY: OpenRouter API key for multi-model access
+        OPENROUTER_API_KEY: OpenRouter API key (singular, fallback when OPENROUTER_API_KEYS unset)
+        OPENROUTER_API_KEYS: Comma-separated OpenRouter API keys for multi-key fallback chain
         PRIMARY_PROVIDER: Primary LLM provider (google or openrouter)
         FALLBACK_PROVIDER: Fallback provider when primary fails
         JUDGE_MODEL: Model for fast validation/judging tasks
@@ -389,7 +391,15 @@ class Settings(BaseSettings):
     )
     OPENROUTER_API_KEY: str | None = Field(
         default=None,
-        description="OpenRouter API key",
+        description="OpenRouter API key (singular fallback — used when OPENROUTER_API_KEYS is not set)",
+    )
+    OPENROUTER_API_KEYS: str | None = Field(
+        default=None,
+        description=(
+            "Comma-separated list of OpenRouter API keys for multi-key fallback. "
+            "When set, preferred over OPENROUTER_API_KEY. Keys are tried in order; "
+            "a key is skipped on HTTP 401/402/429 or network/timeout errors."
+        ),
     )
     STABILITY_API_KEY: str | None = Field(
         default=None,
@@ -614,14 +624,45 @@ class Settings(BaseSettings):
         # Soft validation - just track if any providers are available
         # The app will start but providers will be marked as unavailable
         self._has_any_provider = bool(
-            self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY
+            self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.OPENROUTER_API_KEYS or self.STABILITY_API_KEY
         )
         return self
 
     @property
+    def openrouter_keys(self) -> list[str]:
+        """Return the ordered list of OpenRouter API keys for fallback iteration.
+
+        Prefers OPENROUTER_API_KEYS (comma-separated plural) over the singular
+        OPENROUTER_API_KEY. De-duplicates and strips empty values. Falls back to
+        OPENROUTER_API_KEY if OPENROUTER_API_KEYS is unset or empty.
+
+        Returns:
+            list[str]: Ordered, de-duplicated list of valid API keys.
+
+        Examples:
+            >>> # With OPENROUTER_API_KEYS="key1,key2,key3"
+            >>> settings.openrouter_keys  # ["key1", "key2", "key3"]
+            >>> # With only OPENROUTER_API_KEY="key1"
+            >>> settings.openrouter_keys  # ["key1"]
+        """
+        raw: list[str] = []
+        if self.OPENROUTER_API_KEYS:
+            raw = [k.strip() for k in self.OPENROUTER_API_KEYS.split(",") if k.strip()]
+        if not raw and self.OPENROUTER_API_KEY:
+            raw = [self.OPENROUTER_API_KEY]
+        # De-duplicate while preserving insertion order
+        seen: set[str] = set()
+        result: list[str] = []
+        for k in raw:
+            if k not in seen:
+                seen.add(k)
+                result.append(k)
+        return result
+
+    @property
     def has_any_provider(self) -> bool:
         """Check if any provider API key is configured."""
-        return bool(self.GOOGLE_API_KEY or self.OPENROUTER_API_KEY or self.STABILITY_API_KEY)
+        return bool(self.GOOGLE_API_KEY or self.openrouter_keys or self.STABILITY_API_KEY)
 
     @property
     def is_production(self) -> bool:
@@ -645,7 +686,7 @@ class Settings(BaseSettings):
         """
         if self.GOOGLE_API_KEY:
             return ProviderType.GOOGLE
-        elif self.OPENROUTER_API_KEY:
+        elif self.openrouter_keys:
             return ProviderType.OPENROUTER
         raise ValueError("No API keys configured")
 
@@ -661,7 +702,7 @@ class Settings(BaseSettings):
         if provider == ProviderType.GOOGLE:
             return bool(self.GOOGLE_API_KEY)
         elif provider == ProviderType.OPENROUTER:
-            return bool(self.OPENROUTER_API_KEY)
+            return bool(self.openrouter_keys)
         elif provider == ProviderType.STABILITY:
             return bool(self.STABILITY_API_KEY)
         return False
@@ -683,9 +724,10 @@ class Settings(BaseSettings):
                 raise ValueError("GOOGLE_API_KEY not configured")
             return self.GOOGLE_API_KEY
         elif provider == ProviderType.OPENROUTER:
-            if not self.OPENROUTER_API_KEY:
+            keys = self.openrouter_keys
+            if not keys:
                 raise ValueError("OPENROUTER_API_KEY not configured")
-            return self.OPENROUTER_API_KEY
+            return keys[0]
         elif provider == ProviderType.STABILITY:
             if not self.STABILITY_API_KEY:
                 raise ValueError("STABILITY_API_KEY not configured")

@@ -5,6 +5,13 @@ Supports 300+ models including Claude, GPT-4, Llama, and more.
 
 OpenRouter API docs: https://openrouter.ai/docs
 
+Multi-key fallback: When multiple keys are supplied via OPENROUTER_API_KEYS
+(comma-separated) the provider iterates through them automatically on
+HTTP 401/402/429 or network/timeout errors, logging a WARN with the last-8-char
+key fingerprint before advancing. On a non-retriable error (e.g. 400 bad model)
+execution stops immediately. If all keys are exhausted an ERROR is logged and
+the last error is re-raised.
+
 Examples:
     >>> from app.core.providers.openrouter import OpenRouterProvider
     >>> provider = OpenRouterProvider(api_key="sk-or-v1-...")
@@ -16,6 +23,7 @@ Examples:
 Tests:
     - tests/unit/test_providers.py::test_openrouter_provider_init
     - tests/unit/test_providers.py::test_openrouter_provider_call_text
+    - tests/unit/test_openrouter_multikey.py  (multi-key fallback matrix)
     - tests/integration/test_llm_router.py::test_openrouter_provider_integration
 """
 
@@ -45,6 +53,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODELS_URL = f"{OPENROUTER_BASE_URL}/models"
 OPENROUTER_CHAT_URL = f"{OPENROUTER_BASE_URL}/chat/completions"
 
+# HTTP status codes that trigger key rotation (try next key)
+_RETRIABLE_AUTH_STATUSES: frozenset[int] = frozenset({401, 402, 429})
+
 
 class OpenRouterModel(BaseModel):
     """OpenRouter model metadata.
@@ -70,9 +81,12 @@ class OpenRouterProvider(LLMProvider):
     Provides access to 300+ models via OpenRouter's unified API.
     Supports dynamic model discovery and real-time pricing.
 
+    When initialised with multiple keys (via ``api_keys``) the provider
+    iterates through them on auth/rate/network failures so that a single
+    exhausted or revoked key does not block generation.
+
     Attributes:
         provider_type: ProviderType.OPENROUTER
-        api_key: OpenRouter API key
         base_url: API base URL
 
     Available via OpenRouter:
@@ -95,31 +109,47 @@ class OpenRouterProvider(LLMProvider):
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str = "",
+        api_keys: list[str] | None = None,
         base_url: str = OPENROUTER_BASE_URL,
         timeout: float = 60.0,
     ) -> None:
         """Initialize OpenRouter provider.
 
         Args:
-            api_key: OpenRouter API key.
+            api_key: Single OpenRouter API key (backward-compatible, used when
+                     api_keys is not supplied).
+            api_keys: Ordered list of OpenRouter API keys for multi-key fallback.
+                      When supplied, takes precedence over api_key.
             base_url: API base URL (default: https://openrouter.ai/api/v1).
             timeout: Request timeout in seconds.
         """
-        super().__init__(api_key)
+        # Build internal key list (plural wins over singular)
+        if api_keys:
+            self._keys: list[str] = [k for k in api_keys if k]
+        elif api_key:
+            self._keys = [api_key]
+        else:
+            self._keys = []
+
+        # Pass first key (or empty) to base class for backward compat
+        super().__init__(self._keys[0] if self._keys else "")
         self.base_url = base_url
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
 
     @property
     def client(self) -> httpx.AsyncClient:
-        """Get httpx async client (lazy initialization)."""
+        """Get httpx async client (lazy initialization).
+
+        Note: Authorization is intentionally omitted from client-level headers
+        so that per-request keys can be supplied without re-creating the client.
+        """
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 timeout=self.timeout,
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
                     "HTTP-Referer": "https://timepoint.ai",
                     "X-Title": "TIMEPOINT Flash",
                     "Content-Type": "application/json",
@@ -166,6 +196,102 @@ class OpenRouterProvider(LLMProvider):
                 retryable=response.status_code >= 500,
             )
 
+    async def _post_with_key_fallback(
+        self,
+        endpoint: str,
+        payload: dict[str, Any],
+    ) -> httpx.Response:
+        """POST to *endpoint* iterating keys on auth/rate/network failures.
+
+        For each key in ``self._keys``:
+        - On HTTP 200: return the response immediately.
+        - On HTTP 401/402/429: log WARN (key fingerprint + status), try next.
+        - On network/timeout: log WARN (key fingerprint + error), try next.
+        - On any other non-200 HTTP status: return the response so the caller
+          can invoke ``_handle_error`` (e.g. 400 bad model — non-retriable).
+
+        After all keys are exhausted:
+        - Log ERROR with exhausted-key count.
+        - Re-raise the last network exception if one occurred, otherwise call
+          ``_handle_error`` on the last non-200 response.
+
+        Args:
+            endpoint: Relative URL path (e.g. "/chat/completions").
+            payload: JSON-serialisable request body.
+
+        Returns:
+            httpx.Response with status_code == 200.
+
+        Raises:
+            ProviderError: If no keys are configured or all keys are exhausted.
+        """
+        if not self._keys:
+            raise ProviderError(
+                message="No OpenRouter API keys configured",
+                provider=ProviderType.OPENROUTER,
+                retryable=False,
+            )
+
+        last_response: httpx.Response | None = None
+        last_exc: Exception | None = None
+
+        for key in self._keys:
+            fingerprint = f"...{key[-8:]}" if len(key) >= 8 else "???"
+            try:
+                response = await self.client.post(
+                    endpoint,
+                    json=payload,
+                    headers={"Authorization": f"Bearer {key}"},
+                )
+                if response.status_code == 200:
+                    return response
+                elif response.status_code in _RETRIABLE_AUTH_STATUSES:
+                    logger.warning(
+                        "OpenRouter key %s returned HTTP %d, trying next key",
+                        fingerprint,
+                        response.status_code,
+                    )
+                    last_response = response
+                    continue
+                else:
+                    # Non-retriable status (e.g. 400 bad model) — return as-is
+                    # so the caller can raise the appropriate error.
+                    return response
+            except httpx.TimeoutException as e:
+                logger.warning(
+                    "OpenRouter key %s timed out, trying next key",
+                    fingerprint,
+                )
+                last_exc = e
+                continue
+            except httpx.HTTPError as e:
+                logger.warning(
+                    "OpenRouter key %s network error: %s, trying next key",
+                    fingerprint,
+                    e,
+                )
+                last_exc = e
+                continue
+
+        # All keys exhausted
+        logger.error(
+            "OpenRouter: all %d key(s) exhausted — no successful response",
+            len(self._keys),
+        )
+        if last_exc is not None:
+            raise ProviderError(
+                message=str(last_exc),
+                provider=ProviderType.OPENROUTER,
+                retryable=True,
+            ) from last_exc
+        if last_response is not None:
+            self._handle_error(last_response)  # always raises
+        raise ProviderError(
+            message="All OpenRouter keys exhausted with no response",
+            provider=ProviderType.OPENROUTER,
+            retryable=False,
+        )
+
     async def list_models(self, capability: str | None = None) -> list[OpenRouterModel]:
         """List available models from OpenRouter.
 
@@ -183,7 +309,11 @@ class OpenRouterProvider(LLMProvider):
             >>> for model in models[:5]:
             ...     print(f"{model.id}: {model.context_length} tokens")
         """
-        response = await self.client.get("/models")
+        key = self._keys[0] if self._keys else ""
+        response = await self.client.get(
+            "/models",
+            headers={"Authorization": f"Bearer {key}"} if key else {},
+        )
 
         if response.status_code != 200:
             self._handle_error(response)
@@ -209,7 +339,9 @@ class OpenRouterProvider(LLMProvider):
     ) -> LLMResponse[T] | LLMResponse[str]:
         """Generate text with optional structured output.
 
-        Uses OpenRouter's chat/completions API.
+        Uses OpenRouter's chat/completions API. When multiple API keys are
+        configured, automatically falls back to the next key on 401/402/429
+        or network/timeout errors.
 
         Args:
             prompt: The input prompt.
@@ -302,7 +434,7 @@ class OpenRouterProvider(LLMProvider):
                 messages.insert(0, {"role": "system", "content": schema_message})
 
         try:
-            response = await self.client.post("/chat/completions", json=payload)
+            response = await self._post_with_key_fallback("/chat/completions", payload)
 
             if response.status_code != 200:
                 self._handle_error(response)
@@ -366,6 +498,8 @@ class OpenRouterProvider(LLMProvider):
                 metadata=response_metadata,
             )
 
+        except ProviderError:
+            raise
         except httpx.HTTPError as e:
             logger.error(f"OpenRouter HTTP error: {e}")
             raise ProviderError(
@@ -420,7 +554,7 @@ class OpenRouterProvider(LLMProvider):
         }
 
         try:
-            response = await self.client.post("/chat/completions", json=payload)
+            response = await self._post_with_key_fallback("/chat/completions", payload)
 
             if response.status_code != 200:
                 self._handle_error(response)
@@ -479,6 +613,8 @@ class OpenRouterProvider(LLMProvider):
                 latency_ms=latency_ms,
             )
 
+        except ProviderError:
+            raise
         except httpx.HTTPError as e:
             logger.error(f"OpenRouter image generation error: {e}")
             raise ProviderError(
@@ -548,7 +684,7 @@ class OpenRouterProvider(LLMProvider):
         }
 
         try:
-            response = await self.client.post("/chat/completions", json=payload)
+            response = await self._post_with_key_fallback("/chat/completions", payload)
 
             if response.status_code != 200:
                 self._handle_error(response)
@@ -582,6 +718,8 @@ class OpenRouterProvider(LLMProvider):
                 latency_ms=latency_ms,
             )
 
+        except ProviderError:
+            raise
         except httpx.HTTPError as e:
             logger.error(f"OpenRouter vision error: {e}")
             raise ProviderError(
@@ -599,8 +737,12 @@ class OpenRouterProvider(LLMProvider):
             bool: True if provider is healthy.
         """
         try:
+            key = self._keys[0] if self._keys else ""
             # Just check models endpoint - doesn't require completion tokens
-            response = await self.client.get("/models")
+            response = await self.client.get(
+                "/models",
+                headers={"Authorization": f"Bearer {key}"} if key else {},
+            )
             return response.status_code == 200
         except Exception as e:
             logger.warning(f"OpenRouter health check failed: {e}")
