@@ -292,7 +292,9 @@ class TestCallTextCacheControl:
         assert captured
         payload = captured[0]
         sys_msg = next(m for m in payload["messages"] if m["role"] == "system")
-        assert isinstance(sys_msg["content"], str), "System content should stay as string for non-Anthropic"
+        assert isinstance(sys_msg["content"], str), (
+            "System content should stay as string for non-Anthropic"
+        )
 
     @pytest.mark.asyncio
     async def test_schema_hint_included_in_cached_block(self) -> None:
@@ -308,9 +310,7 @@ class TestCallTextCacheControl:
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
                 body = json.loads(request.content)
                 captured.append(body)
-                return httpx.Response(
-                    200, json=_chat_response('{"answer": "test answer"}')
-                )
+                return httpx.Response(200, json=_chat_response('{"answer": "test answer"}'))
 
         provider = OpenRouterProvider(api_key="sk-or-v1-testkey")
         provider._client = httpx.AsyncClient(
@@ -336,9 +336,7 @@ class TestCallTextCacheControl:
         assert "cache_control" in sys_msg["content"][0]
 
     @pytest.mark.asyncio
-    async def test_cache_metrics_logged_on_hit(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_cache_metrics_logged_on_hit(self, caplog: pytest.LogCaptureFixture) -> None:
         """INFO log emitted when response contains cached_tokens > 0."""
         provider = _make_provider(_chat_response("ok", cached_tokens=450, cache_discount=0.08))
 
