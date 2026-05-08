@@ -102,3 +102,7 @@ temp/
 .local/
 
 .stoneforge/
+
+# Local SQLite test DB WAL/SHM files
+test_timepoint.db-shm
+test_timepoint.db-wal
