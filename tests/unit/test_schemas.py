@@ -271,6 +271,100 @@ class TestCharacterData:
         assert john.name == "John Adams"
 
 
+@pytest.mark.fast
+class TestCharacterDictCoercion:
+    """Tests for the descriptive-field dict-to-string coercion.
+
+    Regression coverage for the claude-3.5-haiku failure mode where the model
+    emits nested JSON objects for fields the schema declares as strings (e.g.,
+    ``clothing`` and ``voice_notes``). The Character model normalizes those
+    payloads to plain strings instead of failing validation and forcing the
+    structured LLM call path into expensive retry cycles.
+    """
+
+    def test_clothing_dict_is_flattened(self):
+        """Nested clothing dict from haiku is flattened to a string."""
+        char = Character(
+            name="Julius Caesar",
+            role=CharacterRole.PRIMARY,
+            description="Roman dictator",
+            clothing={
+                "outer": "purple-bordered toga praetexta",
+                "inner": "white tunic",
+                "accessories": "laurel wreath",
+            },
+        )
+        assert isinstance(char.clothing, str)
+        assert "purple-bordered toga praetexta" in char.clothing
+        assert "white tunic" in char.clothing
+        assert "laurel wreath" in char.clothing
+
+    def test_voice_notes_dict_is_flattened(self):
+        """Nested voice_notes dict from haiku is flattened to a string."""
+        char = Character(
+            name="Brutus",
+            role=CharacterRole.PRIMARY,
+            description="Senator and conspirator",
+            voice_notes={
+                "tone": "measured and patrician",
+                "accent": "high-Latin diction",
+                "quirks": "pauses before declarations",
+            },
+        )
+        assert isinstance(char.voice_notes, str)
+        assert "measured and patrician" in char.voice_notes
+        assert "high-Latin diction" in char.voice_notes
+
+    def test_plain_strings_pass_through_unchanged(self):
+        """Plain strings are not mangled by the coercion validator."""
+        char = Character(
+            name="Cassius",
+            role=CharacterRole.SECONDARY,
+            description="Lean and hungry-looking",
+            clothing="dark senatorial toga",
+            voice_notes="urgent, conspiratorial whispers",
+        )
+        assert char.clothing == "dark senatorial toga"
+        assert char.voice_notes == "urgent, conspiratorial whispers"
+
+    def test_none_values_remain_none(self):
+        """Optional descriptive fields stay None when not provided."""
+        char = Character(
+            name="Background Soldier",
+            role=CharacterRole.BACKGROUND,
+            description="Anonymous Roman legionary",
+        )
+        assert char.clothing is None
+        assert char.voice_notes is None
+
+    def test_list_value_is_flattened(self):
+        """A list payload is also coerced to a comma-joined string."""
+        char = Character(
+            name="Casca",
+            role=CharacterRole.SECONDARY,
+            description="Conspirator",
+            clothing=["plain toga", "leather sandals", "concealed dagger"],
+        )
+        assert isinstance(char.clothing, str)
+        assert "plain toga" in char.clothing
+        assert "concealed dagger" in char.clothing
+
+    def test_nested_description_dict_is_flattened(self):
+        """Required `description` field also accepts nested dict input."""
+        char = Character(
+            name="Mark Antony",
+            role=CharacterRole.PRIMARY,
+            description={
+                "build": "athletic",
+                "features": "strong-jawed, dark-haired",
+                "demeanor": "magnetic",
+            },
+        )
+        assert isinstance(char.description, str)
+        assert "athletic" in char.description
+        assert "strong-jawed" in char.description
+
+
 # DialogData Tests
 
 

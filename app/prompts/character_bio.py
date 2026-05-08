@@ -105,7 +105,12 @@ IMPORTANT:
 - For speaking characters: their voice MUST be distinguishable from all other speakers.
   Vary sentence length, vocabulary level, directness, and verbal tics by social class.
 - Use culturally correct references (Roman setting = Roman deities/idioms, NOT Greek)
-- Do NOT use modern English idioms (e.g., "six feet under", "beat around the bush")"""
+- Do NOT use modern English idioms (e.g., "six feet under", "beat around the bush")
+- ALL string fields above (clothing, voice_notes, description, expression, pose, action,
+  personality, speaking_style, emotional_state, position_in_scene, age_description,
+  historical_note) MUST be plain strings, NOT nested JSON objects. If you would otherwise
+  return an object like {{"outer": "tunic", "details": "fringed"}}, render it as a single
+  comma-separated string instead, e.g. "fringed white tunic with leather sandals"."""
 
 
 def format_grounded_context(profile: dict) -> str:

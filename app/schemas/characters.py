@@ -20,8 +20,63 @@ Tests:
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _coerce_descriptive_str(value: Any) -> Any:
+    """Coerce dict/list inputs to a readable string for descriptive fields.
+
+    Some LLMs (notably claude-3.5-haiku via OpenRouter) sometimes emit nested
+    JSON objects for fields the schema describes as plain strings (e.g.,
+    ``clothing`` may come back as ``{"outer": "...", "details": "..."}``).
+    Rejecting those payloads triggers up to 5 retry cycles in the structured
+    LLM call path, blowing latency budgets and producing fallback characters.
+
+    To keep the parse path resilient without weakening the public field type,
+    this validator runs in ``mode="before"`` and flattens dict/list values to
+    a single readable string. Plain strings, ``None``, and other primitives
+    pass through unchanged.
+
+    Args:
+        value: Raw value as parsed from the LLM JSON response.
+
+    Returns:
+        The original value if it is ``None``, a string, or another primitive;
+        otherwise a human-readable flattened string.
+    """
+    if value is None or isinstance(value, str):
+        return value
+
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for key, sub in value.items():
+            sub_str = _coerce_descriptive_str(sub)
+            if sub_str in (None, ""):
+                continue
+            # Skip the "key:" prefix when the key is purely positional
+            # (e.g., haiku occasionally uses numeric or generic keys).
+            if isinstance(key, str) and not key.isdigit() and key.lower() not in {
+                "value",
+                "text",
+                "content",
+            }:
+                parts.append(f"{key}: {sub_str}")
+            else:
+                parts.append(str(sub_str))
+        return ", ".join(parts) if parts else None
+
+    if isinstance(value, list):
+        parts = [
+            str(_coerce_descriptive_str(item))
+            for item in value
+            if _coerce_descriptive_str(item) not in (None, "")
+        ]
+        return ", ".join(parts) if parts else None
+
+    # Numbers, bools, and other primitives — let Pydantic stringify naturally.
+    return str(value)
 
 
 class CharacterRole(str, Enum):
@@ -129,6 +184,36 @@ class Character(BaseModel):
         default=False,
         description="Whether character has dialog",
     )
+
+    @field_validator(
+        "description",
+        "clothing",
+        "expression",
+        "pose",
+        "action",
+        "position_in_scene",
+        "age_description",
+        "historical_note",
+        "personality",
+        "speaking_style",
+        "voice_notes",
+        "emotional_state",
+        mode="before",
+    )
+    @classmethod
+    def _flatten_descriptive_dicts(cls, value: Any) -> Any:
+        """Flatten dict/list payloads from LLMs into plain strings.
+
+        Some LLMs return nested JSON objects (e.g., a dict for ``clothing``
+        with separate keys for outer/inner/accessories) instead of the
+        single string the schema declares. Rather than fail validation and
+        force expensive retries, this normalizer flattens the structure to
+        a readable string. See :func:`_coerce_descriptive_str` for details.
+
+        Tests:
+            - tests/unit/test_schemas.py::TestCharacterDictCoercion
+        """
+        return _coerce_descriptive_str(value)
 
     def to_prompt_description(self) -> str:
         """Convert to description for image prompt."""
