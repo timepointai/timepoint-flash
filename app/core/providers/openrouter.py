@@ -651,9 +651,7 @@ class OpenRouterProvider(LLMProvider):
         # Without this pin OpenRouter may dispatch the request to Bedrock /
         # Vertex mirrors that silently strip cache_control, leaving the cache
         # cold even on identical repeat prompts.
-        resolved_provider_order = _resolve_provider_order_for_model(
-            self._provider_order, model
-        )
+        resolved_provider_order = _resolve_provider_order_for_model(self._provider_order, model)
         if self._models:
             payload["models"] = self._models
         if self._models or resolved_provider_order:
