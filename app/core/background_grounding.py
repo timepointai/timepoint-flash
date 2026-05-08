@@ -68,9 +68,7 @@ async def _deep_ground_entity(
         import httpx
 
         if not settings.OPENROUTER_API_KEY:
-            logger.debug(
-                f"Background grounding skipped for '{entity_name}': no OPENROUTER_API_KEY"
-            )
+            logger.debug(f"Background grounding skipped for '{entity_name}': no OPENROUTER_API_KEY")
             return existing_profile
 
         # Use direct OpenRouter call with deeper search (more results than pipeline pass)
@@ -84,7 +82,10 @@ async def _deep_ground_entity(
         payload: dict[str, Any] = {
             "model": grounding_model,
             "messages": [
-                {"role": "system", "content": "You are a research assistant. Provide factual, well-sourced information."},
+                {
+                    "role": "system",
+                    "content": "You are a research assistant. Provide factual, well-sourced information.",
+                },
                 {"role": "user", "content": prompt},
             ],
             "plugins": [{"id": "web", "max_results": _DEEP_MAX_RESULTS}],
@@ -211,14 +212,11 @@ async def _update_flash_timepoint(
         from app.models import Timepoint
 
         enriched_data: dict[str, Any] = {
-            name: profile.model_dump(mode="json")
-            for name, profile in enriched_profiles.items()
+            name: profile.model_dump(mode="json") for name, profile in enriched_profiles.items()
         }
 
         async with get_session() as session:
-            result = await session.execute(
-                select(Timepoint).where(Timepoint.id == timepoint_id)
-            )
+            result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
             tp = result.scalar_one_or_none()
             if tp is None:
                 logger.warning(
@@ -265,14 +263,11 @@ async def run_background_grounding(
                  for visibility-filtered entity lookups.
     """
     if not entity_profiles:
-        logger.debug(
-            f"Background grounding: no entity profiles for {timepoint_id} — skipping"
-        )
+        logger.debug(f"Background grounding: no entity profiles for {timepoint_id} — skipping")
         return
 
     logger.info(
-        f"Background grounding: starting for {timepoint_id} "
-        f"({len(entity_profiles)} entities)"
+        f"Background grounding: starting for {timepoint_id} ({len(entity_profiles)} entities)"
     )
 
     # Step 1: Run deeper grounding passes

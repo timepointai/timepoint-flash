@@ -197,7 +197,9 @@ async def resolve_figures_with_data(
         )
         return {}
     except Exception:
-        logger.warning("Entity resolution (rich) failed — continuing without entity data", exc_info=True)
+        logger.warning(
+            "Entity resolution (rich) failed — continuing without entity data", exc_info=True
+        )
         return {}
 
 
@@ -225,14 +227,14 @@ async def fetch_figures_by_ids(
 
     base_url = _get_base_url()
     if not base_url:
-        logger.debug(
-            "Entity fetch skipped: no CLOCKCHAIN_ENTITY_URL or CLOCKCHAIN_URL configured"
-        )
+        logger.debug("Entity fetch skipped: no CLOCKCHAIN_ENTITY_URL or CLOCKCHAIN_URL configured")
         return {}
 
     req_headers = _get_headers(user_id=user_id)
 
-    async def _fetch_one(client: httpx.AsyncClient, entity_id: str) -> tuple[str, FigureData | None]:
+    async def _fetch_one(
+        client: httpx.AsyncClient, entity_id: str
+    ) -> tuple[str, FigureData | None]:
         """Fetch a single figure by ID."""
         # Clockchain expects the ID path without leading slash in the URL
         clean_id = entity_id.lstrip("/")

@@ -121,9 +121,7 @@ class EntityGroundingAgent:
                 )
                 continue
 
-        logger.info(
-            f"Entity grounding: {len(profiles)}/{len(unique_names)} entities grounded"
-        )
+        logger.info(f"Entity grounding: {len(profiles)}/{len(unique_names)} entities grounded")
         return profiles
 
     async def _ground_entity(self, name: str) -> GroundingProfile | None:

@@ -75,9 +75,7 @@ class FigureData:
         grounded_at = None
         if grounded_at_raw:
             try:
-                grounded_at = datetime.fromisoformat(
-                    grounded_at_raw.replace("Z", "+00:00")
-                )
+                grounded_at = datetime.fromisoformat(grounded_at_raw.replace("Z", "+00:00"))
             except (ValueError, AttributeError):
                 pass
 

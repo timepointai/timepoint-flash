@@ -17,10 +17,9 @@ Tests:
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel
 
 from app.core.entity_client import search_figures
 

@@ -16,20 +16,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import random
-import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Prompt mutation space
 # ---------------------------------------------------------------------------
 
-STYLE_KEYWORDS: List[str] = [
+STYLE_KEYWORDS: list[str] = [
     "photorealistic",
     "cinematic",
     "oil painting",
@@ -47,7 +44,7 @@ STYLE_KEYWORDS: List[str] = [
     "graphic novel",
 ]
 
-LIGHTING_TERMS: List[str] = [
+LIGHTING_TERMS: list[str] = [
     "golden hour",
     "dramatic chiaroscuro",
     "soft diffused light",
@@ -64,7 +61,7 @@ LIGHTING_TERMS: List[str] = [
     "overcast flat",
 ]
 
-COMPOSITION_TERMS: List[str] = [
+COMPOSITION_TERMS: list[str] = [
     "rule of thirds",
     "centered symmetry",
     "extreme close-up",
@@ -80,7 +77,7 @@ COMPOSITION_TERMS: List[str] = [
     "split screen",
 ]
 
-DETAIL_LEVELS: List[str] = [
+DETAIL_LEVELS: list[str] = [
     "minimal detail, clean lines",
     "moderate detail, balanced textures",
     "high detail, intricate textures",
@@ -89,7 +86,7 @@ DETAIL_LEVELS: List[str] = [
     "painterly brushstrokes, loose detail",
 ]
 
-NEGATIVE_PROMPTS: List[str] = [
+NEGATIVE_PROMPTS: list[str] = [
     "blurry, out of focus",
     "bad anatomy, distorted",
     "low quality, jpeg artifacts",
@@ -154,7 +151,7 @@ class ParetoPoint:
     config_hash: str
     clip_score: float
     cost_usd: float
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +207,7 @@ def mutate_config(cfg: PromptConfig, rng: random.Random) -> PromptConfig:
 # ---------------------------------------------------------------------------
 
 
-def synthetic_clip_score(cfg: PromptConfig, rng: random.Random) -> Tuple[float, float]:
+def synthetic_clip_score(cfg: PromptConfig, rng: random.Random) -> tuple[float, float]:
     """Deterministic-ish synthetic CLIP score for dry-run mode.
 
     Returns (clip_score, cost_usd). The score is derived from the config
@@ -253,7 +250,7 @@ def live_score(
     cfg: PromptConfig,
     flash_url: str,
     query: str = "A dramatic historical moment captured in time",
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Call Flash API, generate an image, score it with CLIP.
 
     Not implemented yet — placeholder for live mode.
@@ -268,13 +265,13 @@ def live_score(
 # ---------------------------------------------------------------------------
 
 
-def update_pareto(frontier: List[ParetoPoint], candidate: ParetoPoint) -> List[ParetoPoint]:
+def update_pareto(frontier: list[ParetoPoint], candidate: ParetoPoint) -> list[ParetoPoint]:
     """Add candidate to Pareto frontier if it is non-dominated.
 
     A point dominates another if it has both higher quality AND lower cost.
     Returns the updated frontier.
     """
-    new_frontier: List[ParetoPoint] = []
+    new_frontier: list[ParetoPoint] = []
     dominated = False
 
     for p in frontier:
@@ -302,7 +299,7 @@ def update_pareto(frontier: List[ParetoPoint], candidate: ParetoPoint) -> List[P
 def run_autoresearch(
     iterations: int,
     dry_run: bool = True,
-    flash_url: Optional[str] = None,
+    flash_url: str | None = None,
     output_dir: str = "autoresearch/results",
     seed: int = 42,
 ) -> None:
@@ -314,9 +311,9 @@ def run_autoresearch(
     results_file = out / "results.jsonl"
     pareto_file = out / "pareto.json"
 
-    frontier: List[ParetoPoint] = []
+    frontier: list[ParetoPoint] = []
     best_score = 0.0
-    best_config: Optional[PromptConfig] = None
+    best_config: PromptConfig | None = None
     current_config = random_config(rng)
 
     print(f"Flash Autoresearch — {'DRY RUN' if dry_run else 'LIVE'}")
@@ -418,7 +415,7 @@ def run_autoresearch(
     print(f"Pareto:  {pareto_file}")
 
     if best_config:
-        print(f"\nBest config:")
+        print("\nBest config:")
         print(f"  Style:       {best_config.style}")
         print(f"  Lighting:    {best_config.lighting}")
         print(f"  Composition: {best_config.composition}")
