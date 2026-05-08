@@ -43,11 +43,11 @@ from app.agents.critique import (
     CritiqueOutput,
 )
 from app.agents.dialog import DialogAgent
-from app.agents.entity_grounding import EntityGroundingAgent
 from app.agents.dialog_extension import (
     DialogExtensionAgent,
     DialogExtensionInput,
 )
+from app.agents.entity_grounding import EntityGroundingAgent
 from app.agents.graph import GraphAgent
 from app.agents.grounding import (
     GroundedContext,
