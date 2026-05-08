@@ -25,6 +25,20 @@ response header and, if present, sleeps ``min(Retry-After, 30)`` seconds before
 retrying once with the same key. If the retry also fails the key is skipped in
 the normal multi-key rotation. HTTP 401/402/400 are never retried via this path.
 
+Prompt caching: For Anthropic models (``anthropic/`` prefix), the provider
+injects explicit ``cache_control: {type: ephemeral}`` markers on the system
+message so OpenRouter forwards them verbatim to Anthropic's cache layer.
+This enables a 5-minute TTL cache that charges 1.25× on the first write and
+0.1× on subsequent reads — agents with large, stable system prompts amortise
+the write cost after the first scene generation in a session.  For all other
+providers (OpenAI, Gemini, DeepSeek, Grok, Groq, Moonshot) OpenRouter caches
+automatically when the static prefix is byte-identical across requests; no
+markers are needed, so the existing plain-string system message is kept as-is.
+
+Cache hit metrics are extracted from ``usage.prompt_tokens_details.cached_tokens``
+and ``usage.cache_discount`` in every response and logged at INFO so operators
+can confirm savings in production.
+
 Examples:
     >>> from app.core.providers.openrouter import OpenRouterProvider
     >>> provider = OpenRouterProvider(api_key="sk-or-v1-...")
@@ -38,6 +52,7 @@ Tests:
     - tests/unit/test_providers.py::test_openrouter_provider_call_text
     - tests/unit/test_openrouter_multikey.py  (multi-key fallback matrix)
     - tests/unit/test_openrouter_native_routing.py  (models[], provider.order, Retry-After)
+    - tests/unit/test_openrouter_prompt_caching.py  (cache_control injection + metrics)
     - tests/integration/test_llm_router.py::test_openrouter_provider_integration
 """
 
@@ -73,6 +88,128 @@ _RETRIABLE_AUTH_STATUSES: frozenset[int] = frozenset({401, 402, 429, 503})
 
 # HTTP status codes where a Retry-After header is honoured before key rotation
 _RETRY_AFTER_STATUSES: frozenset[int] = frozenset({429, 503})
+
+# --- Prompt caching -----------------------------------------------------------
+#
+# Anthropic models require explicit cache_control markers (max 4 breakpoints per
+# request). All other providers listed on OpenRouter (OpenAI, DeepSeek, Gemini,
+# Grok / x-ai, Groq, Moonshot) cache automatically when the static prefix is
+# byte-identical across requests — no markers needed.
+#
+# Strategy: place ONE cache breakpoint at the end of the system message.  This
+# covers the largest repeated chunk (the full agent system prompt) with a single
+# 5-min TTL entry and leaves 3 of the allowed 4 breakpoints free for callers
+# that want to add per-conversation caches later.
+#
+# Minimum cacheable prefix is 1024 tokens for Claude 3.x models.  System
+# prompts below that threshold are submitted unchanged — Anthropic silently
+# ignores the cache_control, so it is safe to add the marker unconditionally.
+#
+_EXPLICIT_CACHE_PROVIDER_PREFIXES: tuple[str, ...] = ("anthropic/",)
+
+
+def _model_needs_explicit_cache_control(model: str) -> bool:
+    """Return True if this model ID requires explicit cache_control markers.
+
+    Anthropic models routed through OpenRouter need an explicit
+    ``cache_control: {type: ephemeral}`` block on the system message.
+    All other providers (OpenAI, Gemini, DeepSeek, etc.) cache automatically
+    when the static prefix is byte-identical — no markers required.
+    """
+    if not model:
+        return False
+    return model.startswith(_EXPLICIT_CACHE_PROVIDER_PREFIXES)
+
+
+def _apply_prompt_cache_control(
+    messages: list[dict[str, Any]],
+    model: str,
+) -> list[dict[str, Any]]:
+    """Inject cache_control on the system message for Anthropic models.
+
+    For Anthropic models, transforms the first system message from a plain
+    string into a list-of-blocks with a single cache_control marker:
+
+        {"role": "system", "content": "..."}
+        ->
+        {"role": "system", "content": [{"type": "text", "text": "...",
+                                         "cache_control": {"type": "ephemeral"}}]}
+
+    For all other providers the messages list is returned unchanged.
+
+    Args:
+        messages: The messages list to (potentially) modify.
+        model: The OpenRouter model ID (e.g. "anthropic/claude-3.5-sonnet").
+
+    Returns:
+        The messages list, with cache_control applied if appropriate.
+    """
+    if not _model_needs_explicit_cache_control(model):
+        return messages
+
+    result = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                # Wrap plain string in a list-of-blocks with cache_control
+                result.append(
+                    {
+                        "role": "system",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": content,
+                                # 5-min TTL @ 1.25x write cost, 0.1x read cost.
+                                # One breakpoint per request (out of 4 allowed).
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                    }
+                )
+                continue
+        result.append(msg)
+    return result
+
+
+def _log_cache_usage(usage: dict[str, Any], model: str, agent: str = "") -> None:
+    """Log OpenRouter cache hit / discount metrics.
+
+    Extracts ``usage.prompt_tokens_details.cached_tokens`` and
+    ``usage.cache_discount`` from the response body and logs at INFO when
+    non-zero so operators can confirm savings in production.  A zero on the
+    first call after a cold start is expected and logged at DEBUG to avoid
+    spamming the log.
+
+    Args:
+        usage: The ``usage`` dict from the OpenRouter response body.
+        model: The model ID, included in the log for triage.
+        agent: Optional agent name, included in the log when provided.
+    """
+    details = usage.get("prompt_tokens_details") or {}
+    cached_tokens = int(details.get("cached_tokens") or 0)
+    prompt_tokens = int(usage.get("prompt_tokens") or 0)
+    cache_discount = usage.get("cache_discount")
+    hit_ratio = (cached_tokens / prompt_tokens) if prompt_tokens else 0.0
+    agent_tag = f" agent={agent}" if agent else ""
+
+    if cached_tokens or cache_discount:
+        logger.info(
+            "prompt_cache%s model=%s cached=%d/%d (%.1f%%) discount=%s",
+            agent_tag,
+            model,
+            cached_tokens,
+            prompt_tokens,
+            hit_ratio * 100,
+            cache_discount if cache_discount is not None else "n/a",
+        )
+    else:
+        logger.debug(
+            "prompt_cache%s model=%s cached=0/%d (cold start or non-caching model)",
+            agent_tag,
+            model,
+            prompt_tokens,
+        )
 
 
 class OpenRouterModel(BaseModel):
@@ -424,8 +561,11 @@ class OpenRouterProvider(LLMProvider):
         """
         start_time = time.perf_counter()
 
-        # Build messages
-        messages: list[dict[str, str]] = []
+        # Build messages.  System message is kept as a plain string here so that
+        # string-based operations (e.g. schema hint merging below) can work
+        # normally.  Prompt caching transformation happens AFTER all string
+        # operations are complete.
+        messages: list[dict[str, Any]] = []
         if "system" in kwargs:
             messages.append({"role": "system", "content": kwargs.pop("system")})
         messages.append({"role": "user", "content": prompt})
@@ -504,6 +644,15 @@ class OpenRouterProvider(LLMProvider):
             else:
                 messages.insert(0, {"role": "system", "content": schema_message})
 
+        # Apply prompt caching: for Anthropic models, wrap the system message in
+        # a list-of-blocks with cache_control so OpenRouter forwards it to
+        # Anthropic's cache layer.  This must happen AFTER the schema-hint string
+        # concatenation above, but BEFORE the POST.  For all other providers the
+        # messages list is returned unchanged (they cache automatically on
+        # byte-identical prefix).
+        messages = _apply_prompt_cache_control(messages, model)
+        payload["messages"] = messages
+
         try:
             response = await self._post_with_key_fallback("/chat/completions", payload)
 
@@ -553,6 +702,11 @@ class OpenRouterProvider(LLMProvider):
                 "input_tokens": usage_data.get("prompt_tokens", 0),
                 "output_tokens": usage_data.get("completion_tokens", 0),
             }
+
+            # Log cache hit metrics (cached_tokens / cache_discount).
+            # Logged at INFO when non-zero so operators can confirm savings;
+            # DEBUG on cold-start / non-caching models to avoid log noise.
+            _log_cache_usage(usage_data, model)
 
             # Build metadata with annotations if present
             response_metadata: dict[str, Any] = {}
