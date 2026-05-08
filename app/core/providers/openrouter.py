@@ -12,6 +12,19 @@ key fingerprint before advancing. On a non-retriable error (e.g. 400 bad model)
 execution stops immediately. If all keys are exhausted an ERROR is logged and
 the last error is re-raised.
 
+Native OpenRouter routing (models[] + provider.order): When ``models`` and
+``provider_order`` are supplied the provider injects OpenRouter's server-side
+failover into every chat/completions request. ``models`` lists fallback model
+IDs tried in order when the primary model is unavailable; ``provider_order``
+steers OpenRouter to preferred inference providers. ``allow_fallbacks=True``
+and ``require_parameters=True`` are always set so the failover chain respects
+structured-output and other per-request parameters.
+
+Retry-After handling: On HTTP 429 or 503 the provider checks the ``Retry-After``
+response header and, if present, sleeps ``min(Retry-After, 30)`` seconds before
+retrying once with the same key. If the retry also fails the key is skipped in
+the normal multi-key rotation. HTTP 401/402/400 are never retried via this path.
+
 Examples:
     >>> from app.core.providers.openrouter import OpenRouterProvider
     >>> provider = OpenRouterProvider(api_key="sk-or-v1-...")
@@ -24,9 +37,11 @@ Tests:
     - tests/unit/test_providers.py::test_openrouter_provider_init
     - tests/unit/test_providers.py::test_openrouter_provider_call_text
     - tests/unit/test_openrouter_multikey.py  (multi-key fallback matrix)
+    - tests/unit/test_openrouter_native_routing.py  (models[], provider.order, Retry-After)
     - tests/integration/test_llm_router.py::test_openrouter_provider_integration
 """
 
+import asyncio
 import logging
 import time
 from typing import Any, TypeVar
@@ -54,7 +69,10 @@ OPENROUTER_MODELS_URL = f"{OPENROUTER_BASE_URL}/models"
 OPENROUTER_CHAT_URL = f"{OPENROUTER_BASE_URL}/chat/completions"
 
 # HTTP status codes that trigger key rotation (try next key)
-_RETRIABLE_AUTH_STATUSES: frozenset[int] = frozenset({401, 402, 429})
+_RETRIABLE_AUTH_STATUSES: frozenset[int] = frozenset({401, 402, 429, 503})
+
+# HTTP status codes where a Retry-After header is honoured before key rotation
+_RETRY_AFTER_STATUSES: frozenset[int] = frozenset({429, 503})
 
 
 class OpenRouterModel(BaseModel):
@@ -113,6 +131,8 @@ class OpenRouterProvider(LLMProvider):
         api_keys: list[str] | None = None,
         base_url: str = OPENROUTER_BASE_URL,
         timeout: float = 60.0,
+        models: list[str] | None = None,
+        provider_order: list[str] | None = None,
     ) -> None:
         """Initialize OpenRouter provider.
 
@@ -123,6 +143,13 @@ class OpenRouterProvider(LLMProvider):
                       When supplied, takes precedence over api_key.
             base_url: API base URL (default: https://openrouter.ai/api/v1).
             timeout: Request timeout in seconds.
+            models: Ordered list of fallback model IDs injected as the ``models[]``
+                    parameter in chat/completions requests. Tried in order when the
+                    primary model is unavailable. Empty list → field omitted.
+            provider_order: Ordered list of inference provider names injected as
+                            ``provider.order``. Empty list → empty order (OpenRouter
+                            chooses). Always sets ``allow_fallbacks=True`` and
+                            ``require_parameters=True`` when non-None.
         """
         # Build internal key list (plural wins over singular)
         if api_keys:
@@ -137,6 +164,8 @@ class OpenRouterProvider(LLMProvider):
         self.base_url = base_url
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
+        self._models: list[str] = models if models is not None else []
+        self._provider_order: list[str] = provider_order if provider_order is not None else []
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -245,7 +274,35 @@ class OpenRouterProvider(LLMProvider):
                 )
                 if response.status_code == 200:
                     return response
-                elif response.status_code in _RETRIABLE_AUTH_STATUSES:
+
+                # Honour Retry-After on 429 / 503 — sleep once, then retry same key.
+                # This handles transient provider-side throttling without burning
+                # the next key on what is likely a brief capacity blip.
+                # 401 / 402 / 400 are NOT retried via this path.
+                if response.status_code in _RETRY_AFTER_STATUSES:
+                    retry_after_header = response.headers.get("Retry-After")
+                    if retry_after_header:
+                        try:
+                            sleep_secs = min(int(retry_after_header), 30)
+                            logger.info(
+                                "OpenRouter key %s: HTTP %d with Retry-After %ds — sleeping",
+                                fingerprint,
+                                response.status_code,
+                                sleep_secs,
+                            )
+                            await asyncio.sleep(sleep_secs)
+                            response = await self.client.post(
+                                endpoint,
+                                json=payload,
+                                headers={"Authorization": f"Bearer {key}"},
+                            )
+                            if response.status_code == 200:
+                                return response
+                        except (ValueError, OverflowError):
+                            # Malformed Retry-After header — proceed without sleep
+                            pass
+
+                if response.status_code in _RETRIABLE_AUTH_STATUSES:
                     logger.warning(
                         "OpenRouter key %s returned HTTP %d, trying next key",
                         fingerprint,
@@ -378,6 +435,20 @@ class OpenRouterProvider(LLMProvider):
             "model": model,
             "messages": messages,
         }
+
+        # Native OpenRouter server-side routing: model fallbacks + provider preference.
+        # models[] lists fallback model IDs tried when the primary model is unavailable.
+        # provider.order steers which inference providers handle the request.
+        # require_parameters=True ensures fallback providers support all request params
+        # (e.g. response_format for structured output).
+        if self._models:
+            payload["models"] = self._models
+        if self._models or self._provider_order:
+            payload["provider"] = {
+                "order": self._provider_order,
+                "allow_fallbacks": True,
+                "require_parameters": True,
+            }
 
         # Web search plugins support (e.g. [{"id": "web", "max_results": 5}])
         if "plugins" in kwargs:

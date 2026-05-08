@@ -279,11 +279,15 @@ class LLMRouter:
 
         if settings.has_provider(ProviderType.OPENROUTER):
             self.providers[ProviderType.OPENROUTER] = OpenRouterProvider(
-                api_keys=settings.openrouter_keys
+                api_keys=settings.openrouter_keys,
+                models=settings.openrouter_models,
+                provider_order=settings.openrouter_provider_order,
             )
             logger.info(
-                "Initialized OpenRouter provider with %d key(s)",
+                "Initialized OpenRouter provider with %d key(s), %d fallback model(s), %d provider(s)",
                 len(settings.openrouter_keys),
+                len(settings.openrouter_models),
+                len(settings.openrouter_provider_order),
             )
 
         if settings.has_provider(ProviderType.STABILITY):

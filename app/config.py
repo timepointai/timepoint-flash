@@ -401,6 +401,24 @@ class Settings(BaseSettings):
             "a key is skipped on HTTP 401/402/429 or network/timeout errors."
         ),
     )
+    OPENROUTER_MODELS: str | None = Field(
+        default=None,
+        description=(
+            "Comma-separated ordered model fallback list for OpenRouter native routing (models[] param). "
+            "These are tried in order when the primary model fails at the provider level. "
+            "Example: 'google/gemini-3-flash-preview,nvidia/llama-3.1-nemotron-70b-instruct'. "
+            "Defaults to a 3-model chain across Google/NVIDIA/NousResearch."
+        ),
+    )
+    OPENROUTER_PROVIDER_ORDER: str | None = Field(
+        default=None,
+        description=(
+            "Comma-separated preferred inference provider order for OpenRouter (provider.order param). "
+            "Controls which inference providers are tried first for the selected model. "
+            "Example: 'Google AI Studio,Together,Fireworks'. "
+            "Defaults to Google AI Studio → Together → Fireworks."
+        ),
+    )
     STABILITY_API_KEY: str | None = Field(
         default=None,
         description="Stability AI API key for SD3.5 image generation",
@@ -661,6 +679,55 @@ class Settings(BaseSettings):
                 seen.add(k)
                 result.append(k)
         return result
+
+    @property
+    def openrouter_models(self) -> list[str]:
+        """Return the ordered model fallback list for OpenRouter native routing.
+
+        Used as the ``models[]`` parameter in OpenRouter chat completions to
+        enable server-side model-level failover when the primary model is
+        unavailable or overloaded.
+
+        Returns:
+            list[str]: Ordered model IDs to try as fallbacks.
+
+        Examples:
+            >>> # With OPENROUTER_MODELS="google/gemini-3-flash-preview,nvidia/llama-3.1-nemotron-70b-instruct"
+            >>> settings.openrouter_models  # ["google/gemini-3-flash-preview", "nvidia/..."]
+            >>> # Without env var: returns 3-model default chain
+            >>> settings.openrouter_models  # ["google/gemini-3-flash-preview", ...]
+        """
+        if self.OPENROUTER_MODELS:
+            return [m.strip() for m in self.OPENROUTER_MODELS.split(",") if m.strip()]
+        # Sensible 3-model default: Google thinking → NVIDIA quality → NousResearch reliable
+        # All are in VerifiedModels.OPENROUTER_TEXT and tested against Flash's pipeline.
+        return [
+            "google/gemini-3-flash-preview",
+            "nvidia/llama-3.1-nemotron-70b-instruct",
+            "nousresearch/hermes-3-llama-3.1-70b",
+        ]
+
+    @property
+    def openrouter_provider_order(self) -> list[str]:
+        """Return the preferred inference provider order for OpenRouter native routing.
+
+        Used as the ``provider.order`` parameter in OpenRouter chat completions.
+        Controls which inference providers are tried first when OpenRouter routes
+        a request to the selected model.
+
+        Returns:
+            list[str]: Ordered provider names (as used by OpenRouter).
+
+        Examples:
+            >>> # With OPENROUTER_PROVIDER_ORDER="Google AI Studio,Together"
+            >>> settings.openrouter_provider_order  # ["Google AI Studio", "Together"]
+            >>> # Without env var: returns 3-provider default
+            >>> settings.openrouter_provider_order  # ["Google AI Studio", "Together", "Fireworks"]
+        """
+        if self.OPENROUTER_PROVIDER_ORDER:
+            return [p.strip() for p in self.OPENROUTER_PROVIDER_ORDER.split(",") if p.strip()]
+        # Default preference: Google (primary), Together (fast/reliable), Fireworks (quality)
+        return ["Google AI Studio", "Together", "Fireworks"]
 
     @property
     def has_any_provider(self) -> bool:
