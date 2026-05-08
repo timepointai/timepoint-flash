@@ -208,6 +208,7 @@ class RateLimiterRegistry:
         # Derive burst capacities from settings.RATE_LIMIT for dynamic control
         try:
             from app.config import get_settings
+
             rate_limit = get_settings().RATE_LIMIT
         except Exception:
             rate_limit = 60  # safe default
@@ -219,8 +220,7 @@ class RateLimiterRegistry:
         }
 
         logger.info(
-            f"Rate limiter init: RATE_LIMIT={rate_limit}, "
-            f"burst overrides={burst_overrides}"
+            f"Rate limiter init: RATE_LIMIT={rate_limit}, burst overrides={burst_overrides}"
         )
 
         # Pre-create limiters for all tiers

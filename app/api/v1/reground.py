@@ -22,7 +22,6 @@ Tests:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -84,7 +83,11 @@ class TaskStatusResponse(BaseModel):
 
 
 async def _run_reground(
-    task_id: str, entity_id: str, deep: bool, x_handle: str | None, user_id: str | None = None,
+    task_id: str,
+    entity_id: str,
+    deep: bool,
+    x_handle: str | None,
+    user_id: str | None = None,
 ) -> None:
     """Background coroutine that grounds an entity and patches Clockchain."""
     settings = get_settings()
@@ -173,7 +176,9 @@ async def _run_reground(
             "max_tokens": 1024,
         }
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)
+        ) as client:
             or_resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -316,7 +321,9 @@ async def reground_entity(
         x_handle=body.x_handle,
         user_id=user_id,
     )
-    logger.info("Entity re-grounding queued: entity=%s task=%s deep=%s", entity_id, task_id, body.deep)
+    logger.info(
+        "Entity re-grounding queued: entity=%s task=%s deep=%s", entity_id, task_id, body.deep
+    )
     return RegroundResponse(task_id=task_id, status="queued", entity_id=entity_id)
 
 
