@@ -31,6 +31,7 @@ from app.core.providers.openrouter import (
     _apply_prompt_cache_control,
     _log_cache_usage,
     _model_needs_explicit_cache_control,
+    _resolve_provider_order_for_model,
 )
 
 # ---------------------------------------------------------------------------
@@ -359,3 +360,212 @@ class TestCallTextCacheControl:
             model="anthropic/claude-3.5-sonnet",
         )
         assert response.content == "answer"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_provider_order_for_model — Anthropic pinning
+# ---------------------------------------------------------------------------
+
+
+class TestResolveProviderOrderForModel:
+    """Verify provider.order pinning for Anthropic models so cache_control fires."""
+
+    def test_anthropic_with_empty_base_returns_anthropic_only(self) -> None:
+        result = _resolve_provider_order_for_model([], "anthropic/claude-3.5-sonnet")
+        assert result == ["Anthropic"]
+
+    def test_anthropic_prepends_anthropic_to_base(self) -> None:
+        result = _resolve_provider_order_for_model(
+            ["Google AI Studio", "Together"],
+            "anthropic/claude-3.5-haiku",
+        )
+        assert result == ["Anthropic", "Google AI Studio", "Together"]
+
+    def test_anthropic_already_first_unchanged(self) -> None:
+        result = _resolve_provider_order_for_model(
+            ["Anthropic", "Together"],
+            "anthropic/claude-3.5-haiku",
+        )
+        assert result == ["Anthropic", "Together"]
+
+    def test_anthropic_dedupes_when_in_middle(self) -> None:
+        """If 'Anthropic' is already present (not first), it's moved to the front."""
+        result = _resolve_provider_order_for_model(
+            ["Together", "Anthropic", "Fireworks"],
+            "anthropic/claude-3.5-sonnet",
+        )
+        assert result == ["Anthropic", "Together", "Fireworks"]
+
+    def test_non_anthropic_returns_base_unchanged(self) -> None:
+        base = ["Google AI Studio", "Together", "Fireworks"]
+        result = _resolve_provider_order_for_model(base, "openai/gpt-4o")
+        assert result == base
+
+    def test_non_anthropic_empty_stays_empty(self) -> None:
+        result = _resolve_provider_order_for_model([], "openai/gpt-4o")
+        assert result == []
+
+    def test_returns_new_list_not_alias(self) -> None:
+        """The returned list must not be the same object as base_order."""
+        base = ["A", "B"]
+        result = _resolve_provider_order_for_model(base, "openai/gpt-4o")
+        assert result == base
+        assert result is not base
+
+
+# ---------------------------------------------------------------------------
+# call_text integration: provider.order pinning for Anthropic
+# ---------------------------------------------------------------------------
+
+
+class TestCallTextProviderOrderForAnthropic:
+    @pytest.mark.asyncio
+    async def test_anthropic_pins_anthropic_first_when_no_base_order(self) -> None:
+        """Anthropic model with no configured provider_order → provider.order=['Anthropic']."""
+        captured: list[dict[str, Any]] = []
+
+        class _CapturingTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                body = json.loads(request.content)
+                captured.append(body)
+                return httpx.Response(200, json=_chat_response("ok"))
+
+        provider = OpenRouterProvider(api_key="sk-or-v1-testkey")
+        provider._client = httpx.AsyncClient(
+            transport=_CapturingTransport(),
+            base_url="https://openrouter.ai/api/v1",
+        )
+
+        await provider.call_text(
+            prompt="hi",
+            model="anthropic/claude-3.5-sonnet",
+            system="You are helpful.",
+        )
+
+        assert captured
+        body = captured[0]
+        assert "provider" in body, "provider block should be injected for Anthropic"
+        assert body["provider"]["order"] == ["Anthropic"]
+        assert body["provider"]["allow_fallbacks"] is True
+        assert body["provider"]["require_parameters"] is True
+
+    @pytest.mark.asyncio
+    async def test_anthropic_prepends_anthropic_to_configured_order(self) -> None:
+        """Configured provider_order is preserved as failover behind 'Anthropic'."""
+        captured: list[dict[str, Any]] = []
+
+        class _CapturingTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                body = json.loads(request.content)
+                captured.append(body)
+                return httpx.Response(200, json=_chat_response("ok"))
+
+        provider = OpenRouterProvider(
+            api_key="sk-or-v1-testkey",
+            provider_order=["Google AI Studio", "Together", "Fireworks"],
+        )
+        provider._client = httpx.AsyncClient(
+            transport=_CapturingTransport(),
+            base_url="https://openrouter.ai/api/v1",
+        )
+
+        await provider.call_text(
+            prompt="hi",
+            model="anthropic/claude-3-haiku",
+            system="System.",
+        )
+
+        assert captured
+        body = captured[0]
+        assert body["provider"]["order"] == [
+            "Anthropic",
+            "Google AI Studio",
+            "Together",
+            "Fireworks",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_non_anthropic_provider_order_unchanged(self) -> None:
+        """Non-Anthropic models keep the configured provider.order verbatim."""
+        captured: list[dict[str, Any]] = []
+
+        class _CapturingTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                body = json.loads(request.content)
+                captured.append(body)
+                return httpx.Response(200, json=_chat_response("ok"))
+
+        provider = OpenRouterProvider(
+            api_key="sk-or-v1-testkey",
+            provider_order=["Google AI Studio", "Together", "Fireworks"],
+        )
+        provider._client = httpx.AsyncClient(
+            transport=_CapturingTransport(),
+            base_url="https://openrouter.ai/api/v1",
+        )
+
+        await provider.call_text(
+            prompt="hi",
+            model="openai/gpt-4o",
+            system="System.",
+        )
+
+        assert captured
+        body = captured[0]
+        assert body["provider"]["order"] == ["Google AI Studio", "Together", "Fireworks"]
+
+    @pytest.mark.asyncio
+    async def test_non_anthropic_no_config_no_provider_block(self) -> None:
+        """Non-Anthropic with no configured order/models → no provider block (unchanged)."""
+        captured: list[dict[str, Any]] = []
+
+        class _CapturingTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                body = json.loads(request.content)
+                captured.append(body)
+                return httpx.Response(200, json=_chat_response("ok"))
+
+        provider = OpenRouterProvider(api_key="sk-or-v1-testkey")
+        provider._client = httpx.AsyncClient(
+            transport=_CapturingTransport(),
+            base_url="https://openrouter.ai/api/v1",
+        )
+
+        await provider.call_text(prompt="hi", model="openai/gpt-4o")
+
+        assert captured
+        body = captured[0]
+        assert "provider" not in body
+        assert "models" not in body
+
+    @pytest.mark.asyncio
+    async def test_anthropic_with_models_keeps_models_and_pins_provider(self) -> None:
+        """When fallback models[] is configured, provider.order is still pinned for Anthropic."""
+        captured: list[dict[str, Any]] = []
+
+        class _CapturingTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                body = json.loads(request.content)
+                captured.append(body)
+                return httpx.Response(200, json=_chat_response("ok"))
+
+        provider = OpenRouterProvider(
+            api_key="sk-or-v1-testkey",
+            models=["anthropic/claude-3-haiku", "openai/gpt-4o-mini"],
+            provider_order=["Together"],
+        )
+        provider._client = httpx.AsyncClient(
+            transport=_CapturingTransport(),
+            base_url="https://openrouter.ai/api/v1",
+        )
+
+        await provider.call_text(
+            prompt="hi",
+            model="anthropic/claude-3.5-sonnet",
+            system="System.",
+        )
+
+        assert captured
+        body = captured[0]
+        assert body["models"] == ["anthropic/claude-3-haiku", "openai/gpt-4o-mini"]
+        assert body["provider"]["order"] == ["Anthropic", "Together"]

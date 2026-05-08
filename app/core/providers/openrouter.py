@@ -35,6 +35,14 @@ providers (OpenAI, Gemini, DeepSeek, Grok, Groq, Moonshot) OpenRouter caches
 automatically when the static prefix is byte-identical across requests; no
 markers are needed, so the existing plain-string system message is kept as-is.
 
+To make the Anthropic cache fire, the request must actually reach Anthropic's
+native API — only that backend honours ``cache_control``.  OpenRouter normally
+spreads Anthropic-model traffic across mirror providers (Amazon Bedrock,
+Google Vertex, etc.) that silently strip the marker, so for any
+``anthropic/`` model the provider pins ``provider.order`` to start with
+``"Anthropic"`` (preserving the rest of the configured order as failover).
+Non-Anthropic models keep the configured order unchanged.
+
 Cache hit metrics are extracted from ``usage.prompt_tokens_details.cached_tokens``
 and ``usage.cache_discount`` in every response and logged at INFO so operators
 can confirm savings in production.
@@ -107,6 +115,11 @@ _RETRY_AFTER_STATUSES: frozenset[int] = frozenset({429, 503})
 #
 _EXPLICIT_CACHE_PROVIDER_PREFIXES: tuple[str, ...] = ("anthropic/",)
 
+# OpenRouter's canonical name for Anthropic's native inference backend. Only
+# this backend honours ``cache_control: {type: ephemeral}`` — mirror providers
+# (Amazon Bedrock, Google Vertex, etc.) silently strip it.
+_ANTHROPIC_NATIVE_PROVIDER: str = "Anthropic"
+
 
 def _model_needs_explicit_cache_control(model: str) -> bool:
     """Return True if this model ID requires explicit cache_control markers.
@@ -170,6 +183,56 @@ def _apply_prompt_cache_control(
                 continue
         result.append(msg)
     return result
+
+
+def _resolve_provider_order_for_model(
+    base_order: list[str],
+    model: str,
+) -> list[str]:
+    """Return the provider.order list to use for a request to *model*.
+
+    For Anthropic models (``anthropic/`` prefix) this guarantees that
+    ``"Anthropic"`` is the first entry in the returned list so OpenRouter
+    routes the call to Anthropic's native API — the only backend that
+    honours ``cache_control: {type: ephemeral}`` and therefore the only one
+    that activates the prompt cache.  The configured ``base_order`` is kept
+    as failover behind ``"Anthropic"`` (and de-duplicated if it already
+    contained that name in any position).
+
+    For all other models the ``base_order`` is returned verbatim.
+
+    Args:
+        base_order: The configured provider order (may be empty).
+        model: The OpenRouter model ID (e.g. ``anthropic/claude-3.5-sonnet``).
+
+    Returns:
+        The provider order to send in the ``provider.order`` payload field.
+
+    Examples:
+        >>> _resolve_provider_order_for_model([], "anthropic/claude-3.5-sonnet")
+        ['Anthropic']
+        >>> _resolve_provider_order_for_model(
+        ...     ["Google AI Studio", "Together"],
+        ...     "anthropic/claude-3.5-haiku",
+        ... )
+        ['Anthropic', 'Google AI Studio', 'Together']
+        >>> _resolve_provider_order_for_model(
+        ...     ["Anthropic", "Together"],
+        ...     "anthropic/claude-3.5-haiku",
+        ... )
+        ['Anthropic', 'Together']
+        >>> _resolve_provider_order_for_model(
+        ...     ["Google AI Studio", "Together"],
+        ...     "openai/gpt-4o",
+        ... )
+        ['Google AI Studio', 'Together']
+    """
+    if not _model_needs_explicit_cache_control(model):
+        return list(base_order)
+    if base_order and base_order[0] == _ANTHROPIC_NATIVE_PROVIDER:
+        return list(base_order)
+    rest = [p for p in base_order if p != _ANTHROPIC_NATIVE_PROVIDER]
+    return [_ANTHROPIC_NATIVE_PROVIDER, *rest]
 
 
 def _log_cache_usage(usage: dict[str, Any], model: str, agent: str = "") -> None:
@@ -581,11 +644,21 @@ class OpenRouterProvider(LLMProvider):
         # provider.order steers which inference providers handle the request.
         # require_parameters=True ensures fallback providers support all request params
         # (e.g. response_format for structured output).
+        #
+        # For Anthropic models we always pin "Anthropic" to the front of
+        # provider.order so OpenRouter routes to Anthropic's native API — the
+        # only backend that honours the cache_control markers we inject below.
+        # Without this pin OpenRouter may dispatch the request to Bedrock /
+        # Vertex mirrors that silently strip cache_control, leaving the cache
+        # cold even on identical repeat prompts.
+        resolved_provider_order = _resolve_provider_order_for_model(
+            self._provider_order, model
+        )
         if self._models:
             payload["models"] = self._models
-        if self._models or self._provider_order:
+        if self._models or resolved_provider_order:
             payload["provider"] = {
-                "order": self._provider_order,
+                "order": resolved_provider_order,
                 "allow_fallbacks": True,
                 "require_parameters": True,
             }
