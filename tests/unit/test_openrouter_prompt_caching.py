@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
-from unittest.mock import patch
 
 import httpx
 import pytest
@@ -33,7 +32,6 @@ from app.core.providers.openrouter import (
     _log_cache_usage,
     _model_needs_explicit_cache_control,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
