@@ -112,7 +112,7 @@ class ModelEvaluator:
             logger.info("Initialized Google provider for eval")
 
         if settings.has_provider(ProviderType.OPENROUTER):
-            self.openrouter_provider = OpenRouterProvider(api_key=settings.OPENROUTER_API_KEY)
+            self.openrouter_provider = OpenRouterProvider(api_keys=settings.openrouter_keys)
             logger.info("Initialized OpenRouter provider for eval")
 
     def _get_provider(self, provider_name: str):
