@@ -1528,8 +1528,12 @@ class GenerationPipeline:
             for stub in char_identification.characters:
                 profile = state.entity_grounding_profiles.get(stub.name)
                 if profile:
-                    stub.grounded_appearance = profile.get("appearance_description") or stub.grounded_appearance
-                    stub.grounded_biography = profile.get("biography_summary") or stub.grounded_biography
+                    stub.grounded_appearance = (
+                        profile.get("appearance_description") or stub.grounded_appearance
+                    )
+                    stub.grounded_biography = (
+                        profile.get("biography_summary") or stub.grounded_biography
+                    )
             logger.debug(
                 f"Grounding profiles: injected for "
                 f"{sum(1 for s in char_identification.characters if s.grounded_biography)} character(s)"

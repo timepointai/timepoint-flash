@@ -27,9 +27,7 @@ from app.auth.gateway_signing import (
 )
 
 
-def _make_signature(
-    secret: str, method: str, path: str, user_id: str, ts: int
-) -> tuple[str, str]:
+def _make_signature(secret: str, method: str, path: str, user_id: str, ts: int) -> tuple[str, str]:
     canonical = build_canonical_string(method, path, user_id, str(ts))
     sig = compute_signature(secret, canonical)
     return str(ts), f"{SIGNATURE_VERSION}={sig}"
@@ -73,11 +71,8 @@ def _build_app(monkeypatch: pytest.MonkeyPatch, **env: str) -> FastAPI:
     async def probe(request: Request) -> JSONResponse:
         return JSONResponse(
             {
-                "gateway_verified": bool(
-                    getattr(request.state, "gateway_verified", False)
-                ),
-                "x_user_id": request.headers.get("X-User-Id")
-                or request.headers.get("X-User-ID"),
+                "gateway_verified": bool(getattr(request.state, "gateway_verified", False)),
+                "x_user_id": request.headers.get("X-User-Id") or request.headers.get("X-User-ID"),
             }
         )
 
@@ -98,9 +93,7 @@ class TestOpenMode:
 
 
 class TestLegacyServiceKey:
-    def test_valid_service_key_allowed_but_not_user_verified(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_valid_service_key_allowed_but_not_user_verified(self, monkeypatch: pytest.MonkeyPatch):
         app = _build_app(
             monkeypatch,
             FLASH_SERVICE_KEY="svc-abc",
@@ -135,9 +128,7 @@ class TestLegacyServiceKey:
         resp = client.get("/api/v1/probe")
         assert resp.status_code == 403
 
-    def test_health_always_open_even_with_service_key(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_health_always_open_even_with_service_key(self, monkeypatch: pytest.MonkeyPatch):
         app = _build_app(monkeypatch, FLASH_SERVICE_KEY="svc-abc")
         client = TestClient(app)
 
@@ -148,15 +139,11 @@ class TestLegacyServiceKey:
 class TestSignedGateway:
     SECRET = "gw-signing-secret"
 
-    def test_valid_signature_marks_request_verified(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_valid_signature_marks_request_verified(self, monkeypatch: pytest.MonkeyPatch):
         app = _build_app(monkeypatch, GATEWAY_SIGNING_SECRET=self.SECRET)
         client = TestClient(app)
 
-        ts, sig = _make_signature(
-            self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time())
-        )
+        ts, sig = _make_signature(self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time()))
         resp = client.get(
             "/api/v1/probe",
             headers={
@@ -175,9 +162,7 @@ class TestSignedGateway:
         app = _build_app(monkeypatch, GATEWAY_SIGNING_SECRET=self.SECRET)
         client = TestClient(app)
 
-        ts, sig = _make_signature(
-            self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time())
-        )
+        ts, sig = _make_signature(self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time()))
         resp = client.get(
             "/api/v1/probe",
             headers={
@@ -221,9 +206,7 @@ class TestSignedGateway:
         assert resp.status_code == 403
         assert "Gateway signature required" in resp.text
 
-    def test_require_signed_accepts_valid_signature(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_require_signed_accepts_valid_signature(self, monkeypatch: pytest.MonkeyPatch):
         app = _build_app(
             monkeypatch,
             FLASH_SERVICE_KEY="svc-abc",
@@ -232,9 +215,7 @@ class TestSignedGateway:
         )
         client = TestClient(app)
 
-        ts, sig = _make_signature(
-            self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time())
-        )
+        ts, sig = _make_signature(self.SECRET, "GET", "/api/v1/probe", "u-1", int(time.time()))
         resp = client.get(
             "/api/v1/probe",
             headers={
