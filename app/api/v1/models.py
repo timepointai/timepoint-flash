@@ -122,8 +122,8 @@ def get_configured_models() -> list[ModelInfo]:
         models.extend(
             [
                 ModelInfo(
-                    id="anthropic/claude-3.5-sonnet",
-                    name="Claude 3.5 Sonnet",
+                    id="anthropic/claude-sonnet-4.5",
+                    name="Claude Sonnet 4.5",
                     provider="openrouter",
                     capabilities=["text", "vision"],
                     context_length=200000,
@@ -465,7 +465,7 @@ async def get_providers() -> ProvidersResponse:
             provider="openrouter",
             available=openrouter_available,
             models_count=300 if openrouter_available else 0,  # Approximate
-            default_text_model="anthropic/claude-3.5-sonnet" if openrouter_available else None,
+            default_text_model="anthropic/claude-sonnet-4.5" if openrouter_available else None,
             default_image_model=settings.IMAGE_MODEL if openrouter_available else None,
         )
     )

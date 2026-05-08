@@ -399,8 +399,8 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         max_output_tokens=8192,
         notes="2.5 Flash via OpenRouter",
     ),
-    "anthropic/claude-3.5-sonnet": TextModelConfig(
-        model_id="anthropic/claude-3.5-sonnet",
+    "anthropic/claude-sonnet-4.5": TextModelConfig(
+        model_id="anthropic/claude-sonnet-4.5",
         provider="openrouter",
         supports_json_schema=False,
         supports_json_mode=True,
@@ -408,7 +408,7 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         supports_streaming=True,
         supports_extended_thinking=False,
         max_output_tokens=8192,
-        notes="Claude 3.5 Sonnet via OpenRouter",
+        notes="Claude Sonnet 4.5 via OpenRouter (claude-3.5-sonnet was retired by Anthropic)",
     ),
     "openai/gpt-4o": TextModelConfig(
         model_id="openai/gpt-4o",
