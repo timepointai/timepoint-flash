@@ -171,9 +171,7 @@ async def _resolve_or_provision_flash_user(user_id: str) -> str | None:
             existing = await session.execute(select(User).where(User.id == user_id))
             user = existing.scalar_one_or_none()
             if user is None:
-                existing = await session.execute(
-                    select(User).where(User.external_id == user_id)
-                )
+                existing = await session.execute(select(User).where(User.external_id == user_id))
                 user = existing.scalar_one_or_none()
             if user is not None:
                 return user.id
@@ -199,15 +197,15 @@ async def _resolve_or_provision_flash_user(user_id: str) -> str | None:
                     )
                 )
                 await session.commit()
-                logger.info("Provisioned Flash user %s for gateway user_id=%s", new_user.id, user_id)
+                logger.info(
+                    "Provisioned Flash user %s for gateway user_id=%s", new_user.id, user_id
+                )
                 return new_user.id
             except IntegrityError:
                 # Race: a concurrent /resolve or /mcp call won.  Re-look up
                 # by external_id and use whichever row landed.
                 await session.rollback()
-                existing = await session.execute(
-                    select(User).where(User.external_id == user_id)
-                )
+                existing = await session.execute(select(User).where(User.external_id == user_id))
                 user = existing.scalar_one_or_none()
                 return user.id if user is not None else None
     except Exception:

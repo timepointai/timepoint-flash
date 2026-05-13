@@ -712,9 +712,7 @@ class TestTpFlashGenerateGatewayIntegration:
         assert result["owner_id"] == "gw_user_123"
 
     @pytest.mark.asyncio
-    async def test_mcp_origin_tagged_on_timepoint(
-        self, _stub_generation, tool_callable
-    ):
+    async def test_mcp_origin_tagged_on_timepoint(self, _stub_generation, tool_callable):
         """All MCP-originated timepoints should be tagged api_source='mcp'."""
         token = current_bearer_user.set("user_origin_test")
         try:
@@ -784,9 +782,7 @@ class TestGatewayCreditOp:
 
         monkeypatch.setattr("app.mcp_server.httpx.AsyncClient", FakeClient)
 
-        ok, body = await _gateway_credit_op(
-            "/internal/credits/spend", {"user_id": "u1", "cost": 5}
-        )
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {"user_id": "u1", "cost": 5})
         assert ok is True
         assert body is not None
         assert body["balance_after"] == 95
