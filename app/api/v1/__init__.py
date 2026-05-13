@@ -1,11 +1,15 @@
 """API v1 module.
 
 Contains all v1 API routes.
+
+Note: /api/v1/auth/* routes were removed after the Gateway Auth Consolidation
+(2026-03-21). Tokens are now issued by the Gateway against the Gateway DB; the
+Flash-local routes only 401/500 on real traffic. Clients must call the Gateway
+(api.timepointai.com) for all auth operations. See task el-54v9t.
 """
 
 from fastapi import APIRouter
 
-from app.api.v1.auth import router as auth_router
 from app.api.v1.content import router as content_router
 from app.api.v1.credits import router as credits_router
 from app.api.v1.entities import router as entities_router
@@ -20,7 +24,6 @@ from app.api.v1.timepoints import router as timepoints_router
 from app.api.v1.users import router as users_router
 
 router = APIRouter(prefix="/api/v1")
-router.include_router(auth_router)
 router.include_router(content_router)
 router.include_router(credits_router)
 router.include_router(entities_router)
