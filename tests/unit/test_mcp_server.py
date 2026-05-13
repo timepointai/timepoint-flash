@@ -419,7 +419,13 @@ class _FakeSessionCM:
 
 @pytest.fixture
 def _stub_generation(monkeypatch):
-    """Patch DB + pipeline so tp_flash_generate doesn't hit anything real."""
+    """Patch DB + pipeline so tp_flash_generate doesn't hit anything real.
+
+    Also patches the Gateway-side credit/user helpers introduced for the MCP
+    path (see app/mcp_server.py).  Tests that care about Gateway interactions
+    re-patch them; tests that just care about validation, defaults, or shape
+    get pass-through stubs that don't make any network or DB calls.
+    """
     session = _FakeSession()
 
     def fake_get_session():
@@ -448,6 +454,21 @@ def _stub_generation(monkeypatch):
     # The tool imports get_session inside the function body using
     # ``from app.database import get_session``, so patching the attribute on
     # the module is enough.
+
+    # Stub out the Gateway helpers — by default credit-spend succeeds and
+    # the resolver echoes the bearer user_id back as the Flash user id.
+    async def fake_spend(user_id, cost, description):
+        return True, None
+
+    async def fake_refund(user_id, amount, description):
+        return None
+
+    async def fake_resolve(user_id):
+        return user_id
+
+    monkeypatch.setattr("app.mcp_server._gateway_spend_credits", fake_spend)
+    monkeypatch.setattr("app.mcp_server._gateway_refund_credits", fake_refund)
+    monkeypatch.setattr("app.mcp_server._resolve_or_provision_flash_user", fake_resolve)
 
     yield session
 
@@ -556,6 +577,336 @@ class TestTpFlashGenerate:
         """Empty strings for preset/visibility/model_policy should not error."""
         result = await tool_callable(query="rome 50 BCE", preset="", visibility="", model_policy="")
         assert "error" not in result, result
+
+
+# ============================================================================
+# tp_flash_generate — Gateway credit + Flash user resolution paths
+# ============================================================================
+
+
+@pytest.mark.fast
+class TestTpFlashGenerateGatewayIntegration:
+    """Cover the MCP-only behaviours added to fix flash-mcp-roundtrip:134.
+
+    The MCP path bypasses the Gateway's metering middleware, so the tool is
+    responsible for two things the REST proxy normally handles: charging the
+    Gateway credit ledger and resolving the bearer user_id into a Flash
+    ``users.id`` (so the ``timepoints.user_id_fkey`` constraint is satisfied).
+    """
+
+    @pytest.mark.asyncio
+    async def test_authenticated_user_triggers_credit_spend(
+        self, _stub_generation, tool_callable, monkeypatch
+    ):
+        calls: list[tuple[str, int, str]] = []
+
+        async def recording_spend(user_id, cost, description):
+            calls.append((user_id, cost, description))
+            return True, None
+
+        monkeypatch.setattr("app.mcp_server._gateway_spend_credits", recording_spend)
+
+        token = current_bearer_user.set("user_abc")
+        try:
+            result = await tool_callable(query="rome 50 BCE")
+        finally:
+            current_bearer_user.reset(token)
+
+        assert "error" not in result, result
+        assert len(calls) == 1
+        spent_user_id, spent_cost, spent_desc = calls[0]
+        assert spent_user_id == "user_abc"
+        assert spent_cost == 5  # CREDIT_COSTS["generate_balanced"]
+        assert "tp_flash_generate" in spent_desc
+
+    @pytest.mark.asyncio
+    async def test_credit_spend_failure_returns_error(
+        self, _stub_generation, tool_callable, monkeypatch
+    ):
+        async def failing_spend(user_id, cost, description):
+            return False, "Insufficient credits: have 0, need 5"
+
+        monkeypatch.setattr("app.mcp_server._gateway_spend_credits", failing_spend)
+
+        token = current_bearer_user.set("user_broke")
+        try:
+            result = await tool_callable(query="rome 50 BCE")
+        finally:
+            current_bearer_user.reset(token)
+
+        assert "error" in result
+        assert "Insufficient credits" in result["error"]
+        # No timepoint was created.
+        assert len(_stub_generation.added) == 0
+
+    @pytest.mark.asyncio
+    async def test_anonymous_caller_skips_credit_spend(
+        self, _stub_generation, tool_callable, monkeypatch
+    ):
+        called = {"flag": False}
+
+        async def recording_spend(user_id, cost, description):
+            called["flag"] = True
+            return True, None
+
+        monkeypatch.setattr("app.mcp_server._gateway_spend_credits", recording_spend)
+
+        # No bearer set → anonymous fallback.
+        result = await tool_callable(query="rome 50 BCE")
+
+        assert "error" not in result, result
+        assert result["owner_id"] == "mcp-anonymous"
+        assert called["flag"] is False
+
+    @pytest.mark.asyncio
+    async def test_user_resolution_failure_refunds_credits(
+        self, _stub_generation, tool_callable, monkeypatch
+    ):
+        refunds: list[tuple[str, int, str]] = []
+
+        async def failing_resolve(user_id):
+            return None
+
+        async def recording_refund(user_id, amount, description):
+            refunds.append((user_id, amount, description))
+
+        monkeypatch.setattr("app.mcp_server._resolve_or_provision_flash_user", failing_resolve)
+        monkeypatch.setattr("app.mcp_server._gateway_refund_credits", recording_refund)
+
+        token = current_bearer_user.set("user_unresolvable")
+        try:
+            result = await tool_callable(query="rome 50 BCE")
+        finally:
+            current_bearer_user.reset(token)
+
+        assert "error" in result
+        assert "resolve user" in result["error"].lower()
+        # Credit was refunded exactly once.
+        assert len(refunds) == 1
+        refunded_user, refunded_amount, _ = refunds[0]
+        assert refunded_user == "user_unresolvable"
+        assert refunded_amount == 5
+
+    @pytest.mark.asyncio
+    async def test_resolved_flash_user_id_assigned_to_timepoint(
+        self, _stub_generation, tool_callable, monkeypatch
+    ):
+        async def resolving(user_id):
+            # Simulate auto-provisioning returning a freshly-minted Flash id.
+            assert user_id == "gw_user_123"
+            return "flash_uuid_456"
+
+        monkeypatch.setattr("app.mcp_server._resolve_or_provision_flash_user", resolving)
+
+        token = current_bearer_user.set("gw_user_123")
+        try:
+            result = await tool_callable(query="rome 50 BCE")
+        finally:
+            current_bearer_user.reset(token)
+
+        assert "error" not in result, result
+        # The Flash user id (not the gateway id) lands on the row.
+        timepoint = _stub_generation.added[0]
+        assert timepoint.user_id == "flash_uuid_456"
+        # But owner_id in the MCP response is the caller-facing gateway id.
+        assert result["owner_id"] == "gw_user_123"
+
+    @pytest.mark.asyncio
+    async def test_mcp_origin_tagged_on_timepoint(self, _stub_generation, tool_callable):
+        """All MCP-originated timepoints should be tagged api_source='mcp'."""
+        token = current_bearer_user.set("user_origin_test")
+        try:
+            result = await tool_callable(query="rome 50 BCE")
+        finally:
+            current_bearer_user.reset(token)
+
+        assert "error" not in result, result
+        timepoint = _stub_generation.added[0]
+        assert timepoint.api_source == "mcp"
+
+
+# ============================================================================
+# _gateway_credit_op — Gateway HTTP helper
+# ============================================================================
+
+
+@pytest.mark.fast
+class TestGatewayCreditOp:
+    """The shared Gateway HTTP helper underpins both spend and refund.
+
+    Behaviour mirrors ``_verify_via_gateway`` from bearer_auth.py: missing
+    config soft-fails (returns ``(True, None)`` so local dev still works),
+    network/HTTP errors are swallowed and surfaced as ``(False, None)``.
+    """
+
+    @pytest.mark.asyncio
+    async def test_missing_config_returns_ok_none(self, monkeypatch):
+        from app.mcp_server import _gateway_credit_op
+
+        # _reset_state already clears these, but be explicit.
+        monkeypatch.delenv("GATEWAY_INTERNAL_URL", raising=False)
+        monkeypatch.delenv("GATEWAY_SERVICE_KEY", raising=False)
+
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {"user_id": "x"})
+        assert ok is True
+        assert body is None
+
+    @pytest.mark.asyncio
+    async def test_success_response_parsed(self, monkeypatch):
+        from app.mcp_server import _gateway_credit_op
+
+        monkeypatch.setenv("GATEWAY_INTERNAL_URL", "https://gateway.example.com")
+        monkeypatch.setenv("GATEWAY_SERVICE_KEY", "s3cret")
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {"success": True, "balance_after": 95, "transaction_id": "txn_1"}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return None
+
+            async def post(self, url, json, headers):
+                assert url == "https://gateway.example.com/internal/credits/spend"
+                assert headers["X-Service-Key"] == "s3cret"
+                assert json == {"user_id": "u1", "cost": 5}
+                return FakeResponse()
+
+        monkeypatch.setattr("app.mcp_server.httpx.AsyncClient", FakeClient)
+
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {"user_id": "u1", "cost": 5})
+        assert ok is True
+        assert body is not None
+        assert body["balance_after"] == 95
+
+    @pytest.mark.asyncio
+    async def test_non_200_returns_false(self, monkeypatch):
+        from app.mcp_server import _gateway_credit_op
+
+        monkeypatch.setenv("GATEWAY_INTERNAL_URL", "https://gateway.example.com")
+        monkeypatch.setenv("GATEWAY_SERVICE_KEY", "s3cret")
+
+        class FakeResponse:
+            status_code = 500
+
+            def json(self):
+                return {"detail": "boom"}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return None
+
+            async def post(self, *a, **kw):
+                return FakeResponse()
+
+        monkeypatch.setattr("app.mcp_server.httpx.AsyncClient", FakeClient)
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {})
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_success_false_in_body_returns_false(self, monkeypatch):
+        from app.mcp_server import _gateway_credit_op
+
+        monkeypatch.setenv("GATEWAY_INTERNAL_URL", "https://gateway.example.com")
+        monkeypatch.setenv("GATEWAY_SERVICE_KEY", "s3cret")
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {"success": False, "error": "Insufficient credits"}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return None
+
+            async def post(self, *a, **kw):
+                return FakeResponse()
+
+        monkeypatch.setattr("app.mcp_server.httpx.AsyncClient", FakeClient)
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {})
+        assert ok is False
+        assert body is not None
+        assert body["error"] == "Insufficient credits"
+
+    @pytest.mark.asyncio
+    async def test_network_error_returns_false_none(self, monkeypatch):
+        import httpx
+
+        from app.mcp_server import _gateway_credit_op
+
+        monkeypatch.setenv("GATEWAY_INTERNAL_URL", "https://gateway.example.com")
+        monkeypatch.setenv("GATEWAY_SERVICE_KEY", "s3cret")
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return None
+
+            async def post(self, *a, **kw):
+                raise httpx.ConnectError("boom")
+
+        monkeypatch.setattr("app.mcp_server.httpx.AsyncClient", FakeClient)
+        ok, body = await _gateway_credit_op("/internal/credits/spend", {})
+        assert ok is False
+        assert body is None
+
+
+@pytest.mark.fast
+class TestGatewaySpendCredits:
+    """The thin spend-credits wrapper bubbles up Gateway-provided error text."""
+
+    @pytest.mark.asyncio
+    async def test_propagates_gateway_error_message(self, monkeypatch):
+        from app.mcp_server import _gateway_spend_credits
+
+        async def fake_op(path, payload):
+            return False, {"success": False, "error": "Insufficient credits"}
+
+        monkeypatch.setattr("app.mcp_server._gateway_credit_op", fake_op)
+        ok, err = await _gateway_spend_credits("u1", 5, "desc")
+        assert ok is False
+        assert err is not None
+        assert "Insufficient credits" in err
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_gateway_is_soft_success(self, monkeypatch):
+        from app.mcp_server import _gateway_spend_credits
+
+        async def fake_op(path, payload):
+            # _gateway_credit_op returns (True, None) when the gateway env
+            # vars are missing.
+            return True, None
+
+        monkeypatch.setattr("app.mcp_server._gateway_credit_op", fake_op)
+        ok, err = await _gateway_spend_credits("u1", 5, "desc")
+        assert ok is True
+        assert err is None
 
 
 # ============================================================================
