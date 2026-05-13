@@ -15,9 +15,13 @@ from app.models_auth import CreditAccount, CreditTransaction, TransactionType
 
 logger = logging.getLogger(__name__)
 
-# Credit costs per operation — kept in sync with Gateway's cost table so
-# ``/credits/costs`` returns the same payload regardless of which service
-# answers the request.
+# Credit costs per operation — MUST stay in sync with the Gateway's
+# ``CREDIT_COSTS`` (gateway/auth_core/credits.py) so ``/credits/costs``
+# returns the same payload regardless of which service answers the
+# request. The Gateway table is authoritative: when adding or removing a
+# cost key, update Gateway first, then mirror the change here. The
+# Playwright contract test ``flash-deep.spec.ts`` (GET /credits/costs via
+# gateway vs direct) asserts the two ``costs`` dicts are identical.
 CREDIT_COSTS: dict[str, int] = {
     # Flash generation
     "generate_balanced": 5,
@@ -31,16 +35,11 @@ CREDIT_COSTS: dict[str, int] = {
     "conductor_base": 5,
     "conductor_generate": 5,
     "conductor_pro_sim": 15,
+    "conductor_pro_capitalization_portfolio": 5,
     "conductor_compare": 10,
     "conductor_campaign_sim": 15,
     "conductor_campaign_survey": 5,
     "conductor_compare_campaigns": 10,
-    # Funding Falcon
-    "falcon_discover": 2,
-    "falcon_pipeline": 10,
-    "falcon_simulate": 5,
-    "falcon_export": 1,
-    "falcon_run": 10,
     # SkipMeetings
     "meeting_generation": 1,
     # Clockchain
