@@ -31,8 +31,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import uuid
 from typing import Any
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -109,6 +112,201 @@ def _validate_enum(
     if normalized not in allowed:
         return None, (f"Invalid {field}={value!r}. Expected one of: {sorted(allowed)}.")
     return normalized, None
+
+
+# ---------------------------------------------------------------------------
+# Gateway-aware user/credit helpers
+# ---------------------------------------------------------------------------
+#
+# The MCP path goes DIRECTLY to flash.timepointai.com/mcp/ — it bypasses the
+# Gateway's metering middleware that normally deducts credits for REST calls
+# proxied through api.timepointai.com.  That means two things the REST path
+# normally handles for us happen here instead:
+#
+# 1. **User provisioning.**  ``BearerAuthMiddleware`` resolves a ``tp_gw_*``
+#    token to the *Gateway*'s ``user_id``.  That UUID is not guaranteed to
+#    exist in Flash's local ``users`` table — and ``timepoints.user_id`` has
+#    a FK to ``users.id``.  Setting ``timepoint.user_id`` to an unknown UUID
+#    blows up with ``ForeignKeyViolationError`` and the tool returns
+#    ``{"error": ...}`` instead of the documented ``{"id", "status", ...}``
+#    shape.  We mirror ``/api/v1/users/resolve`` semantics: look up by id
+#    first, then by ``external_id``, and auto-provision a Flash User row
+#    when neither matches.
+#
+# 2. **Credit deduction.**  The Gateway is the authoritative credit ledger
+#    (see ``project_auth_consolidation.md``).  REST callers get debited by
+#    the metering middleware in front of the Gateway proxy; MCP callers
+#    don't.  We deduct up-front via the Gateway's internal
+#    ``/internal/credits/spend`` endpoint so the same ``tp_gw_*`` key
+#    produces the same balance change regardless of transport.
+
+
+_GATEWAY_GENERATION_COST: int = 5  # mirrors CREDIT_COSTS["generate_balanced"]
+
+
+async def _resolve_or_provision_flash_user(user_id: str) -> str | None:
+    """Return a Flash ``User.id`` for the gateway-resolved ``user_id``.
+
+    Looks up by ``User.id`` first, then ``User.external_id`` (the gateway
+    user_id is stored there by ``/api/v1/users/resolve``).  If neither
+    matches, provisions a fresh Flash User + vestigial CreditAccount,
+    matching the auto-provisioning behaviour of ``resolve_user`` in
+    ``app/api/v1/users.py``.  Returns ``None`` on any error so the caller
+    can fall back to creating an unowned timepoint rather than 500'ing.
+
+    The Flash User's ``apple_sub`` placeholder uses a ``gateway:`` prefix
+    so it can never collide with a real Apple Sign-In subject (those are
+    opaque Apple identifiers, not UUID-shaped).  ``external_id`` is set to
+    the gateway user_id so a subsequent ``/api/v1/users/resolve`` call for
+    the same identity is idempotent.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+
+    from app.database import get_session
+    from app.models_auth import CreditAccount, User
+
+    try:
+        async with get_session() as session:
+            existing = await session.execute(select(User).where(User.id == user_id))
+            user = existing.scalar_one_or_none()
+            if user is None:
+                existing = await session.execute(
+                    select(User).where(User.external_id == user_id)
+                )
+                user = existing.scalar_one_or_none()
+            if user is not None:
+                return user.id
+
+            new_user = User(
+                id=str(uuid.uuid4()),
+                apple_sub=f"gateway:{user_id}",
+                external_id=user_id,
+            )
+            session.add(new_user)
+            try:
+                await session.flush()
+                # Match resolve_user(): every Flash User gets a credit
+                # account row.  The Gateway is the authoritative ledger, so
+                # we seed balance=0 here instead of granting Flash signup
+                # credits a second time.
+                session.add(
+                    CreditAccount(
+                        id=str(uuid.uuid4()),
+                        user_id=new_user.id,
+                        balance=0,
+                        lifetime_earned=0,
+                    )
+                )
+                await session.commit()
+                logger.info("Provisioned Flash user %s for gateway user_id=%s", new_user.id, user_id)
+                return new_user.id
+            except IntegrityError:
+                # Race: a concurrent /resolve or /mcp call won.  Re-look up
+                # by external_id and use whichever row landed.
+                await session.rollback()
+                existing = await session.execute(
+                    select(User).where(User.external_id == user_id)
+                )
+                user = existing.scalar_one_or_none()
+                return user.id if user is not None else None
+    except Exception:
+        logger.exception("Failed to resolve/provision Flash user for gateway id=%s", user_id)
+        return None
+
+
+async def _gateway_credit_op(
+    path: str,
+    payload: dict[str, Any],
+) -> tuple[bool, dict[str, Any] | None]:
+    """POST to a Gateway ``/internal/credits/*`` endpoint.
+
+    Returns ``(ok, body)`` — ``ok`` is True only when the HTTP call returned
+    2xx AND the JSON body has ``success: True``.  ``body`` is the parsed
+    JSON when available so the caller can surface ``error`` strings or
+    ``balance_after``.
+
+    Both ``GATEWAY_INTERNAL_URL`` and ``GATEWAY_SERVICE_KEY`` must be set —
+    when either is missing we return ``(True, None)`` so local dev (no
+    Gateway) doesn't break the MCP tool.  This matches the soft-fail
+    behaviour of ``BearerAuthMiddleware``.
+    """
+    gateway_url = os.environ.get("GATEWAY_INTERNAL_URL", "").rstrip("/")
+    service_key = os.environ.get("GATEWAY_SERVICE_KEY", "")
+    if not gateway_url or not service_key:
+        return True, None
+
+    url = f"{gateway_url}{path}"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers={"X-Service-Key": service_key, "Content-Type": "application/json"},
+            )
+    except (httpx.HTTPError, OSError) as exc:
+        logger.warning("Gateway %s failed (network): %s", path, exc)
+        return False, None
+
+    if response.status_code != 200:
+        logger.warning("Gateway %s returned HTTP %d", path, response.status_code)
+        return False, None
+
+    try:
+        body = response.json()
+    except ValueError:
+        logger.warning("Gateway %s returned non-JSON body", path)
+        return False, None
+
+    if not isinstance(body, dict):
+        return False, None
+    return bool(body.get("success", False)), body
+
+
+async def _gateway_spend_credits(
+    user_id: str, cost: int, description: str
+) -> tuple[bool, str | None]:
+    """Deduct ``cost`` credits from the Gateway's ledger for ``user_id``.
+
+    Returns ``(success, error_message)``.  Success is True both when the
+    Gateway confirms a deduction and when the Gateway is intentionally
+    unconfigured (local dev).  On failure, ``error_message`` carries a
+    short reason suitable for an MCP ``{"error": ...}`` response.
+    """
+    ok, body = await _gateway_credit_op(
+        "/internal/credits/spend",
+        {
+            "user_id": user_id,
+            "cost": cost,
+            "transaction_type": "generation",
+            "description": description,
+        },
+    )
+    if ok:
+        return True, None
+    err = (body or {}).get("error") if isinstance(body, dict) else None
+    return False, err or "Credit deduction failed (gateway unreachable or rejected)"
+
+
+async def _gateway_refund_credits(user_id: str, amount: int, description: str) -> None:
+    """Best-effort refund via the Gateway.  Logged on failure, never raises."""
+    ok, body = await _gateway_credit_op(
+        "/internal/credits/grant",
+        {
+            "user_id": user_id,
+            "amount": amount,
+            "transaction_type": "refund",
+            "description": description,
+        },
+    )
+    if not ok:
+        err = (body or {}).get("error") if isinstance(body, dict) else None
+        logger.critical(
+            "Gateway credit refund FAILED: user=%s amount=%d error=%s",
+            user_id,
+            amount,
+            err,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +424,38 @@ async def tp_flash_generate(
         return {"error": f"Invalid model configuration: {detail}"}
 
     user_id = _current_user()
+    is_authenticated_user = bool(user_id) and user_id != "mcp-anonymous"
+
+    # Deduct credits at the Gateway BEFORE we create any DB rows.  This
+    # matches the REST endpoint semantics (credits charged on submission,
+    # refunded on background failure) and mirrors the metering middleware
+    # behaviour for the proxy path.  Gateway is the authoritative ledger
+    # (see project_auth_consolidation.md); deducting here is what makes
+    # MCP-initiated generations show up on /credits/balance.
+    if is_authenticated_user:
+        spent_ok, spend_err = await _gateway_spend_credits(
+            user_id,
+            cost=_GATEWAY_GENERATION_COST,
+            description=f"mcp:tp_flash_generate ({normalized_preset or 'balanced'}): {query[:60]}",
+        )
+        if not spent_ok:
+            return {"error": spend_err or "Credit deduction failed"}
+
+    # Resolve the gateway user_id into a Flash users.id so the FK
+    # constraint on timepoints.user_id is satisfied.  Auto-provisions a
+    # Flash row when none exists for this identity.
+    flash_user_id: str | None = None
+    if is_authenticated_user:
+        flash_user_id = await _resolve_or_provision_flash_user(user_id)
+        if flash_user_id is None:
+            # Don't strand the caller's credits — refund and surface a
+            # structured error.
+            await _gateway_refund_credits(
+                user_id,
+                _GATEWAY_GENERATION_COST,
+                description=f"mcp:tp_flash_generate user-resolution-failed: {query[:60]}",
+            )
+            return {"error": "Failed to resolve user in Flash database"}
 
     # Create a PROCESSING timepoint row and schedule the pipeline.  We do
     # this in a short-lived session so we don't block the MCP request on
@@ -238,8 +468,11 @@ async def tp_flash_generate(
         query=query,
         status=TimepointStatus.PROCESSING,
     )
-    if user_id and user_id != "mcp-anonymous":
-        timepoint.user_id = user_id
+    if flash_user_id:
+        timepoint.user_id = flash_user_id
+    # Tag the row as MCP-originated so observability dashboards and the
+    # background-task refund path can tell the two transports apart.
+    timepoint.api_source = "mcp"
     if normalized_visibility:
         try:
             timepoint.visibility = TimepointVisibility(normalized_visibility)
@@ -253,6 +486,13 @@ async def tp_flash_generate(
             await session.refresh(timepoint)
     except Exception as exc:
         logger.exception("Failed to create timepoint row for MCP request")
+        # Refund — we already deducted credits at the Gateway above.
+        if is_authenticated_user:
+            await _gateway_refund_credits(
+                user_id,
+                _GATEWAY_GENERATION_COST,
+                description=f"mcp:tp_flash_generate timepoint-create-failed: {query[:60]}",
+            )
         return {"error": f"Failed to create timepoint: {exc}"}
 
     # Fire-and-forget background generation.  We use asyncio.create_task
