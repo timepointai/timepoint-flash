@@ -30,6 +30,14 @@ Reference for building the TIMEPOINT Flash iOS client. Covers credentials, auth 
 
 ## 2. Auth Flow
 
+> **Auth moved to the API Gateway (2026-03-21).** All `/auth/*` endpoints
+> below are now served at `https://api.timepointai.com/auth/*`, not by
+> Flash. Flash still validates the Bearer JWT that the Gateway issues
+> (`JWT_SECRET_KEY` is shared between the two services). Treat the paths
+> in this section as Gateway paths, and direct iOS clients at
+> `api.timepointai.com` for sign-in, refresh, logout, profile, and account
+> deletion. See the Gateway's OpenAPI docs for the canonical surface.
+
 ### Dev Admin Setup (Testing Without iOS)
 
 To test the full auth flow without an iOS device, set the `ADMIN_API_KEY` secret and use the dev admin endpoints:
@@ -136,7 +144,9 @@ When receiving a 402:
 
 All endpoints are under `/api/v1`. Prefix with your deployment base URL (e.g. `https://your-domain.example.com`).
 
-### Auth (requires `AUTH_ENABLED=true`)
+### Auth (served by API Gateway — base URL `https://api.timepointai.com`)
+
+Flash no longer mounts these routes; call the Gateway directly.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
