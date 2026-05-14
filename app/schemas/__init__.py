@@ -40,6 +40,11 @@ from app.schemas.graph import Faction, GraphData, Relationship
 from app.schemas.image_prompt import ImagePromptData
 from app.schemas.judge import JudgeResult, QueryType
 from app.schemas.moment import MomentData
+from app.schemas.quick_sim import (
+    OpportunityIn,
+    QuickSimBatchRequest,
+    QuickSimMetrics,
+)
 from app.schemas.scene import SceneData, SensoryDetail
 from app.schemas.timeline import TimelineData
 from app.storage.manifest import BlobManifest, FileEntry
@@ -79,6 +84,10 @@ __all__ = [
     "build_arc_from_moment",
     # Image Prompt
     "ImagePromptData",
+    # Quick-Sim (Find Money)
+    "OpportunityIn",
+    "QuickSimBatchRequest",
+    "QuickSimMetrics",
     # Blob Storage
     "BlobManifest",
     "FileEntry",
