@@ -584,6 +584,165 @@ class GenerationPipeline:
         logger.info(f"Pipeline complete for: {query}")
         return state
 
+    async def run_quick_sim(self, query: str) -> PipelineState:
+        """Run a deliberately minimal pipeline for the Find Money quick-sim.
+
+        Quick-sim is a *fast first-pass read* per opportunity — its
+        consumer only needs enough of a rendered future-moment to ground
+        the :class:`~app.agents.quick_sim.QuickSimMetricsAgent`
+        assessment (probability_of_award / fit_score / effort / risks /
+        levers) so the user can shortlist opportunities for the slower,
+        expensive Pro deep-sim. It does **not** need character bios, a
+        relationship graph, dialog, camera composition, an image prompt,
+        or an image — those belong to the full render (:meth:`run`) and
+        to the downstream Pro deep-sim.
+
+        This path runs only **five** LLM calls::
+
+            Judge -> Timeline -> Scene -> CharacterIdentification -> Moment
+
+        versus the ~10-14 :meth:`run` issues. Everything the metrics
+        summariser reads
+        (:func:`app.api.v1.find_money.summarize_tdf_for_metrics`) — scene
+        setting/atmosphere/tension, moment plot/stakes/arc, and character
+        names — is produced; everything it ignores is skipped.
+
+        Skipped vs :meth:`run`:
+            - Grounding / EntityGrounding — opportunity-specific web
+              search, the single biggest per-opportunity latency sink and
+              non-critical to a first-pass read anyway.
+            - Graph — relationship graph, only consumed by dialog + image
+              prompt.
+            - Character bios — the parallel per-character bio fan-out;
+              quick-sim only needs character *names*, so identification
+              stubs are folded into fallback characters with no extra LLM
+              calls (see :meth:`_step_quick_sim_characters`).
+            - Camera / Dialog / Critique — full-render scene detail.
+            - ImagePrompt / ImagePromptOptimize / ImageGeneration —
+              imagery is the Pro deep-sim's job, not quick-sim's.
+
+        Args:
+            query: The future-moment framing query (see
+                :func:`app.prompts.quick_sim.build_future_moment_query`).
+
+        Returns:
+            A :class:`PipelineState` carrying judge / timeline / scene /
+            character (names) / moment data — enough for
+            :meth:`state_to_timepoint` to emit a COMPLETED future-moment
+            TDF.
+        """
+        self._init_agents()
+        self._plan_execution()
+        state = PipelineState(query=query, entity_ids=self._entity_ids, user_id=self._user_id)
+        logger.info(
+            f"Starting quick-sim pipeline for query: {query} "
+            f"(tier={self._model_tier.value}, mode={self._parallelism_mode.value})"
+        )
+
+        # Step 1: Judge — validates the query.
+        state = await self._step_judge(state)
+        if not state.is_valid:
+            logger.warning(f"quick-sim query invalid: {state.judge_result.reason}")
+            return state
+
+        # Step 2: Timeline — temporal coordinates (Scene depends on it).
+        state = await self._step_timeline(state)
+        if state.has_errors:
+            return state
+
+        # Step 3: Scene — environment / atmosphere / tension.
+        state = await self._step_scene(state)
+        if state.has_errors:
+            return state
+
+        # Step 4: Character identification ONLY — names, no bios.
+        state = await self._step_quick_sim_characters(state)
+        if state.has_errors:
+            return state
+
+        # Step 5: Moment — plot / tension arc (needs character names).
+        state = await self._step_moment(state)
+        if state.has_errors:
+            logger.warning("quick-sim moment step had errors, continuing")
+
+        logger.info(f"Quick-sim pipeline complete for: {query}")
+        return state
+
+    async def _step_quick_sim_characters(self, state: PipelineState) -> PipelineState:
+        """Identify characters for quick-sim without running bio generation.
+
+        Runs a single :class:`CharacterIdentificationAgent` call and folds
+        the resulting stubs straight into :class:`CharacterData` via
+        :func:`create_fallback_character` — zero per-character bio LLM
+        calls. Quick-sim's metrics summariser only reads character
+        *names*, so the full bio fan-out (the pipeline's most expensive
+        step) is pure waste here.
+        """
+        step = PipelineStep.CHARACTERS
+        import time
+
+        if not state.timeline_data or not state.scene_data:
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=False,
+                    error="Timeline and scene data required for characters",
+                )
+            )
+            return state
+
+        start_time = time.time()
+        query = state.judge_result.cleaned_query or state.query
+
+        id_input = CharacterIdentificationInput.from_data(
+            query=query,
+            timeline=state.timeline_data,
+            scene=state.scene_data,
+            detected_figures=state.judge_result.detected_figures,
+            grounded_context=state.grounded_context,
+        )
+        id_result = await self._char_id_agent.run(id_input)
+
+        if not id_result.success or not id_result.content:
+            state.step_results.append(
+                StepResult(
+                    step=step,
+                    success=False,
+                    error=f"Character identification failed: {id_result.error}",
+                    latency_ms=id_result.latency_ms,
+                    model_used=id_result.model_used,
+                )
+            )
+            return state
+
+        char_identification: CharacterIdentification = id_result.content
+
+        # Fold identification stubs into fallback characters — names only,
+        # zero extra LLM calls. The full pipeline would run a parallel bio
+        # call per character at this point; quick-sim does not need bios.
+        characters = [create_fallback_character(stub) for stub in char_identification.characters]
+        state.character_data = CharacterData(
+            characters=characters,
+            focal_character=char_identification.focal_character,
+            group_dynamics=char_identification.group_dynamics,
+            historical_accuracy_note=char_identification.historical_accuracy_note,
+        )
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        state.step_results.append(
+            StepResult(
+                step=step,
+                success=True,
+                data=state.character_data,
+                latency_ms=elapsed_ms,
+                model_used=id_result.model_used,
+            )
+        )
+        logger.debug(
+            f"Quick-sim characters: {len(characters)} identified in {elapsed_ms}ms (no bios)"
+        )
+        return state
+
     async def _run_standard_flow(self, state: PipelineState) -> PipelineState:
         """Run standard execution flow (SEQUENTIAL/NORMAL modes).
 

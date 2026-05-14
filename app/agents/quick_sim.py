@@ -32,6 +32,10 @@ from app.core.llm_router import LLMRouter
 from app.prompts import quick_sim as quick_sim_prompts
 from app.schemas.quick_sim import QuickSimMetrics
 
+# Quick-sim runs the metrics call at a low, fixed sampling temperature so
+# calibration stays stable across a batch.
+_METRICS_TEMPERATURE = 0.3
+
 
 @dataclass
 class QuickSimMetricsInput:
@@ -63,8 +67,25 @@ class QuickSimMetricsAgent(BaseAgent[QuickSimMetricsInput, QuickSimMetrics]):
 
     response_model = QuickSimMetrics
 
-    def __init__(self, router: LLMRouter | None = None) -> None:
-        super().__init__(router=router, name="QuickSimMetricsAgent")
+    def __init__(
+        self,
+        router: LLMRouter | None = None,
+        llm_params: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialise the metrics agent.
+
+        Args:
+            router: Shared LLM router (quick-sim passes the pipeline's
+                router so the metrics call reuses the same fast,
+                Google-native text path).
+            llm_params: Per-call LLM params (e.g. ``thinking_level``,
+                ``max_tokens``). Quick-sim forwards its tuning here so the
+                metrics call gets the same capped thinking budget as the
+                scene pipeline — without it, the metrics call falls back
+                to ``gemini-2.5-flash``'s dynamic thinking budget and
+                becomes the slowest step in the per-opportunity path.
+        """
+        super().__init__(router=router, name="QuickSimMetricsAgent", llm_params=llm_params)
 
     def get_system_prompt(self) -> str:
         return quick_sim_prompts.get_metrics_system_prompt()
@@ -85,4 +106,4 @@ class QuickSimMetricsAgent(BaseAgent[QuickSimMetricsInput, QuickSimMetrics]):
         Returns:
             AgentResult with QuickSimMetrics on success, error otherwise.
         """
-        return await self._call_llm(input_data, temperature=0.3)
+        return await self._call_llm(input_data, temperature=_METRICS_TEMPERATURE)
