@@ -31,14 +31,13 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Future-tense moment query (fed to GenerationPipeline as the user query)
 # ---------------------------------------------------------------------------
 
 FUTURE_MOMENT_TEMPLATE = (
     "Future moment, three months from today: the user is in the midst of pursuing "
-    "the opportunity \"{title}\" toward their goal — {goal}. "
+    'the opportunity "{title}" toward their goal — {goal}. '
     "Render the room, the people, and the tension at the decisive beat of the "
     "application/pitch/submission. "
     "Opportunity details: {summary} Amount: {amount}. Deadline: {deadline}. "
@@ -189,7 +188,9 @@ def get_metrics_prompt(
         title=(opportunity.get("title") or "unspecified").strip(),
         source_url=(opportunity.get("source_url") or "unspecified") or "unspecified",
         summary=(opportunity.get("summary") or "unspecified") or "unspecified",
-        amount=str(opportunity.get("amount") if opportunity.get("amount") is not None else "unspecified"),
+        amount=str(
+            opportunity.get("amount") if opportunity.get("amount") is not None else "unspecified"
+        ),
         deadline=(opportunity.get("deadline") or "unspecified") or "unspecified",
         scene_context=scene_context.strip() or "(no scene context available)",
     )

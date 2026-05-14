@@ -76,9 +76,7 @@ class QuickSimMetricsAgent(BaseAgent[QuickSimMetricsInput, QuickSimMetrics]):
             scene_context=input_data.scene_context,
         )
 
-    async def run(
-        self, input_data: QuickSimMetricsInput
-    ) -> AgentResult[QuickSimMetrics]:
+    async def run(self, input_data: QuickSimMetricsInput) -> AgentResult[QuickSimMetrics]:
         """Execute the metrics agent.
 
         Args:

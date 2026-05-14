@@ -41,7 +41,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.quick_sim import QuickSimMetricsAgent, QuickSimMetricsInput
@@ -423,7 +423,9 @@ async def _stream_batch(
     completed = 0
     errored = 0
 
-    async def _run(index: int, opportunity: OpportunityIn) -> tuple[int, OpportunityIn, dict[str, Any], bool]:
+    async def _run(
+        index: int, opportunity: OpportunityIn
+    ) -> tuple[int, OpportunityIn, dict[str, Any], bool]:
         async with semaphore:
             opp_dict = opportunity.model_dump()
             # Bill BEFORE running — refund on failure. Matches /timepoints/generate.
@@ -459,10 +461,7 @@ async def _stream_batch(
             )
             return index, opportunity, result, True
 
-    tasks = [
-        asyncio.create_task(_run(i, opp))
-        for i, opp in enumerate(request.opportunities)
-    ]
+    tasks = [asyncio.create_task(_run(i, opp)) for i, opp in enumerate(request.opportunities)]
 
     try:
         for finished in asyncio.as_completed(tasks):
@@ -604,9 +603,7 @@ async def quick_sim_batch(
     Returns:
         ``StreamingResponse`` with ``text/event-stream`` content type.
     """
-    gateway_metered = (
-        request.headers.get(_GATEWAY_METERED_HEADER, "").lower() == "true"
-    )
+    gateway_metered = request.headers.get(_GATEWAY_METERED_HEADER, "").lower() == "true"
 
     logger.info(
         "quick_sim_batch: goal=%r count=%d user=%s gateway_metered=%s preset=%s",
