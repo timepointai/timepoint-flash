@@ -114,6 +114,13 @@ You produce a structured fit assessment with five fields:
   ~0.5. A loose-shape grant for the right amount is ~0.4. Misaligned timing
   or eligibility caps this below 0.3.
 
+- effort_score (0.0-1.0): Normalised effort to pursue this opportunity, where
+  higher means more work. 0.0-0.3 = a light-touch application (a few hours, a
+  short form); 0.4-0.6 = a moderate proposal (a couple of days, a narrative +
+  one or two artefacts); 0.7-1.0 = a heavy full submission (a week or more,
+  full proposal, budget, references, site visit). This MUST be consistent with
+  effort_estimate.
+
 - effort_estimate: One short phrase. Examples: "low — 4h application",
   "moderate — 20h proposal + 1 reference letter", "high — 60h full proposal,
   budget, and site visit". Be concrete about hours and artefacts.
@@ -153,6 +160,7 @@ Respond with valid JSON matching this schema:
 {{
   "probability_of_award": 0.0-1.0,
   "fit_score": 0.0-1.0,
+  "effort_score": 0.0-1.0,
   "effort_estimate": "short phrase with hours",
   "key_risks": ["risk 1", "risk 2", "..."],
   "key_levers": ["lever 1", "lever 2", "..."],
