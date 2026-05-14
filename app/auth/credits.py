@@ -40,6 +40,11 @@ CREDIT_COSTS: dict[str, int] = {
     "conductor_campaign_sim": 15,
     "conductor_campaign_survey": 5,
     "conductor_compare_campaigns": 10,
+    # Find Money — per-opportunity Quick-Sim charge. A batch of up to 15
+    # opportunities therefore tops out at 30 credits. Refunded per
+    # opportunity on failure. The Gateway batch-meters via
+    # X-Gateway-Metered: true (see Flash Phase 1.0 Gateway spec).
+    "quick_sim_per_opportunity": 2,
     # SkipMeetings
     "meeting_generation": 1,
     # Clockchain

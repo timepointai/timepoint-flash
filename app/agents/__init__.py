@@ -63,6 +63,7 @@ from app.agents.image_prompt_optimizer import (
 )
 from app.agents.judge import JudgeAgent
 from app.agents.moment import MomentAgent
+from app.agents.quick_sim import QuickSimMetricsAgent, QuickSimMetricsInput
 from app.agents.scene import SceneAgent
 from app.agents.survey import (
     SurveyAgent,
@@ -110,4 +111,7 @@ __all__ = [
     # Survey
     "SurveyAgent",
     "SurveyInput",
+    # Quick-Sim (Find Money)
+    "QuickSimMetricsAgent",
+    "QuickSimMetricsInput",
 ]

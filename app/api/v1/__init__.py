@@ -10,6 +10,7 @@ from app.api.v1.content import router as content_router
 from app.api.v1.credits import router as credits_router
 from app.api.v1.entities import router as entities_router
 from app.api.v1.eval import router as eval_router
+from app.api.v1.find_money import router as find_money_router
 from app.api.v1.interactions import router as interactions_router
 from app.api.v1.models import router as models_router
 from app.api.v1.openapi_export import router as openapi_export_router
@@ -33,5 +34,6 @@ router.include_router(interactions_router)
 router.include_router(openapi_export_router)
 router.include_router(tdf_router)
 router.include_router(reground_router)
+router.include_router(find_money_router)
 
 __all__ = ["router"]
