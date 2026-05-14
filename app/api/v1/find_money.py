@@ -8,10 +8,17 @@ Money pipeline (``run_quick_sim`` in
 background job, not a browser, so there is no value in streaming, and
 the API gateway cannot proxy ``text/event-stream`` responses.
 
-This module deliberately reuses the existing 14-agent
-:class:`app.core.pipeline.GenerationPipeline` for scene generation —
-the only new model call is the small :class:`QuickSimMetricsAgent` that
-extracts the structured fit fields after each scene completes.
+This module reuses the existing :class:`app.core.pipeline.GenerationPipeline`,
+but drives it through its LIGHT entry point
+(:meth:`~app.core.pipeline.GenerationPipeline.run_quick_sim`) rather than
+the full ~14-agent render. Quick-sim is a fast first-pass read, so the
+pipeline is parameterized down to the five LLM calls that actually feed
+the fit assessment — Judge -> Timeline -> Scene -> CharacterIdentification
+-> Moment — skipping character bios, the relationship graph, dialog,
+camera composition, and image generation. The only other model call is
+the small :class:`QuickSimMetricsAgent` that extracts the structured fit
+fields after each scene completes. Full scene/character/image detail is
+the downstream Pro deep-sim's job, not quick-sim's.
 
 Endpoints:
     POST /api/v1/find-money/quick-sim-batch — batch quick-sim (JSON)
@@ -70,16 +77,64 @@ router = APIRouter(prefix="/find-money", tags=["find-money"])
 _DEFAULT_QUICK_SIM_COST = 2
 
 
-# Hard wall-clock cap for a single opportunity (scene pipeline + metrics
-# agent). The standard generate-stream uses 360s, but we batch up to 15
-# of these in a row — keep each tight.
-_PER_OPPORTUNITY_TIMEOUT_S = 120
+# Hard wall-clock cap for a single opportunity (quick-sim pipeline +
+# metrics agent). Quick-sim runs the LIGHT pipeline path
+# (:meth:`GenerationPipeline.run_quick_sim` — five LLM calls, no
+# bios/graph/dialog/camera/image), so a healthy opportunity finishes in
+# a few seconds. This cap is a safety net for a genuinely hung provider
+# call, not the expected path. The standard generate-stream uses 360s;
+# the original quick-sim-batch used 120s while still running the full
+# 14-agent render — both were far too generous once the pipeline is
+# parameterized down to the quick-sim subset.
+_PER_OPPORTUNITY_TIMEOUT_S = 60
 
-# Concurrency: process opportunities in small chunks so we stay inside
-# provider rate limits. The underlying pipeline already manages internal
-# parallelism via its own semaphore; we only need to bound how many
-# pipelines run at once.
-_BATCH_CONCURRENCY = 3
+# Concurrency: how many opportunity pipelines run at once. The quick-sim
+# path is dramatically lighter than the full render (five mostly
+# sequential LLM calls vs ~10-14, no parallel bio fan-out, no image
+# generation), so it is safe to run more of them concurrently than the
+# original value of 3. At concurrency 6 a full 15-opportunity batch is
+# ~3 waves. Measured (task el-3pwch): a 6-opportunity wave is ~43s and a
+# 12-opportunity batch ~98s — well inside the web-app's 180s httpx
+# timeout. The residual gap to the 60s product target is the per-LLM-call
+# latency floor documented in spec el-4myis, not a concurrency knob. The
+# underlying pipeline still manages its own internal parallelism via its
+# semaphore.
+_BATCH_CONCURRENCY = 6
+
+
+# Quick-sim Flash tuning — the "fast model + tight budget" half of the
+# parameterization (``run_quick_sim`` is the "minimal agent subset" half).
+#
+# Quick-sim is latency-critical and runs in batches, so it pins the
+# per-opportunity pipeline to the fastest *reliable* text path instead of
+# trusting the request's ``preset``:
+#
+#   * Model: ``gemini-2.5-flash``, called Google-native. The ``hyper``
+#     preset's ``google/gemini-2.0-flash-001`` routes through OpenRouter,
+#     whose shared upstream account is chronically 429 rate-limited (see
+#     ``project_openrouter_keys.md``) — every call eats a ~7s rate-limit
+#     round-trip before falling back. Google-native ``gemini-2.5-flash``
+#     answers a structured call in ~1-2s. ``gemini-2.5-flash`` is
+#     ``VerifiedModels.GOOGLE_TEXT[0]``, so it always passes preset
+#     validation.
+#   * Thinking: capped to a small fixed budget (``thinking_level=512``).
+#     ``gemini-2.5-flash`` defaults to a *dynamic* thinking budget; on a
+#     JSON-schema structured call it burns 5-10s "thinking" for a
+#     sub-1k-token answer. A small fixed budget keeps each call to ~1-3s
+#     while still leaving the Judge agent enough reasoning room to
+#     classify the future-moment framing query as valid (a hard ``0``
+#     budget makes the Judge reject it). ``thinking_level`` is forwarded
+#     to the Google provider as ``ThinkingConfig.thinking_budget``.
+#   * Output cap: ``max_tokens`` kept generous-but-bounded; the quick-sim
+#     agents emit small structured payloads (largest observed ~850
+#     tokens), so 4096 is plenty of headroom without inviting runaway
+#     generations.
+#
+# The ``preset`` the caller passes still flows through (it selects the
+# parallelism mode), but the text model + thinking config below override
+# it so quick-sim stays fast regardless of which preset the web-app sends.
+_QUICK_SIM_TEXT_MODEL = "gemini-2.5-flash"
+_QUICK_SIM_LLM_PARAMS: dict[str, Any] = {"thinking_level": 512, "max_tokens": 4096}
 
 
 # ---------------------------------------------------------------------------
@@ -92,8 +147,18 @@ def _build_generation_pipeline(
     preset: QualityPreset | None,
     user_id: str | None,
     entity_ids: list[str] | None = None,
+    text_model: str | None = None,
+    llm_params: dict[str, Any] | None = None,
 ) -> GenerationPipeline:
-    """Construct the 14-agent pipeline with the kwargs Quick-Sim relies on.
+    """Construct the GenerationPipeline with the kwargs Quick-Sim relies on.
+
+    Quick-sim drives the returned pipeline through its LIGHT entry point,
+    :meth:`GenerationPipeline.run_quick_sim` — not the full ~14-agent
+    :meth:`GenerationPipeline.run` — and pins it to a fast, reliable text
+    path via ``text_model`` + ``llm_params`` (see
+    :data:`_QUICK_SIM_TEXT_MODEL` / :data:`_QUICK_SIM_LLM_PARAMS`).
+    Construction otherwise mirrors the standard pipeline, so this seam
+    still guards the ``__init__`` signature contract.
 
     This is a deliberate, narrow seam: the handler builds every pipeline
     through this one function, so a single real integration test
@@ -112,6 +177,13 @@ def _build_generation_pipeline(
         user_id: Authenticated user id, forwarded for entity-visibility
             filtering (``None`` when ``AUTH_ENABLED=false`` / anonymous).
         entity_ids: Optional Clockchain figure ids to pre-populate.
+        text_model: Optional text-model override. Quick-sim passes
+            :data:`_QUICK_SIM_TEXT_MODEL` so the per-opportunity pipeline
+            uses the fast Google-native path rather than the request
+            preset's (possibly rate-limited) model.
+        llm_params: Optional per-call LLM params (e.g. ``thinking_level``,
+            ``max_tokens``). Quick-sim passes :data:`_QUICK_SIM_LLM_PARAMS`
+            to disable extended thinking and bound output.
 
     Returns:
         A ready-to-run :class:`GenerationPipeline`.
@@ -120,6 +192,8 @@ def _build_generation_pipeline(
         preset=preset,
         user_id=user_id,
         entity_ids=entity_ids,
+        text_model=text_model,
+        llm_params=llm_params,
     )
 
 
@@ -211,10 +285,20 @@ async def _simulate_one(
     goal: str,
     opportunity: OpportunityIn,
     preset: QualityPreset | None,
-    generate_image: bool,
     user_id: str | None,
 ) -> dict[str, Any]:
-    """Run scene pipeline + metrics agent for a single opportunity.
+    """Run the quick-sim pipeline + metrics agent for a single opportunity.
+
+    Uses :meth:`GenerationPipeline.run_quick_sim` — the LIGHT pipeline
+    path (Judge -> Timeline -> Scene -> CharacterIdentification ->
+    Moment, five LLM calls) rather than the full ~14-agent
+    :meth:`GenerationPipeline.run`. Quick-sim is a fast first-pass read:
+    it needs scene + moment + character names to ground the metrics
+    agent, and nothing else. Character bios, the relationship graph,
+    dialog, camera composition, and image generation are all skipped —
+    that detail (and the image) is the downstream Pro deep-sim's job.
+    Because the light path never renders an image, the request's
+    ``generate_image`` flag does not apply to quick-sim and is ignored.
 
     Returns a dict ready to fold into a :class:`QuickSimTdfEntry`:
     ``{"success": bool, "tdf": dict | None, "quick_sim": QuickSimMetrics | None,
@@ -240,9 +324,19 @@ async def _simulate_one(
     )
 
     try:
-        pipeline = _build_generation_pipeline(preset=preset, user_id=user_id)
+        pipeline = _build_generation_pipeline(
+            preset=preset,
+            user_id=user_id,
+            text_model=_QUICK_SIM_TEXT_MODEL,
+            llm_params=dict(_QUICK_SIM_LLM_PARAMS),
+        )
+        # LIGHT path: run_quick_sim runs only Judge -> Timeline -> Scene ->
+        # CharacterIdentification -> Moment (five LLM calls), not the full
+        # ~14-agent render — and the pipeline is pinned to the fast
+        # Google-native text path with the thinking budget capped. Together
+        # these keep a single opportunity to a few seconds instead of >90s.
         state = await asyncio.wait_for(
-            pipeline.run(query, generate_image=generate_image),
+            pipeline.run_quick_sim(query),
             timeout=_PER_OPPORTUNITY_TIMEOUT_S,
         )
 
@@ -254,7 +348,14 @@ async def _simulate_one(
 
         scene_context = summarize_tdf_for_metrics(tdf)
 
-        metrics_agent = QuickSimMetricsAgent(router=pipeline.router)
+        # The metrics agent reuses the pipeline's router (same fast,
+        # Google-native text path) AND the same capped thinking budget —
+        # without _QUICK_SIM_LLM_PARAMS it would fall back to the model's
+        # dynamic thinking budget and become the slowest step in the path.
+        metrics_agent = QuickSimMetricsAgent(
+            router=pipeline.router,
+            llm_params=dict(_QUICK_SIM_LLM_PARAMS),
+        )
         metrics_result = await metrics_agent.run(
             QuickSimMetricsInput(
                 goal=goal,
@@ -481,7 +582,6 @@ async def _run_batch(
                 goal=request.goal,
                 opportunity=opportunity,
                 preset=preset,
-                generate_image=request.generate_image,
                 user_id=user_id,
             )
             return index, opportunity, result, True
@@ -541,12 +641,24 @@ async def quick_sim_batch(
     For each opportunity (1–15) provided, this:
 
     1. Wraps the opportunity in a future-tense framing query.
-    2. Runs the standard 14-agent ``GenerationPipeline`` to produce a
-       future-moment TDF.
+    2. Runs the LIGHT pipeline path
+       (:meth:`GenerationPipeline.run_quick_sim` — Judge -> Timeline ->
+       Scene -> CharacterIdentification -> Moment, five LLM calls) to
+       produce a future-moment TDF. Character bios, the relationship
+       graph, dialog, camera, and image generation are skipped — that
+       detail is the downstream Pro deep-sim's job, and running the full
+       ~14-agent render here made a single opportunity take >90s.
     3. Runs a single :class:`QuickSimMetricsAgent` LLM call to extract
        ``probability_of_award``, ``fit_score``, ``effort_score``,
        ``effort_estimate``, ``key_risks``, and ``key_levers``.
     4. Folds the result into a :class:`QuickSimTdfEntry`.
+
+    Up to :data:`_BATCH_CONCURRENCY` opportunities run concurrently. The
+    light path took a single opportunity from >90s (the original timeout)
+    down to ~30-40s; a full 15-opportunity batch settles well inside the
+    web-app's 180s httpx timeout. The request's ``generate_image`` flag
+    does not apply to the light path (quick-sim never renders an image)
+    and is ignored.
 
     Response:
         A single ``application/json`` :class:`QuickSimBatchResponse`

@@ -458,6 +458,189 @@ class TestGenerationPipelineIntegration:
 
 
 # ---------------------------------------------------------------------------
+# Light quick-sim pipeline parameterization (task el-3pwch)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.fast
+class TestQuickSimLightPipeline:
+    """Quick-sim drives the LIGHT pipeline path, not the full ~14-agent render.
+
+    The original endpoint ran ``GenerationPipeline.run`` — the full
+    render (Judge -> Grounding -> EntityGrounding -> Timeline -> Scene ->
+    Characters+bios -> Graph -> Moment -> Camera -> Dialog -> ImagePrompt
+    -> ...). A single opportunity took >90s, so a 15-opportunity batch
+    could never settle inside any reasonable timeout. Quick-sim only
+    needs scene + moment + character names to ground the metrics agent,
+    so it now calls ``GenerationPipeline.run_quick_sim`` — five LLM calls
+    (Judge -> Timeline -> Scene -> CharacterIdentification -> Moment).
+
+    Nothing here is mocked (per ``feedback_no_mocks.md``); these are
+    structural guards that stop before the live LLM call.
+    """
+
+    def test_pipeline_exposes_run_quick_sim(self):
+        """GenerationPipeline must expose the light ``run_quick_sim`` entry point."""
+        assert hasattr(GenerationPipeline, "run_quick_sim")
+        assert inspect.iscoroutinefunction(GenerationPipeline.run_quick_sim)
+        # It takes exactly the framing query — no generate_image, because
+        # the light path never renders an image.
+        params = inspect.signature(GenerationPipeline.run_quick_sim).parameters
+        assert list(params) == ["self", "query"]
+
+    def test_pipeline_exposes_quick_sim_characters_step(self):
+        """The light path identifies characters without the bio fan-out."""
+        assert hasattr(GenerationPipeline, "_step_quick_sim_characters")
+        assert inspect.iscoroutinefunction(GenerationPipeline._step_quick_sim_characters)
+
+    def test_run_quick_sim_skips_the_heavy_agents(self):
+        """``run_quick_sim`` must not invoke the heavy / image-path steps.
+
+        Grounding, entity grounding, the relationship graph, character
+        bios, dialog, camera, and the whole image pipeline are what made
+        a single opportunity take >90s. The light path must skip them.
+        """
+        source = inspect.getsource(GenerationPipeline.run_quick_sim)
+        # The five steps the light path DOES run.
+        assert "_step_judge(" in source
+        assert "_step_timeline(" in source
+        assert "_step_scene(" in source
+        assert "_step_quick_sim_characters(" in source
+        assert "_step_moment(" in source
+        # The steps it must NOT run.
+        for skipped in (
+            "_step_grounding(",
+            "_step_entity_grounding(",
+            "_step_graph(",
+            "_step_characters(",
+            "_step_dialog(",
+            "_step_camera(",
+            "_step_image_prompt(",
+            "_step_image_generation(",
+        ):
+            assert skipped not in source, f"run_quick_sim must not call {skipped}"
+
+    def test_quick_sim_characters_runs_no_bio_calls(self):
+        """``_step_quick_sim_characters`` identifies names only — no bio agent.
+
+        Character bios are the pipeline's most expensive fan-out (one LLM
+        call per character). Quick-sim's metrics summariser only reads
+        character *names*, so the step folds identification stubs into
+        fallback characters with zero extra LLM calls.
+        """
+        source = inspect.getsource(GenerationPipeline._step_quick_sim_characters)
+        assert "_char_id_agent" in source
+        assert "create_fallback_character(" in source
+        # No bio agent invocation.
+        assert "_char_bio_agent" not in source
+        assert "generate_bio" not in source
+
+    def test_simulate_one_uses_the_light_path(self):
+        """``_simulate_one`` must call ``run_quick_sim`` — not the full ``run``.
+
+        This is the load-bearing parameterization for task el-3pwch: if a
+        refactor points ``_simulate_one`` back at ``pipeline.run(...)``,
+        the >90s-per-opportunity regression returns.
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._simulate_one)
+        assert "run_quick_sim(" in source
+        assert "pipeline.run(" not in source
+
+    def test_per_opportunity_timeout_is_tight(self):
+        """The light path finishes in a few seconds — the timeout is a safety net.
+
+        Running the full render, 120s was barely a cap; on the light path
+        it must be far tighter so a genuinely hung provider call cannot
+        sink the batch's 60s target.
+        """
+        from app.api.v1 import find_money as fm
+
+        assert fm._PER_OPPORTUNITY_TIMEOUT_S <= 90
+        # Concurrency must let a 15-opportunity batch settle in a few waves.
+        assert fm._BATCH_CONCURRENCY >= 4
+
+    def test_quick_sim_pins_a_verified_google_native_text_model(self):
+        """Quick-sim pins the text path to a fast, verified Google-native model.
+
+        The ``hyper`` preset's ``google/gemini-2.0-flash-001`` routes
+        through OpenRouter, whose shared upstream is chronically 429
+        rate-limited — every call eats a rate-limit round-trip. Pinning a
+        Google-native model sidesteps that. The model must be in
+        :class:`VerifiedModels` so it always passes preset validation.
+        """
+        from app.api.v1 import find_money as fm
+        from app.config import VerifiedModels
+
+        assert fm._QUICK_SIM_TEXT_MODEL in VerifiedModels.GOOGLE_TEXT
+        # A Google-native id, not an OpenRouter-namespaced one.
+        assert "/" not in fm._QUICK_SIM_TEXT_MODEL
+
+    def test_quick_sim_caps_thinking_and_output_budget(self):
+        """Quick-sim caps the thinking budget and output tokens for speed.
+
+        ``gemini-2.5-flash`` defaults to a dynamic thinking budget that
+        burns 5-10s per structured call. Quick-sim is a first-pass read,
+        so it pins a small fixed ``thinking_level`` (kept > 0 — a hard 0
+        makes the Judge agent reject the future-moment query) and a
+        bounded ``max_tokens``.
+        """
+        from app.api.v1 import find_money as fm
+
+        params = fm._QUICK_SIM_LLM_PARAMS
+        assert 0 < params["thinking_level"] <= 2048
+        assert 0 < params["max_tokens"] <= 8192
+
+    def test_simulate_one_pins_model_and_thinking_budget(self):
+        """``_simulate_one`` must build the pipeline with the fast-path tuning.
+
+        Guards the parameterization wiring: the pipeline AND the metrics
+        agent both have to receive the pinned text model / capped thinking
+        budget, or the per-opportunity path slides back toward >90s.
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._simulate_one)
+        # Pipeline gets the pinned model + capped llm params.
+        assert "_QUICK_SIM_TEXT_MODEL" in source
+        assert "_QUICK_SIM_LLM_PARAMS" in source
+        # The metrics agent must also get the capped llm params — without
+        # it the metrics call falls back to the dynamic thinking budget.
+        assert "llm_params=" in source
+
+    def test_build_generation_pipeline_threads_text_model_and_llm_params(self):
+        """The construction seam forwards ``text_model`` + ``llm_params``.
+
+        These land on the real :class:`GenerationPipeline`, so a future
+        ``__init__`` signature change that drops them fails CI here.
+        """
+        pipeline = _build_generation_pipeline(
+            preset=QualityPreset.HYPER,
+            user_id=None,
+            text_model="gemini-2.5-flash",
+            llm_params={"thinking_level": 512, "max_tokens": 4096},
+        )
+        assert isinstance(pipeline, GenerationPipeline)
+        assert pipeline._text_model == "gemini-2.5-flash"
+        assert pipeline._llm_params == {"thinking_level": 512, "max_tokens": 4096}
+
+    def test_quick_sim_metrics_agent_accepts_llm_params(self):
+        """``QuickSimMetricsAgent`` must accept and store ``llm_params``.
+
+        Quick-sim passes its capped thinking budget to the metrics agent;
+        if the agent's ``__init__`` stops accepting ``llm_params`` the
+        metrics call silently reverts to the slow dynamic thinking budget.
+        """
+        from app.agents.quick_sim import QuickSimMetricsAgent
+
+        params = inspect.signature(QuickSimMetricsAgent.__init__).parameters
+        assert "llm_params" in params
+        agent = QuickSimMetricsAgent(llm_params={"thinking_level": 512})
+        assert agent._llm_params == {"thinking_level": 512}
+
+
+# ---------------------------------------------------------------------------
 # Response shape — QuickSimTdfEntry / QuickSimBatchResponse (JSON, not SSE)
 # ---------------------------------------------------------------------------
 
