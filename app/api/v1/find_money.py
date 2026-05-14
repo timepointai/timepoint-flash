@@ -470,8 +470,7 @@ async def _run_batch(
                         "tdf": None,
                         "quick_sim": None,
                         "error": (
-                            f"Insufficient credits: quick-sim costs {cost} "
-                            "credits per opportunity."
+                            f"Insufficient credits: quick-sim costs {cost} credits per opportunity."
                         ),
                         "latency_ms": 0,
                     },
