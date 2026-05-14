@@ -1,9 +1,12 @@
 """Find Money API endpoints.
 
 Hosts the ``/api/v1/find-money/quick-sim-batch`` endpoint, which renders
-1–15 opportunity stubs as future-moment TDFs and streams them back via
-Server-Sent Events. The endpoint is consumed by the web app's Find Money
-selection page (user picks top 5 of 15 before triggering Pro deep-sim).
+1–15 opportunity stubs as future-moment TDFs and returns them as a
+single JSON object. The endpoint is consumed by the web app's Find
+Money pipeline (``run_quick_sim`` in
+``timepoint-web-app/app/find_money/runs/jobs.py``) — a server-side
+background job, not a browser, so there is no value in streaming, and
+the API gateway cannot proxy ``text/event-stream`` responses.
 
 This module deliberately reuses the existing 14-agent
 :class:`app.core.pipeline.GenerationPipeline` for scene generation —
@@ -11,7 +14,7 @@ the only new model call is the small :class:`QuickSimMetricsAgent` that
 extracts the structured fit fields after each scene completes.
 
 Endpoints:
-    POST /api/v1/find-money/quick-sim-batch — SSE batch quick-sim
+    POST /api/v1/find-money/quick-sim-batch — batch quick-sim (JSON)
 
 Examples:
     >>> # curl
@@ -23,8 +26,8 @@ Examples:
     ...     ...
     ...   ]
     ... }
-    >>> # → text/event-stream of opportunity_start / opportunity_complete /
-    >>> # opportunity_error / done events.
+    >>> # → 200 {"tdfs": [ ...one entry per opportunity... ],
+    >>> #         "completed": N, "errored": M, "total": T}
 
 Tests:
     - tests/unit/test_api_find_money.py
@@ -36,12 +39,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.quick_sim import QuickSimMetricsAgent, QuickSimMetricsInput
@@ -54,7 +54,8 @@ from app.models_auth import TransactionType, User
 from app.schemas.quick_sim import (
     OpportunityIn,
     QuickSimBatchRequest,
-    QuickSimMetrics,
+    QuickSimBatchResponse,
+    QuickSimTdfEntry,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,57 +75,52 @@ _DEFAULT_QUICK_SIM_COST = 2
 # of these in a row — keep each tight.
 _PER_OPPORTUNITY_TIMEOUT_S = 120
 
-# Concurrency: process opportunities in small chunks so we stream early
-# results to the client while staying inside provider rate limits. The
-# underlying pipeline already manages internal parallelism via its own
-# semaphore; we only need to bound how many pipelines run at once.
+# Concurrency: process opportunities in small chunks so we stay inside
+# provider rate limits. The underlying pipeline already manages internal
+# parallelism via its own semaphore; we only need to bound how many
+# pipelines run at once.
 _BATCH_CONCURRENCY = 3
 
 
 # ---------------------------------------------------------------------------
-# SSE event model (kept distinct from /timepoints StreamEvent so neither
-# endpoint silently inherits the other's field changes).
+# GenerationPipeline construction seam
 # ---------------------------------------------------------------------------
 
 
-class QuickSimEvent(BaseModel):
-    """Server-Sent Event for /find-money/quick-sim-batch.
+def _build_generation_pipeline(
+    *,
+    preset: QualityPreset | None,
+    user_id: str | None,
+    entity_ids: list[str] | None = None,
+) -> GenerationPipeline:
+    """Construct the 14-agent pipeline with the kwargs Quick-Sim relies on.
 
-    Attributes:
-        event: One of ``start``, ``opportunity_start``,
-            ``opportunity_complete``, ``opportunity_error``, ``done``,
-            ``error``.
-        index: Zero-based opportunity index (None on batch-level events).
-        opportunity: The original opportunity stub from the request.
-        tdf: Full TDF payload from the scene pipeline (only on
-            ``opportunity_complete``).
-        quick_sim: :class:`QuickSimMetrics` for this opportunity (only on
-            ``opportunity_complete``).
-        error: Error message (only on ``opportunity_error`` / ``error``).
-        data: Free-form batch-level metadata (count, latency, etc.).
-        request_context: Opaque context echoed from the request.
-    """
+    This is a deliberate, narrow seam: the handler builds every pipeline
+    through this one function, so a single real integration test
+    (``tests/unit/test_api_find_money.py::TestGenerationPipelineIntegration``)
+    can construct a real :class:`GenerationPipeline` here and fail CI on
+    an ``__init__`` signature drift.
 
-    event: str
-    index: int | None = None
-    opportunity: dict[str, Any] | None = None
-    tdf: dict[str, Any] | None = None
-    quick_sim: QuickSimMetrics | None = None
-    error: str | None = None
-    data: dict[str, Any] | None = None
-    request_context: dict[str, Any] | None = None
-
-
-def _format_sse(event: QuickSimEvent) -> str:
-    """Format a QuickSimEvent as an SSE ``data:`` line.
+    PR #45 shipped a runtime crash —
+    ``TypeError: GenerationPipeline.__init__() got an unexpected keyword
+    argument 'user_id'`` — precisely because its unit tests never built a
+    real pipeline. Routing construction through this helper makes that
+    class of regression catchable without a live LLM call.
 
     Args:
-        event: The event to serialise.
+        preset: Quality preset forwarded to the pipeline (or ``None``).
+        user_id: Authenticated user id, forwarded for entity-visibility
+            filtering (``None`` when ``AUTH_ENABLED=false`` / anonymous).
+        entity_ids: Optional Clockchain figure ids to pre-populate.
 
     Returns:
-        ``"data: <json>\\n\\n"``.
+        A ready-to-run :class:`GenerationPipeline`.
     """
-    return f"data: {event.model_dump_json()}\n\n"
+    return GenerationPipeline(
+        preset=preset,
+        user_id=user_id,
+        entity_ids=entity_ids,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,13 +216,13 @@ async def _simulate_one(
 ) -> dict[str, Any]:
     """Run scene pipeline + metrics agent for a single opportunity.
 
-    Returns a dict ready to attach to a QuickSimEvent:
+    Returns a dict ready to fold into a :class:`QuickSimTdfEntry`:
     ``{"success": bool, "tdf": dict | None, "quick_sim": QuickSimMetrics | None,
        "error": str | None, "latency_ms": int}``.
 
     Failures (pipeline or metrics) are caught and returned as
-    ``success=False`` — the caller decides whether to surface as a
-    per-opportunity error event or abort the batch.
+    ``success=False`` — the caller decides whether to refund credits and
+    how to surface the failure in the batch response.
     """
     t0 = time.perf_counter()
     opp_dict = opportunity.model_dump()
@@ -244,10 +240,7 @@ async def _simulate_one(
     )
 
     try:
-        pipeline = GenerationPipeline(
-            preset=preset,
-            user_id=user_id,
-        )
+        pipeline = _build_generation_pipeline(preset=preset, user_id=user_id)
         state = await asyncio.wait_for(
             pipeline.run(query, generate_image=generate_image),
             timeout=_PER_OPPORTUNITY_TIMEOUT_S,
@@ -294,7 +287,7 @@ async def _simulate_one(
             "error": f"quick_sim timed out after {_PER_OPPORTUNITY_TIMEOUT_S}s",
             "latency_ms": int((time.perf_counter() - t0) * 1000),
         }
-    except Exception as exc:  # noqa: BLE001 — broad catch on purpose: SSE must never raise
+    except Exception as exc:  # noqa: BLE001 — broad catch: one bad opportunity must not sink the batch
         logger.exception("quick_sim opportunity %d failed", index)
         return {
             "success": False,
@@ -303,6 +296,55 @@ async def _simulate_one(
             "error": f"{type(exc).__name__}: {exc}",
             "latency_ms": int((time.perf_counter() - t0) * 1000),
         }
+
+
+# ---------------------------------------------------------------------------
+# Result → response-entry builder
+# ---------------------------------------------------------------------------
+
+
+def _build_tdf_entry(
+    *,
+    index: int,
+    opportunity: OpportunityIn,
+    result: dict[str, Any],
+) -> QuickSimTdfEntry:
+    """Fold a :func:`_simulate_one` result into a :class:`QuickSimTdfEntry`.
+
+    Pure function (no I/O) — the flat ``tdf_ref`` / ``opportunity_index`` /
+    ``title`` / ``url`` / ``summary`` / ``probability`` / ``fit_score`` /
+    ``effort_score`` / ``amount_usd`` / ``source`` shape is what the
+    web-app's Find Money pipeline pairs against
+    (``_seed_quick_sim_tdfs``), so real Flash output and the web-app
+    seed fallback are interchangeable to the selection page.
+
+    Args:
+        index: Zero-based opportunity index (request order).
+        opportunity: The original opportunity stub.
+        result: A :func:`_simulate_one` result dict.
+
+    Returns:
+        A :class:`QuickSimTdfEntry` — one entry for this opportunity.
+    """
+    success = bool(result.get("success"))
+    metrics = result.get("quick_sim")  # QuickSimMetrics | None
+
+    return QuickSimTdfEntry(
+        tdf_ref=f"flash:quick:{index}",
+        opportunity_index=index,
+        title=opportunity.title,
+        url=opportunity.source_url,
+        summary=opportunity.summary,
+        probability=metrics.probability_of_award if metrics is not None else None,
+        fit_score=metrics.fit_score if metrics is not None else None,
+        effort_score=metrics.effort_score if metrics is not None else None,
+        amount_usd=opportunity.amount,
+        source="flash-quick-sim" if success else "flash-quick-sim-error",
+        tdf=result.get("tdf"),
+        quick_sim=metrics,
+        error=result.get("error"),
+        latency_ms=int(result.get("latency_ms", 0) or 0),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +363,8 @@ async def _maybe_spend_credits(
     """Deduct credits for one opportunity, respecting the gateway header.
 
     Returns ``True`` if credits were spent (or skipped intentionally),
-    ``False`` if the user lacked balance (caller should emit error event).
+    ``False`` if the user lacked balance (caller should mark the
+    opportunity as an error and not simulate it).
 
     The Gateway sets ``X-Gateway-Metered: true`` when it has already
     metered the request; in that case we MUST NOT double-charge. See the
@@ -373,25 +416,26 @@ async def _refund_credits(
 
 
 # ---------------------------------------------------------------------------
-# SSE streaming generator
+# Batch runner
 # ---------------------------------------------------------------------------
 
 
-async def _stream_batch(
+async def _run_batch(
     *,
     request: QuickSimBatchRequest,
     user: User | None,
     session: AsyncSession,
     gateway_metered: bool,
-    disconnect_check,
-) -> AsyncGenerator[str, None]:
-    """Yield SSE events for a Quick-Sim batch.
+) -> QuickSimBatchResponse:
+    """Run a Quick-Sim batch and return the full JSON response.
 
-    Streams ``opportunity_complete`` / ``opportunity_error`` events as
-    each opportunity finishes (bounded concurrency), so the web app can
-    progressively render cards instead of waiting for the full batch.
+    Each opportunity is billed before it runs (per-opportunity, unless
+    the Gateway already metered the batch) and refunded if it fails.
+    Up to :data:`_BATCH_CONCURRENCY` opportunities run at once; the
+    response lists one :class:`QuickSimTdfEntry` per opportunity,
+    ordered by request index, so it always pairs 1:1 with the request.
     """
-    preset = None
+    preset: QualityPreset | None = None
     if request.preset:
         try:
             preset = QualityPreset(request.preset.lower())
@@ -402,26 +446,7 @@ async def _stream_batch(
     cost = CREDIT_COSTS.get("quick_sim_per_opportunity", _DEFAULT_QUICK_SIM_COST)
     user_id = user.id if user is not None else None
 
-    # ---- start event -----------------------------------------------------
-    yield _format_sse(
-        QuickSimEvent(
-            event="start",
-            data={
-                "goal": request.goal,
-                "count": len(request.opportunities),
-                "preset": preset.value if preset else (request.preset or "hyper"),
-                "generate_image": request.generate_image,
-                "concurrency": _BATCH_CONCURRENCY,
-                "per_opportunity_cost": cost if not gateway_metered else 0,
-            },
-            request_context=request.request_context,
-        )
-    )
-
-    # ---- run each opportunity --------------------------------------------
     semaphore = asyncio.Semaphore(_BATCH_CONCURRENCY)
-    completed = 0
-    errored = 0
 
     async def _run(
         index: int, opportunity: OpportunityIn
@@ -462,93 +487,37 @@ async def _stream_batch(
             return index, opportunity, result, True
 
     tasks = [asyncio.create_task(_run(i, opp)) for i, opp in enumerate(request.opportunities)]
+    settled = await asyncio.gather(*tasks)
 
-    try:
-        for finished in asyncio.as_completed(tasks):
-            # If the client hung up, abort outstanding work.
-            if disconnect_check is not None:
-                try:
-                    if await disconnect_check():
-                        logger.info("quick_sim: client disconnected, aborting batch")
-                        for t in tasks:
-                            t.cancel()
-                        return
-                except Exception:
-                    pass
+    entries: list[QuickSimTdfEntry] = []
+    completed = 0
+    errored = 0
 
-            try:
-                index, opportunity, result, billed = await finished
-            except asyncio.CancelledError:
-                continue
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("quick_sim: task crashed")
-                yield _format_sse(
-                    QuickSimEvent(
-                        event="opportunity_error",
-                        error=f"task crashed: {type(exc).__name__}: {exc}",
-                        request_context=request.request_context,
-                    )
+    for index, opportunity, result, billed in settled:
+        if result.get("success"):
+            completed += 1
+        else:
+            errored += 1
+            # Refund — caller paid for an opportunity we couldn't complete.
+            if billed:
+                opp_title = (opportunity.title or "")[:60]
+                await _refund_credits(
+                    session=session,
+                    user=user,
+                    gateway_metered=gateway_metered,
+                    cost=cost,
+                    description=f"quick-sim refund (failed): {opp_title}",
                 )
-                errored += 1
-                continue
+        entries.append(_build_tdf_entry(index=index, opportunity=opportunity, result=result))
 
-            opp_dict = opportunity.model_dump()
+    entries.sort(key=lambda e: e.opportunity_index)
 
-            if result["success"]:
-                completed += 1
-                yield _format_sse(
-                    QuickSimEvent(
-                        event="opportunity_complete",
-                        index=index,
-                        opportunity=opp_dict,
-                        tdf=result["tdf"],
-                        quick_sim=result["quick_sim"],
-                        data={"latency_ms": result["latency_ms"]},
-                        request_context=request.request_context,
-                    )
-                )
-            else:
-                errored += 1
-                # Refund — caller paid for an opportunity we couldn't complete.
-                if billed:
-                    await _refund_credits(
-                        session=session,
-                        user=user,
-                        gateway_metered=gateway_metered,
-                        cost=cost,
-                        description=(
-                            f"quick-sim refund (failed): {opp_dict.get('title', '')[:60]}"
-                        ),
-                    )
-                yield _format_sse(
-                    QuickSimEvent(
-                        event="opportunity_error",
-                        index=index,
-                        opportunity=opp_dict,
-                        tdf=result["tdf"],
-                        error=result["error"],
-                        data={"latency_ms": result["latency_ms"], "refunded": billed},
-                        request_context=request.request_context,
-                    )
-                )
-
-    finally:
-        # Cancel any still-running tasks (defensive)
-        for t in tasks:
-            if not t.done():
-                t.cancel()
-
-    # ---- done event ------------------------------------------------------
-    yield _format_sse(
-        QuickSimEvent(
-            event="done",
-            data={
-                "completed": completed,
-                "errored": errored,
-                "total": len(request.opportunities),
-            },
-            request_context=request.request_context,
-        )
+    return QuickSimBatchResponse(
+        tdfs=entries,
+        completed=completed,
+        errored=errored,
+        total=len(request.opportunities),
+        request_context=request.request_context,
     )
 
 
@@ -566,8 +535,8 @@ async def quick_sim_batch(
     request: Request,
     user: User | None = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-) -> StreamingResponse:
-    """Stream future-moment TDFs + quick-sim metrics for a batch of opportunities.
+) -> QuickSimBatchResponse:
+    """Return future-moment TDFs + quick-sim metrics for a batch of opportunities.
 
     For each opportunity (1–15) provided, this:
 
@@ -575,11 +544,18 @@ async def quick_sim_batch(
     2. Runs the standard 14-agent ``GenerationPipeline`` to produce a
        future-moment TDF.
     3. Runs a single :class:`QuickSimMetricsAgent` LLM call to extract
-       ``probability_of_award``, ``fit_score``, ``effort_estimate``,
-       ``key_risks``, and ``key_levers``.
-    4. Streams an ``opportunity_complete`` (or ``opportunity_error``)
-       SSE event as soon as that opportunity finishes — the web app can
-       render selection cards progressively.
+       ``probability_of_award``, ``fit_score``, ``effort_score``,
+       ``effort_estimate``, ``key_risks``, and ``key_levers``.
+    4. Folds the result into a :class:`QuickSimTdfEntry`.
+
+    Response:
+        A single ``application/json`` :class:`QuickSimBatchResponse`
+        (HTTP 200) — **not** an SSE stream. The consumer is the
+        web-app's ``run_quick_sim`` background job, and the API gateway
+        cannot proxy ``text/event-stream``. ``tdfs`` carries one entry
+        per opportunity (including failures, flagged
+        ``source="flash-quick-sim-error"``) so the list pairs 1:1 with
+        the request.
 
     Billing:
         Per-opportunity, using the ``quick_sim_per_opportunity`` cost
@@ -588,20 +564,14 @@ async def quick_sim_batch(
         all per-opportunity charges so the Gateway can meter at the
         batch level instead.
 
-    Response:
-        ``text/event-stream`` of :class:`QuickSimEvent` events:
-        ``start`` → ``opportunity_complete`` × N (interleaved with any
-        ``opportunity_error`` events) → ``done``.
-
     Args:
         body: :class:`QuickSimBatchRequest`.
-        request: Raw FastAPI request (used for disconnect detection and
-            the gateway-metered header).
+        request: Raw FastAPI request (used for the gateway-metered header).
         user: Authenticated user (or None when AUTH_ENABLED=false).
         session: DB session for credit ledger writes.
 
     Returns:
-        ``StreamingResponse`` with ``text/event-stream`` content type.
+        :class:`QuickSimBatchResponse` serialised as JSON with HTTP 200.
     """
     gateway_metered = request.headers.get(_GATEWAY_METERED_HEADER, "").lower() == "true"
 
@@ -614,18 +584,17 @@ async def quick_sim_batch(
         body.preset,
     )
 
-    return StreamingResponse(
-        _stream_batch(
-            request=body,
-            user=user,
-            session=session,
-            gateway_metered=gateway_metered,
-            disconnect_check=request.is_disconnected,
-        ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # disable nginx buffering
-        },
+    response = await _run_batch(
+        request=body,
+        user=user,
+        session=session,
+        gateway_metered=gateway_metered,
     )
+
+    logger.info(
+        "quick_sim_batch: done completed=%d errored=%d total=%d",
+        response.completed,
+        response.errored,
+        response.total,
+    )
+    return response
