@@ -78,12 +78,11 @@ class QuickSimMetricsAgent(BaseAgent[QuickSimMetricsInput, QuickSimMetrics]):
             router: Shared LLM router (quick-sim passes the pipeline's
                 router so the metrics call reuses the same fast,
                 Google-native text path).
-            llm_params: Per-call LLM params (e.g. ``thinking_level``,
-                ``max_tokens``). Quick-sim forwards its tuning here so the
-                metrics call gets the same capped thinking budget as the
-                scene pipeline — without it, the metrics call falls back
-                to ``gemini-2.5-flash``'s dynamic thinking budget and
-                becomes the slowest step in the per-opportunity path.
+            llm_params: Per-call LLM params (e.g. ``max_tokens``).
+                Quick-sim forwards its output cap here so the metrics call
+                uses the same bounded output as the scene pipeline.
+                The quick-sim path uses ``gemini-2.0-flash`` (non-thinking),
+                so no ``thinking_level`` is needed or valid.
         """
         super().__init__(router=router, name="QuickSimMetricsAgent", llm_params=llm_params)
 

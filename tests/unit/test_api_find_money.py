@@ -577,36 +577,35 @@ class TestQuickSimLightPipeline:
         # A Google-native id, not an OpenRouter-namespaced one.
         assert "/" not in fm._QUICK_SIM_TEXT_MODEL
 
-    def test_quick_sim_caps_thinking_and_output_budget(self):
-        """Quick-sim caps the thinking budget and output tokens for speed.
+    def test_quick_sim_caps_output_budget(self):
+        """Quick-sim caps output tokens for speed and uses a non-thinking model.
 
-        ``gemini-2.5-flash`` defaults to a dynamic thinking budget that
-        burns 5-10s per structured call. Quick-sim is a first-pass read,
-        so it pins a small fixed ``thinking_level`` (kept > 0 — a hard 0
-        makes the Judge agent reject the future-moment query) and a
-        bounded ``max_tokens``.
+        ``gemini-2.0-flash`` is a non-thinking model so no ``thinking_level``
+        is set or needed — the per-call latency floor is eliminated by the
+        model choice, not budget-capping. A bounded ``max_tokens`` guards
+        against runaway generations (largest observed quick-sim payload is
+        ~850 tokens).
         """
         from app.api.v1 import find_money as fm
 
         params = fm._QUICK_SIM_LLM_PARAMS
-        assert 0 < params["thinking_level"] <= 2048
+        assert "thinking_level" not in params  # non-thinking model, no budget needed
         assert 0 < params["max_tokens"] <= 8192
 
-    def test_simulate_one_pins_model_and_thinking_budget(self):
+    def test_simulate_one_pins_model_and_output_cap(self):
         """``_simulate_one`` must build the pipeline with the fast-path tuning.
 
         Guards the parameterization wiring: the pipeline AND the metrics
-        agent both have to receive the pinned text model / capped thinking
-        budget, or the per-opportunity path slides back toward >90s.
+        agent both have to receive the pinned text model / output cap,
+        or the per-opportunity path slides back toward >90s.
         """
         from app.api.v1 import find_money as fm
 
         source = inspect.getsource(fm._simulate_one)
-        # Pipeline gets the pinned model + capped llm params.
+        # Pipeline gets the pinned model + output-capped llm params.
         assert "_QUICK_SIM_TEXT_MODEL" in source
         assert "_QUICK_SIM_LLM_PARAMS" in source
-        # The metrics agent must also get the capped llm params — without
-        # it the metrics call falls back to the dynamic thinking budget.
+        # The metrics agent must also get the output-capped llm params.
         assert "llm_params=" in source
 
     def test_build_generation_pipeline_threads_text_model_and_llm_params(self):
@@ -614,30 +613,33 @@ class TestQuickSimLightPipeline:
 
         These land on the real :class:`GenerationPipeline`, so a future
         ``__init__`` signature change that drops them fails CI here.
+        Uses the actual quick-sim constants to catch model-change regressions.
         """
+        from app.api.v1 import find_money as fm
+
         pipeline = _build_generation_pipeline(
             preset=QualityPreset.HYPER,
             user_id=None,
-            text_model="gemini-2.5-flash",
-            llm_params={"thinking_level": 512, "max_tokens": 4096},
+            text_model=fm._QUICK_SIM_TEXT_MODEL,
+            llm_params=dict(fm._QUICK_SIM_LLM_PARAMS),
         )
         assert isinstance(pipeline, GenerationPipeline)
-        assert pipeline._text_model == "gemini-2.5-flash"
-        assert pipeline._llm_params == {"thinking_level": 512, "max_tokens": 4096}
+        assert pipeline._text_model == fm._QUICK_SIM_TEXT_MODEL
+        assert pipeline._llm_params == fm._QUICK_SIM_LLM_PARAMS
 
     def test_quick_sim_metrics_agent_accepts_llm_params(self):
         """``QuickSimMetricsAgent`` must accept and store ``llm_params``.
 
-        Quick-sim passes its capped thinking budget to the metrics agent;
+        Quick-sim passes its output cap to the metrics agent via llm_params;
         if the agent's ``__init__`` stops accepting ``llm_params`` the
-        metrics call silently reverts to the slow dynamic thinking budget.
+        output cap is lost, risking runaway generations.
         """
         from app.agents.quick_sim import QuickSimMetricsAgent
 
         params = inspect.signature(QuickSimMetricsAgent.__init__).parameters
         assert "llm_params" in params
-        agent = QuickSimMetricsAgent(llm_params={"thinking_level": 512})
-        assert agent._llm_params == {"thinking_level": 512}
+        agent = QuickSimMetricsAgent(llm_params={"max_tokens": 4096})
+        assert agent._llm_params == {"max_tokens": 4096}
 
 
 # ---------------------------------------------------------------------------

@@ -109,32 +109,30 @@ _BATCH_CONCURRENCY = 6
 # per-opportunity pipeline to the fastest *reliable* text path instead of
 # trusting the request's ``preset``:
 #
-#   * Model: ``gemini-2.5-flash``, called Google-native. The ``hyper``
-#     preset's ``google/gemini-2.0-flash-001`` routes through OpenRouter,
-#     whose shared upstream account is chronically 429 rate-limited (see
-#     ``project_openrouter_keys.md``) — every call eats a ~7s rate-limit
-#     round-trip before falling back. Google-native ``gemini-2.5-flash``
-#     answers a structured call in ~1-2s. ``gemini-2.5-flash`` is
-#     ``VerifiedModels.GOOGLE_TEXT[0]``, so it always passes preset
-#     validation.
-#   * Thinking: capped to a small fixed budget (``thinking_level=512``).
-#     ``gemini-2.5-flash`` defaults to a *dynamic* thinking budget; on a
-#     JSON-schema structured call it burns 5-10s "thinking" for a
-#     sub-1k-token answer. A small fixed budget keeps each call to ~1-3s
-#     while still leaving the Judge agent enough reasoning room to
-#     classify the future-moment framing query as valid (a hard ``0``
-#     budget makes the Judge reject it). ``thinking_level`` is forwarded
-#     to the Google provider as ``ThinkingConfig.thinking_budget``.
+#   * Model: ``gemini-2.0-flash``, called Google-native. This replaces the
+#     original ``gemini-2.5-flash`` choice after investigation task
+#     el-4qrlp measured a median 8.1s/call floor on 74 structured-output
+#     samples with ``gemini-2.5-flash`` (thinking_level=512). Reducing the
+#     thinking budget from 512 to 128 made no measurable difference, ruling
+#     out thinking-token count as the bottleneck. Root cause: ``gemini-2.5-flash``
+#     is a thinking-capable architecture with a fixed inference-time overhead
+#     that cannot be eliminated by capping the budget. ``gemini-2.0-flash`` is
+#     a non-thinking model (``supports_extended_thinking=False`` in the
+#     model registry) so zero thinking tokens are spent per call. Expected
+#     improvement: ~8s median -> ~2-4s per call, enabling the "15 opps inside
+#     60s" product target. ``gemini-2.0-flash`` is ``VerifiedModels.GOOGLE_TEXT[1]``,
+#     supports ``response_schema`` (``supports_json_schema=True``), and is
+#     called Google-native (not via OpenRouter, which is 429 rate-limited).
 #   * Output cap: ``max_tokens`` kept generous-but-bounded; the quick-sim
-#     agents emit small structured payloads (largest observed ~850
-#     tokens), so 4096 is plenty of headroom without inviting runaway
-#     generations.
+#     agents emit small structured payloads (largest observed ~850 tokens),
+#     so 4096 is plenty of headroom without inviting runaway generations.
+#     No ``thinking_level`` is needed or valid for a non-thinking model.
 #
 # The ``preset`` the caller passes still flows through (it selects the
-# parallelism mode), but the text model + thinking config below override
-# it so quick-sim stays fast regardless of which preset the web-app sends.
-_QUICK_SIM_TEXT_MODEL = "gemini-2.5-flash"
-_QUICK_SIM_LLM_PARAMS: dict[str, Any] = {"thinking_level": 512, "max_tokens": 4096}
+# parallelism mode), but the text model + output cap below override it so
+# quick-sim stays fast regardless of which preset the web-app sends.
+_QUICK_SIM_TEXT_MODEL = "gemini-2.0-flash"
+_QUICK_SIM_LLM_PARAMS: dict[str, Any] = {"max_tokens": 4096}
 
 
 # ---------------------------------------------------------------------------
@@ -181,9 +179,9 @@ def _build_generation_pipeline(
             :data:`_QUICK_SIM_TEXT_MODEL` so the per-opportunity pipeline
             uses the fast Google-native path rather than the request
             preset's (possibly rate-limited) model.
-        llm_params: Optional per-call LLM params (e.g. ``thinking_level``,
-            ``max_tokens``). Quick-sim passes :data:`_QUICK_SIM_LLM_PARAMS`
-            to disable extended thinking and bound output.
+        llm_params: Optional per-call LLM params (e.g. ``max_tokens``).
+            Quick-sim passes :data:`_QUICK_SIM_LLM_PARAMS` to bound
+            output length.
 
     Returns:
         A ready-to-run :class:`GenerationPipeline`.
@@ -333,7 +331,7 @@ async def _simulate_one(
         # LIGHT path: run_quick_sim runs only Judge -> Timeline -> Scene ->
         # CharacterIdentification -> Moment (five LLM calls), not the full
         # ~14-agent render — and the pipeline is pinned to the fast
-        # Google-native text path with the thinking budget capped. Together
+        # Google-native gemini-2.0-flash path (non-thinking model). Together
         # these keep a single opportunity to a few seconds instead of >90s.
         state = await asyncio.wait_for(
             pipeline.run_quick_sim(query),
@@ -349,9 +347,8 @@ async def _simulate_one(
         scene_context = summarize_tdf_for_metrics(tdf)
 
         # The metrics agent reuses the pipeline's router (same fast,
-        # Google-native text path) AND the same capped thinking budget —
-        # without _QUICK_SIM_LLM_PARAMS it would fall back to the model's
-        # dynamic thinking budget and become the slowest step in the path.
+        # Google-native gemini-2.0-flash path) and the same output cap —
+        # the non-thinking model incurs no thinking overhead on any call.
         metrics_agent = QuickSimMetricsAgent(
             router=pipeline.router,
             llm_params=dict(_QUICK_SIM_LLM_PARAMS),
