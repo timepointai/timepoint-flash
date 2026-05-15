@@ -239,7 +239,12 @@ class TestGenerationPipeline:
         assert timepoint.status.value == "completed"
 
     def test_state_to_timepoint_failed(self):
-        """Test converting failed state to timepoint."""
+        """Test converting failed state to timepoint.
+
+        Regression: when the judge runs successfully but rejects the query as
+        invalid, the timepoint's error_message must surface the judge's
+        rejection reason instead of the legacy "Unknown error" string.
+        """
         state = PipelineState(query="invalid query")
         state.judge_result = JudgeResult(
             is_valid=False,
@@ -254,6 +259,76 @@ class TestGenerationPipeline:
         timepoint = pipeline.state_to_timepoint(state)
 
         assert timepoint.status.value == "failed"
+        assert timepoint.error_message is not None
+        assert "Unknown error" not in timepoint.error_message
+        assert "Query too vague" in timepoint.error_message
+
+    def test_state_to_timepoint_failed_collects_step_errors(self):
+        """Failed timepoint error_message should include every failed step's error.
+
+        Previously errors were joined with no step name, so consumers could not
+        tell which step blew up. Now each entry is prefixed with the step name.
+        """
+        state = PipelineState(query="some query")
+        state.judge_result = JudgeResult(
+            is_valid=True,
+            query_type=QueryType.HISTORICAL,
+            cleaned_query="some query",
+        )
+        state.step_results = [
+            StepResult(step=PipelineStep.JUDGE, success=True),
+            StepResult(
+                step=PipelineStep.TIMELINE,
+                success=False,
+                error="upstream provider 502",
+            ),
+            StepResult(
+                step=PipelineStep.SCENE,
+                success=False,
+                error="Timeline data required for scene generation",
+            ),
+        ]
+
+        pipeline = GenerationPipeline()
+        timepoint = pipeline.state_to_timepoint(state)
+
+        assert timepoint.status.value == "failed"
+        assert timepoint.error_message is not None
+        assert "timeline: upstream provider 502" in timepoint.error_message
+        assert "scene: Timeline data required for scene generation" in timepoint.error_message
+        assert "Unknown error" not in timepoint.error_message
+
+    def test_state_to_timepoint_failed_fallback_names_steps(self):
+        """Last-resort fallback should still name what ran instead of "Unknown error".
+
+        This covers the edge case where a critical step is marked as failed but
+        somehow has no error string attached — the old code would emit literal
+        "Unknown error"; the new code names the steps that executed.
+        """
+        state = PipelineState(query="some query")
+        state.judge_result = JudgeResult(
+            is_valid=True,
+            query_type=QueryType.HISTORICAL,
+            cleaned_query="some query",
+        )
+        state.step_results = [
+            StepResult(step=PipelineStep.JUDGE, success=True),
+            # Critical step failed without populating an error string. This
+            # exists today in production e.g. when a step body raises and the
+            # caller forgets to forward .error — surface what we know instead
+            # of producing "Unknown error".
+            StepResult(step=PipelineStep.TIMELINE, success=False, error=None),
+        ]
+
+        pipeline = GenerationPipeline()
+        timepoint = pipeline.state_to_timepoint(state)
+
+        assert timepoint.status.value == "failed"
+        assert timepoint.error_message is not None
+        assert "Unknown error" not in timepoint.error_message
+        # The fallback should at minimum identify which steps executed.
+        assert "judge" in timepoint.error_message
+        assert "timeline" in timepoint.error_message
 
     def test_state_to_generation_logs(self):
         """Test converting state to generation logs."""
@@ -384,6 +459,78 @@ class TestGenerationPipeline:
         assert timepoint.tdf.get("moment_data") is not None
         assert timepoint.tdf["moment_data"]["tension_arc"] == "climactic"
         assert timepoint.tdf["moment_data"]["stakes"] == "American independence"
+
+
+@pytest.mark.fast
+class TestStepJudgeRejection:
+    """Tests for _step_judge rejection-path error surfacing.
+
+    Regression coverage for "Unknown error" appearing on the timepoint when the
+    judge LLM ran successfully but rejected the query as invalid.
+    """
+
+    async def test_step_judge_rejection_populates_step_error(self):
+        """Successful judge call that flags is_valid=False must record a step error.
+
+        Otherwise state_to_timepoint can only emit "Unknown error" — the
+        original bug that hid real rejection reasons from users.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.agents.base import AgentResult
+
+        pipeline = GenerationPipeline()
+        # Avoid real router/agent initialization
+        pipeline._judge_agent = MagicMock()
+        rejected = JudgeResult(
+            is_valid=False,
+            query_type=QueryType.INVALID,
+            reason="Query is too personal to render as a scene",
+        )
+        pipeline._judge_agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=True,
+                content=rejected,
+                latency_ms=42,
+                model_used="gemini-3-pro",
+            )
+        )
+
+        state = PipelineState(query="my wife's 43rd birthday")
+        state = await pipeline._step_judge(state)
+
+        assert state.is_valid is False
+        judge_step = state.get_step_result(PipelineStep.JUDGE)
+        assert judge_step is not None
+        # Judge rejection should now be modeled as a step failure so downstream
+        # error reporting sees it as a real failure, not a silent invalidation.
+        assert judge_step.success is False
+        assert judge_step.error is not None
+        assert "too personal" in judge_step.error
+
+    async def test_step_judge_llm_failure_still_records_error(self):
+        """Judge agent failures should still propagate the underlying error."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.agents.base import AgentResult
+
+        pipeline = GenerationPipeline()
+        pipeline._judge_agent = MagicMock()
+        pipeline._judge_agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=False,
+                error="OpenRouter 401 unauthorized",
+                latency_ms=12,
+            )
+        )
+
+        state = PipelineState(query="anything")
+        state = await pipeline._step_judge(state)
+
+        judge_step = state.get_step_result(PipelineStep.JUDGE)
+        assert judge_step is not None
+        assert judge_step.success is False
+        assert judge_step.error == "OpenRouter 401 unauthorized"
 
 
 @pytest.mark.fast

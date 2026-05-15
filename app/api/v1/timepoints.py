@@ -915,14 +915,27 @@ async def run_generation_task(
                     await _fire_callback(callback_url, resp.model_dump(mode="json"))
 
     except Exception as e:
-        logger.error(f"Background generation failed for {timepoint_id}: {e}")
+        # Log with traceback so the real cause is captured in Sentry/Logfire/
+        # Railway logs even when str(e) collapses to something opaque.
+        logger.exception(
+            "Background generation failed for %s: %s: %s",
+            timepoint_id,
+            type(e).__name__,
+            e,
+        )
         # Update status to failed and refund credits
         async with get_session() as session:
             result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
             tp = result.scalar_one_or_none()
             if tp:
                 tp.status = TimepointStatus.FAILED
-                tp.error_message = str(e)
+                # Prefix with the exception type so bare-string failures like
+                # asyncio.TimeoutError (which stringifies to "") still surface
+                # a useful identifier instead of an empty error_message.
+                err_text = str(e).strip()
+                tp.error_message = (
+                    f"{type(e).__name__}: {err_text}" if err_text else type(e).__name__
+                )
 
                 # Refund credits if this was a user-initiated generation
                 if tp.user_id:
@@ -948,12 +961,14 @@ async def run_generation_task(
 
         # Fire callback with error if requested
         if callback_url:
+            err_text = str(e).strip()
+            callback_error = f"{type(e).__name__}: {err_text}" if err_text else type(e).__name__
             await _fire_callback(
                 callback_url,
                 {
                     "id": timepoint_id,
                     "status": "failed",
-                    "error": str(e),
+                    "error": callback_error,
                     "request_context": request_context,
                 },
             )
