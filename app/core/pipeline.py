@@ -1245,12 +1245,34 @@ class GenerationPipeline:
             # Create a failed judge result
             state.judge_result = JudgeAgent.create_failed_result(result.error)
 
+        # If the judge ran successfully but rejected the query as invalid, we
+        # still want the rejection reason to surface as a step-level error so
+        # the failed timepoint's error_message is informative instead of an
+        # opaque "Unknown error". (Previously: result.success=True + judge says
+        # is_valid=False produced StepResult.error=None, which then fell
+        # through state_to_timepoint's "Unknown error" fallback.)
+        step_error = result.error
+        if (
+            step_error is None
+            and state.judge_result is not None
+            and not state.judge_result.is_valid
+        ):
+            reason = (state.judge_result.reason or "").strip()
+            step_error = (
+                f"Query rejected by judge: {reason}"
+                if reason
+                else "Query rejected by judge (no reason provided)"
+            )
+
         state.step_results.append(
             StepResult(
                 step=step,
-                success=result.success,
+                # When the judge rejects the query, treat the step as failed so
+                # downstream error reporting captures it as a real failure
+                # rather than a silent invalidation.
+                success=result.success and state.judge_result.is_valid,
                 data=state.judge_result,
-                error=result.error,
+                error=step_error,
                 latency_ms=result.latency_ms,
                 model_used=result.model_used,
             )
@@ -2377,10 +2399,60 @@ class GenerationPipeline:
 
         # Add error if failed
         if status == TimepointStatus.FAILED:
-            errors = [r.error for r in state.step_results if r.error]
-            timepoint.error_message = "; ".join(errors) if errors else "Unknown error"
+            timepoint.error_message = self._build_failure_error_message(state)
 
         return timepoint
+
+    @staticmethod
+    def _build_failure_error_message(state: PipelineState) -> str:
+        """Build a human-readable error_message for a failed pipeline run.
+
+        Replaces the legacy "Unknown error" fallback with the most informative
+        string we can reconstruct from the pipeline state:
+
+        1. Concatenate every failed step's name + error (e.g. "judge: ...; dialog: ...").
+        2. If no step recorded an error but the judge marked the query invalid,
+           surface the judge's rejection reason — that case used to produce
+           "Unknown error" because the step succeeded at the agent level even
+           though the judge said is_valid=False.
+        3. As a last resort, name the steps that ran and the steps that were
+           skipped, so debugging doesn't start from a blank string. Also log a
+           warning so we can find these cases in the logs going forward.
+        """
+        # Collect per-step failure details with step names attached so the
+        # web app / iOS app / Sentry can show "dialog: 502 Bad Gateway"
+        # instead of just "502 Bad Gateway".
+        step_failures: list[str] = []
+        for r in state.step_results:
+            if r.success or not r.error:
+                continue
+            step_failures.append(f"{r.step.value}: {r.error}")
+
+        if step_failures:
+            return "; ".join(step_failures)
+
+        # Step results had no error string. The most common path here is the
+        # judge marking the query invalid via a successful LLM call.
+        if state.judge_result is not None and not state.judge_result.is_valid:
+            reason = (state.judge_result.reason or "").strip()
+            if reason:
+                return f"Query rejected by judge: {reason}"
+            return "Query rejected by judge (no reason provided)"
+
+        # Final fallback: name what ran so the failure isn't a black box.
+        ran = [r.step.value for r in state.step_results]
+        logger.warning(
+            "Pipeline marked FAILED but no step recorded an error. "
+            "is_valid=%s, judge_result=%r, step_results=%s",
+            state.is_valid,
+            state.judge_result,
+            ran,
+        )
+        if ran:
+            return (
+                f"Generation failed with no specific step error. Steps executed: {', '.join(ran)}."
+            )
+        return "Generation failed before any pipeline step ran."
 
     def state_to_generation_logs(self, state: PipelineState) -> list[GenerationLog]:
         """Convert step results to generation logs.
