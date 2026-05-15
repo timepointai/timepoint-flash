@@ -623,6 +623,8 @@ async def stream_generation(
     disconnect_check=None,
     entity_ids: list[str] | None = None,
     user_id: str | None = None,
+    refund_cost: int = 0,
+    preset_label: str = "balanced",
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events for pipeline progress with real-time streaming.
 
@@ -639,6 +641,12 @@ async def stream_generation(
         disconnect_check: Optional async callable that returns True if client disconnected
         entity_ids: Optional Clockchain figure IDs for entity library reuse
         user_id: Optional user ID for entity visibility filtering
+        refund_cost: Credits to refund if the stream fails before emitting
+            ``done`` (timeout, pipeline exception, DB save failure, or no
+            state produced). Pass ``0`` to disable refunds (e.g. when the
+            Gateway is metering the request and Flash did not deduct).
+        preset_label: Human-readable preset name used in the refund
+            transaction description.
 
     Yields:
         SSE-formatted event strings
@@ -675,6 +683,32 @@ async def stream_generation(
     )
     state = None
     start_time = time.perf_counter()
+    done_emitted = False
+
+    async def _refund_on_failure(reason: str) -> None:
+        """Refund credits to the user when the stream fails before ``done``.
+
+        Mirrors the refund pattern in /generate (background) and
+        /generate/sync. Opens its own session because the endpoint's
+        dependency-managed session has already been closed by the time
+        this generator runs.
+        """
+        if refund_cost <= 0 or not user_id:
+            return
+        try:
+            from app.database import get_session
+
+            async with get_session() as refund_session:
+                await grant_credits(
+                    refund_session,
+                    user_id,
+                    refund_cost,
+                    TransactionType.REFUND,
+                    description=f"Refund (stream {reason}): {query[:60]}",
+                )
+            logger.info(f"Refunded {refund_cost} credits to user {user_id} after stream {reason}")
+        except Exception as refund_err:  # pragma: no cover — defensive
+            logger.error(f"Credit refund failed after stream {reason}: {refund_err}")
 
     # Debug log to verify generate_image value
     logger.info(
@@ -775,6 +809,7 @@ async def stream_generation(
                                 progress=100,
                             )
                         )
+                        done_emitted = True
                 except Exception as db_error:
                     logger.error(f"Failed to save streaming result: {db_error}")
                     # Send error event when database save fails
@@ -812,6 +847,14 @@ async def stream_generation(
                 progress=0,
             )
         )
+
+    finally:
+        # Refund credits if the stream did not reach a successful ``done``
+        # event (timeout, pipeline exception, DB save failure, or no state
+        # was produced). The endpoint deducted credits up-front; this is
+        # the inverse on the failure path. Mirrors /generate/sync.
+        if not done_emitted:
+            await _refund_on_failure("aborted")
 
 
 # Background Task for Generation
@@ -1531,6 +1574,7 @@ async def generate_timepoint_stream(
     raw_request: Request,
     user: User | None = Depends(get_current_user),
     _credits=Depends(require_credits(CREDIT_COSTS["generate_balanced"])),
+    session: AsyncSession = Depends(get_db_session),
 ) -> StreamingResponse:
     """Generate timepoint with SSE streaming progress.
 
@@ -1576,6 +1620,33 @@ async def generate_timepoint_stream(
     else:
         logger.info(f"Stream generate request: {request.query}")
 
+    # Deduct credits up-front (mirrors /generate and /generate/sync). The
+    # ``require_credits`` dependency above only verifies the balance is
+    # sufficient — it does NOT deduct. Without an explicit ``spend_credits``
+    # call the stream endpoint generates a full timepoint for free, which is
+    # the root cause of "credits do not deduct on timepoint generation"
+    # (task el-1obje). The dependency-managed ``session`` is committed by
+    # ``get_db_session`` when this function returns, BEFORE Starlette begins
+    # iterating the StreamingResponse body. Refunds inside the stream open
+    # their own session via ``get_session()``.
+    #
+    # When the Gateway has already metered the request
+    # (``X-Gateway-Metered: true``) we skip the deduction here to avoid
+    # double-charging — same pattern as ``find_money`` quick-sim-batch.
+    preset_label = request.preset or "balanced"
+    cost = 0
+    gateway_metered = raw_request.headers.get("X-Gateway-Metered", "").lower() == "true"
+    if user is not None and not gateway_metered:
+        preset_key = f"generate_{preset_label}"
+        cost = CREDIT_COSTS.get(preset_key, CREDIT_COSTS["generate_balanced"])
+        await spend_credits(
+            session,
+            user.id,
+            cost,
+            TransactionType.GENERATION,
+            description=f"Generate stream ({preset_label}): {request.query[:60]}",
+        )
+
     # Resolve model_policy → concrete models
     text_model, image_model = resolve_model_policy(request)
 
@@ -1593,6 +1664,8 @@ async def generate_timepoint_stream(
             disconnect_check=raw_request.is_disconnected,
             entity_ids=request.entity_ids,
             user_id=user.id if user is not None else None,
+            refund_cost=cost,
+            preset_label=preset_label,
         ),
         media_type="text/event-stream",
         headers={
