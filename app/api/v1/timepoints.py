@@ -712,14 +712,19 @@ async def stream_generation(
                 progress = step_progress.get(step, 0)
 
                 if result.success:
+                    step_data: dict[str, Any] = {
+                        "latency_ms": result.latency_ms,
+                        "model_used": result.model_used,
+                    }
+                    # Include per-step metadata (llm_calls, line_count, etc.) for
+                    # timing observability — useful for identifying slow steps.
+                    if result.metadata:
+                        step_data["metadata"] = result.metadata
                     yield format_sse(
                         StreamEvent(
                             event="step_complete",
                             step=step.value,
-                            data={
-                                "latency_ms": result.latency_ms,
-                                "model_used": result.model_used,
-                            },
+                            data=step_data,
                             progress=progress,
                         )
                     )

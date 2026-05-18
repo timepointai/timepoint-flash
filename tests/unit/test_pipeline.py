@@ -460,6 +460,55 @@ class TestGenerationPipeline:
         assert timepoint.tdf["moment_data"]["tension_arc"] == "climactic"
         assert timepoint.tdf["moment_data"]["stakes"] == "American independence"
 
+    def test_dialog_agent_uses_fast_model_for_thinking_text_model(self):
+        """Pipeline uses gemini-2.0-flash for dialog lines when text model is gemini-2.5-flash.
+
+        gemini-2.5-flash is a thinking model with ~7s/call overhead.
+        Sequential dialog generates up to 7 lines, so this saves ~35s per generation.
+        """
+        from app.config import QualityPreset
+
+        # BALANCED preset uses gemini-2.5-flash — should trigger the fast line model
+        pipeline = GenerationPipeline(preset=QualityPreset.BALANCED)
+        pipeline._init_agents()
+
+        # The dialog agent should have line_model set to gemini-2.0-flash
+        assert pipeline._dialog_agent is not None
+        assert pipeline._dialog_agent._line_model == "gemini-2.0-flash"
+
+    def test_dialog_agent_no_fast_model_in_permissive_mode(self):
+        """Permissive mode uses batch dialog (1 call), so line_model is irrelevant.
+
+        When model_policy=permissive, use_sequential=False — batch mode handles
+        dialog with a single structured call.  No line_model override needed.
+        """
+        from app.agents.dialog import DialogAgent
+
+        pipeline = GenerationPipeline(model_policy="permissive")
+        pipeline._init_agents()
+
+        # Permissive: batch mode, no line model override needed
+        assert pipeline._dialog_agent is not None
+        assert pipeline._dialog_agent.use_sequential is False
+        assert pipeline._dialog_agent._line_model is None
+
+    def test_dialog_agent_no_fast_model_for_openrouter_preset(self):
+        """HYPER preset (OpenRouter, gemini-2.0-flash-001) does not trigger fast line model.
+
+        The fast-model optimization only targets known thinking models — HYPER already
+        uses a non-thinking model so no override is needed.
+        """
+        from app.agents.dialog import DialogAgent
+        from app.config import QualityPreset
+
+        pipeline = GenerationPipeline(preset=QualityPreset.HYPER)
+        pipeline._init_agents()
+
+        # HYPER uses google/gemini-2.0-flash-001 (non-thinking, OpenRouter) —
+        # not in the _THINKING_TEXT_MODELS set, so line_model stays None.
+        assert pipeline._dialog_agent is not None
+        assert pipeline._dialog_agent._line_model is None
+
 
 @pytest.mark.fast
 class TestStepJudgeRejection:

@@ -266,6 +266,36 @@ class TestDialogAgent:
         assert agent.name == "DialogAgent"
         assert agent.response_model == DialogData
 
+    def test_initialization_with_line_model(self):
+        """DialogAgent stores line_model and starts with no lazy line_router."""
+        agent = DialogAgent(line_model="gemini-2.0-flash")
+        assert agent._line_model == "gemini-2.0-flash"
+        assert agent._line_router is None  # lazy — not created yet
+
+    def test_get_line_router_returns_self_router_without_line_model(self):
+        """_get_line_router returns the agent's own router when no line_model is set."""
+        mock_router = MagicMock()
+        agent = DialogAgent(router=mock_router)
+        assert agent._get_line_router() is mock_router
+
+    def test_get_line_router_creates_fast_router_when_line_model_set(self):
+        """_get_line_router creates and caches a separate fast router for line_model."""
+        from unittest.mock import patch
+
+        from app.core.llm_router import LLMRouter
+
+        mock_router = MagicMock()
+        agent = DialogAgent(router=mock_router, line_model="gemini-2.0-flash")
+
+        with patch.object(LLMRouter, "__init__", return_value=None) as mock_llm_init:
+            # Trigger lazy creation
+            line_router = agent._get_line_router()
+
+        # Should have created a LLMRouter with text_model=gemini-2.0-flash
+        mock_llm_init.assert_called_once_with(text_model="gemini-2.0-flash")
+        # Second call returns cached instance
+        assert agent._get_line_router() is line_router
+
     @pytest.mark.asyncio
     async def test_run_with_mock(self):
         """Test running with mock router."""

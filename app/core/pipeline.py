@@ -373,9 +373,28 @@ class GenerationPipeline:
         # Permissive mode: use batch dialog (1 LLM call) instead of
         # sequential roleplay (7 calls) to cut latency dramatically.
         is_permissive = bool(self._model_policy and self._model_policy.lower() == "permissive")
+
+        # For sequential dialog: avoid thinking-model overhead per line call.
+        # gemini-2.5-flash is a thinking model (~7s/call); gemini-2.0-flash
+        # is non-thinking (~2-3s/call) and equally capable for simple roleplay.
+        # With 7 lines this saves ~35s of dialog latency with no quality loss.
+        # Only applies in sequential mode (permissive uses batch — 1 call total).
+        _THINKING_TEXT_MODELS = {"gemini-2.5-flash", "gemini-2.5-pro"}
+        dialog_line_model: str | None = None
+        if not is_permissive:
+            current_text_model = router.config.get_model(ModelCapability.TEXT)
+            if current_text_model in _THINKING_TEXT_MODELS:
+                dialog_line_model = "gemini-2.0-flash"
+                logger.info(
+                    "dialog: using gemini-2.0-flash for sequential line calls "
+                    "(avoid thinking overhead on %s)",
+                    current_text_model,
+                )
+
         self._dialog_agent = DialogAgent(
             router=router,
             use_sequential=not is_permissive,
+            line_model=dialog_line_model,
         )
         self._camera_agent = CameraAgent(router=router)
         self._graph_agent = GraphAgent(router=router)

@@ -181,6 +181,10 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         name: "DialogAgent"
         max_lines: Maximum dialog lines (default 7)
         use_sequential: Whether to use sequential generation (default True)
+        line_model: Optional model override for sequential line generation.
+            When set (e.g. "gemini-2.0-flash"), each individual line call
+            uses this model instead of the pipeline's configured text model.
+            Avoids thinking-model overhead for simple roleplay prompts.
 
     Dialog Flow:
         1. First speaker's bio becomes system prompt
@@ -210,6 +214,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         router: LLMRouter | None = None,
         max_lines: int = 7,
         use_sequential: bool = True,
+        line_model: str | None = None,
     ) -> None:
         """Initialize Dialog Agent.
 
@@ -217,10 +222,19 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             router: LLM router for API calls
             max_lines: Maximum dialog lines to generate (default 7)
             use_sequential: Use sequential roleplay generation (default True)
+            line_model: Optional model override for sequential line generation.
+                When set, each per-character line call uses this model instead
+                of the pipeline's configured text model. Useful to avoid
+                thinking-model overhead (e.g. pass "gemini-2.0-flash" when the
+                pipeline text model is "gemini-2.5-flash").
         """
         super().__init__(router=router, name="DialogAgent")
         self.max_lines = max_lines
         self.use_sequential = use_sequential
+        self._line_model = line_model
+        # Lazy router for sequential line generation — created on first use
+        # so we don't pay the initialization cost if sequential mode is never taken.
+        self._line_router: LLMRouter | None = None
 
     def get_system_prompt(self) -> str:
         """Get the system prompt for batch dialog generation."""
@@ -259,6 +273,21 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             character_context=character_context,
         )
 
+    def _get_line_router(self) -> LLMRouter:
+        """Return the router to use for sequential line generation.
+
+        Creates a dedicated fast router on first access when ``line_model`` was
+        provided.  Reuses the pipeline router otherwise.
+        """
+        if self._line_model is None:
+            return self.router
+        if self._line_router is None:
+            self._line_router = LLMRouter(text_model=self._line_model)
+            logger.debug(
+                "DialogAgent: created fast line_router with model=%s", self._line_model
+            )
+        return self._line_router
+
     async def _generate_single_line(
         self,
         character: Character,
@@ -268,7 +297,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         last_speaker: str | None,
         last_line: str | None,
         beat: ArcBeat | None = None,
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
         """Generate a single dialog line for one character.
 
         Uses the character's bio as the system prompt for authentic roleplay.
@@ -283,7 +312,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             beat: Optional ArcBeat for narrative structure guidance
 
         Returns:
-            The generated dialog text, or None if generation failed
+            Tuple of (dialog_text, model_used).  Both are None if generation failed.
         """
         # Character bio becomes the system prompt
         system_prompt = character.to_system_prompt(
@@ -334,7 +363,8 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
 {user_prompt}{beat_context}"""
 
         try:
-            response = await self.router.call(
+            line_router = self._get_line_router()
+            response = await line_router.call(
                 prompt=combined_prompt,
                 temperature=0.85,  # Slightly higher for creative dialog
             )
@@ -350,11 +380,11 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             if text.startswith("'") and text.endswith("'"):
                 text = text[1:-1]
 
-            return text if text else None
+            return (text if text else None, response.model)
 
         except Exception as e:
             logger.warning(f"Failed to generate line for {character.name}: {e}")
-            return None
+            return (None, None)
 
     def _pick_next_speaker(
         self,
@@ -494,6 +524,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
         conversation_history: list[tuple[str, str]] = []
         last_speaker: str | None = None
         last_line: str | None = None
+        model_used: str | None = None  # Captured from first successful line call
 
         for i in range(self.max_lines):
             # Get current beat if arc is available
@@ -505,7 +536,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             speaker = self._pick_next_speaker(characters, conversation_history, i, beat=beat)
 
             # Generate their line
-            text = await self._generate_single_line(
+            text, call_model = await self._generate_single_line(
                 character=speaker,
                 input_data=input_data,
                 conversation_history=conversation_history,
@@ -514,6 +545,10 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
                 last_line=last_line,
                 beat=beat,
             )
+
+            # Capture model on first successful call
+            if call_model and model_used is None:
+                model_used = call_model
 
             if not text:
                 # If generation failed, try to continue with next speaker
@@ -544,6 +579,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
                 content=None,
                 error="Failed to generate any dialog lines",
                 latency_ms=elapsed_ms,
+                model_used=model_used,
                 metadata={"generation_mode": "sequential"},
             )
 
@@ -558,6 +594,7 @@ class DialogAgent(BaseAgent[DialogInput, DialogData]):
             success=True,
             content=dialog_data,
             latency_ms=elapsed_ms,
+            model_used=model_used,
             metadata={
                 "generation_mode": "sequential",
                 "line_count": len(lines),
