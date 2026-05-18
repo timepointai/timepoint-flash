@@ -105,6 +105,64 @@ class TestJudgeAgent:
         assert result.query_type == QueryType.INVALID
         assert result.reason == "API timeout"
 
+    def test_system_prompt_allows_future_events(self):
+        """System prompt must explicitly allow future personal scenarios.
+
+        This is the core product — synthetic time travel for future events.
+        The prompt must not describe 'personal' or 'future' queries as invalid.
+        """
+        agent = JudgeAgent()
+        prompt = agent.get_system_prompt()
+        # Must explicitly mention personal_future as valid
+        assert "personal_future" in prompt
+        # Must mention investor pitch as a concrete example
+        assert "investor pitch" in prompt.lower() or "pitch" in prompt.lower()
+        # Must NOT classify future events as invalid by default
+        assert "future events are invalid" not in prompt.lower()
+        assert "personal queries" not in prompt.lower() or "personal future" in prompt.lower()
+
+    def test_user_prompt_includes_personal_future_type(self):
+        """User prompt schema must list personal_future as a valid query_type."""
+        agent = JudgeAgent()
+        prompt = agent.get_prompt("my series a pitch")
+        assert "personal_future" in prompt
+
+    @pytest.mark.asyncio
+    async def test_run_personal_future_query(self):
+        """Future personal scenarios must be accepted as personal_future type.
+
+        This is the core sell: 'synthetic time travel for future events.'
+        The failing query from prod was: 'My Series A investor pitch — preview exactly
+        how it unfolds.' The judge must accept this kind of query.
+        """
+        mock_router = MagicMock()
+        mock_router.call_structured = AsyncMock(
+            return_value=LLMResponse(
+                content=JudgeResult(
+                    is_valid=True,
+                    query_type=QueryType.PERSONAL_FUTURE,
+                    cleaned_query=(
+                        "Series A investor pitch meeting — three skeptical partners "
+                        "questioning burn rate and path to profitability, conference room setting"
+                    ),
+                    confidence=0.92,
+                ),
+                model="test-model",
+                provider=ProviderType.GOOGLE,
+            )
+        )
+
+        agent = JudgeAgent(router=mock_router)
+        result = await agent.run(
+            "My Series A investor pitch — three skeptical partners asking hard questions "
+            "about burn rate and path to profitability"
+        )
+
+        assert result.success is True
+        assert result.content.is_valid is True
+        assert result.content.query_type == QueryType.PERSONAL_FUTURE
+        assert result.metadata["is_valid"] is True
+
 
 # Timeline Agent Tests
 

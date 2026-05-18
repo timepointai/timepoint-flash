@@ -1245,6 +1245,43 @@ class GenerationPipeline:
             # Create a failed judge result
             state.judge_result = JudgeAgent.create_failed_result(result.error)
 
+        # Defensive override: the SYSTEM_PROMPT explicitly says personal-future
+        # scenarios, speculative queries, and uncertain-outcome queries ARE the
+        # core product and MUST be accepted. The LLM occasionally drifts and
+        # rejects exactly those queries using the very keywords the prompt
+        # forbids ("speculative", "personal", "future", "uncertain outcome",
+        # "lacks concrete details", "prediction rather than descriptive scenario").
+        # When the judge rejects with one of those drift-class reasons, override
+        # is_valid back to true so the pipeline proceeds. Real rejections (pure
+        # data prediction, abstract concepts, technical how-to) use different
+        # rejection vocabulary and pass through normally.
+        if (
+            result.success
+            and state.judge_result is not None
+            and not state.judge_result.is_valid
+        ):
+            drift_reason = (state.judge_result.reason or "").lower()
+            DRIFT_KEYWORDS = (
+                "speculative",
+                "personal",
+                "future event",
+                "uncertain outcome",
+                "lacks concrete",
+                "prediction rather than",
+                "highly personal",
+            )
+            if any(kw in drift_reason for kw in DRIFT_KEYWORDS):
+                logger.warning(
+                    "Judge drift override: query rejected with forbidden reason "
+                    "(%s) — accepting per SYSTEM_PROMPT contract.",
+                    state.judge_result.reason,
+                )
+                # Mutate the result to valid + flag the override
+                state.judge_result.is_valid = True
+                state.judge_result.reason = (
+                    f"[director-override: judge-drift] {state.judge_result.reason}"
+                )
+
         # If the judge ran successfully but rejected the query as invalid, we
         # still want the rejection reason to surface as a step-level error so
         # the failed timepoint's error_message is informative instead of an
