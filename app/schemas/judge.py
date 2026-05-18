@@ -32,9 +32,10 @@ class QueryType(str, Enum):
 
     HISTORICAL = "historical"  # Real historical event
     FICTIONAL = "fictional"  # Fictional/literary scene
-    SPECULATIVE = "speculative"  # "What if" scenarios
+    SPECULATIVE = "speculative"  # "What if" / counterfactual scenarios
     CONTEMPORARY = "contemporary"  # Modern/recent events
-    INVALID = "invalid"  # Not a valid temporal query
+    PERSONAL_FUTURE = "personal_future"  # User's own future scenario (pitch, conversation, etc.)
+    INVALID = "invalid"  # Not a valid temporal query — nothing can be rendered
 
 
 class JudgeResult(BaseModel):
