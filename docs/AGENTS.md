@@ -52,7 +52,12 @@ Your Query: "Oppenheimer watches the Trinity test, 5:29 AM July 16 1945"
 | **Camera** | How should we frame this? | composition, focal point |
 | **ImagePrompt** | Describe the image in detail | ~5,000-11,000 character prompt with grounded facts |
 | **ImagePromptOptimizer** | Compress + physicalize emotion | ~77 words with tension translated to body language |
-| **ImageGen** | Create the image | photorealistic scene (3-tier fallback: Google Imagen → Stability AI → OpenRouter) |
+| **ImageGen** | Create the image | photorealistic scene (2-tier fallback: default = Google Imagen → OpenRouter; permissive mode = Stability AI → OpenRouter) |
+
+Two additional pipeline-adjacent agents live in `app/agents/` but are not part of the canonical 14-step generation pipeline above:
+
+- **`quick_sim`** — fast 1-call counterfactual / "what if" simulator used by the `/api/v1/find-money` endpoint and Pro Cloud's deep-sim handoff. See `app/api/v1/find_money.py`.
+- **`entity_grounding`** — entity-registry lookup helper. Resolves character names against Clockchain's `figures` table when the registry is configured. Falls back to Google Search grounding when no entity is found.
 
 Plus 3 more for interactions: **Chat** (talk to characters), **Dialog Extension** (more lines), **Survey** (ask everyone the same question). All interaction endpoints check timepoint visibility — private timepoints block non-owner access (403). Interaction endpoints require a Bearer JWT and deduct credits.
 
@@ -280,13 +285,15 @@ app/agents/
 ├── camera.py                 # Visual composition
 ├── image_prompt.py           # Prompt assembly (with grounded facts)
 ├── image_prompt_optimizer.py # Compress prompt + physicalize emotion (~77 words)
-├── image_gen.py              # Image generation (3-tier fallback)
+├── image_gen.py              # Image generation (2-tier fallback)
 ├── critique.py               # Post-generation quality review (anachronisms, voice, cultural errors)
 ├── character_chat.py         # Chat interactions
 ├── dialog_extension.py       # Extended dialog generation
-└── survey.py                 # Multi-character survey
+├── survey.py                 # Multi-character survey
+├── quick_sim.py              # Single-call counterfactual simulator (Find Money pipeline)
+└── entity_grounding.py       # Entity-registry lookup (Clockchain figures table → fallback to Google)
 ```
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-05-18*

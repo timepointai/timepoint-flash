@@ -1297,16 +1297,25 @@ When Google API quota is exhausted or rate-limited:
 
 ### Image Generation
 
-Image generation uses a 2-tier fallback chain:
+Image generation uses a 2-tier fallback chain. The first tier depends on `model_policy`:
+
+**Default mode** (no `model_policy` set):
 
 | Priority | Provider | Details |
 |----------|----------|---------|
 | 1 | **Google Imagen** | Native API, highest quality. Quota exhaustion = instant fallback. |
 | 2 | **OpenRouter** | Via `/chat/completions` with `modalities: ["image", "text"]`. Best available model auto-selected. |
 
+**Permissive mode** (`model_policy: "permissive"`):
+
+| Priority | Provider | Details |
+|----------|----------|---------|
+| 1 | **Stability AI** | `stability-ai/sd3.5-large` — distillation-safe, fully Google-free. Used only when the `STABILITY_API_KEY` env var is set. |
+| 2 | **OpenRouter** | Fallback (or first tier if Stability is not configured). |
+
 **Behavior:**
 - Quota exhaustion on Google = immediate fallback to OpenRouter (no retries wasted)
-- In permissive mode, images route directly to OpenRouter (Google-free)
+- In permissive mode, Google providers are never called
 - Scene completes with image from whichever provider succeeds
 
 ---
@@ -1341,4 +1350,4 @@ Rate limit: 60 requests/minute per IP.
 
 ---
 
-*Last updated: 2026-04-24*
+*Last updated: 2026-05-18*

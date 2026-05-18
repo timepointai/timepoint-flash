@@ -10,9 +10,9 @@ Future enhancements for the TIMEPOINT Flash evaluation system.
 - Presets: verified, google_native, openrouter, all
 - CLI: `eval.sh` with interactive mode
 - Metrics: latency (min/max/avg/median), success rate, ranking
-- 522 fast tests + integration tests + e2e tests (600+ total)
+- Fast unit + integration + e2e tests (see `tests/` for current counts)
 - Google Search grounding for historical accuracy
-- 3-tier image fallback (Google Imagen → Stability AI → OpenRouter)
+- 2-tier image fallback (default: Google Imagen → OpenRouter; permissive: Stability AI → OpenRouter)
 - Physical presence detection for accurate image generation
 - Model tracking (`text_model_used`, `image_model_used` in responses)
 - Image URL populated as data URI when image generation succeeds
@@ -291,4 +291,4 @@ Addressing critique feedback on dialog quality (3/10), historical accuracy (5/10
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-05-18*

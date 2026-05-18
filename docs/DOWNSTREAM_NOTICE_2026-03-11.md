@@ -1,4 +1,6 @@
-# DOWNSTREAM NOTICE — 2026-03-11
+# DOWNSTREAM NOTICE — 2026-03-11 (ARCHIVED)
+
+> **Status: ARCHIVED — historical migration record.** Deployed to production on 2026-03-11 and all known downstream callers (Web App, iPhone App, Clockchain, Billing, MCP) migrated within the following week. Kept for reference only. The current behavior described here is now the standard behavior — see [API.md](./API.md) and [DOWNSTREAM_MODEL_CONTROL.md](./DOWNSTREAM_MODEL_CONTROL.md) for the live spec.
 
 **Breaking changes to `model_policy: "permissive"` and image generation**
 

@@ -31,10 +31,11 @@ This doc covers two things:
 
 ## Why Cloudflare R2
 
-Flash's rendered images are read by `<img>` tags inside Belle / web-app /
-public share pages, with no auth handshake. Belle generates hundreds of
-images per run, so egress dominates cost. Flash already lives on
-Railway-centric infra and the rest of Timepoint speaks S3 API.
+Flash's rendered images are read by `<img>` tags inside the Web App and
+public share pages, with no auth handshake. Generation-heavy workflows
+(Find Money, Pro Cloud deep-sim) produce hundreds of images per run, so
+egress dominates cost. Flash already lives on Railway-centric infra and
+the rest of Timepoint speaks S3 API.
 
 ### Option comparison
 
@@ -46,9 +47,10 @@ Railway-centric infra and the rest of Timepoint speaks S3 API.
 | Backblaze B2 + Cloudflare    | Free via Bandwidth Alliance     | Yes                                            | Yes (B2 native S3 layer) | Cross-vendor       | Viable fallback if R2 has issues, but no in-house Cloudflare account is needed for R2. |
 | Supabase Storage             | Bundled with Supabase plan      | Yes                                            | Limited S3 compat | Adds a Supabase dep | Pulls in a database vendor we don't otherwise use. |
 
-**Decision driver:** Belle's image-heavy generation pattern + public `<img>`
-fetches mean egress is the dominant variable cost. R2 zeroes that line item
-out and keeps the S3 API surface so we can reuse `boto3`/`aiobotocore` in
+**Decision driver:** Flash's image-heavy generation pattern (Web App moment
+pages, Find Money runs, deep-sim batches) + public `<img>` fetches mean
+egress is the dominant variable cost. R2 zeroes that line item out and
+keeps the S3 API surface so we can reuse `boto3`/`aiobotocore` in
 `app/storage/backends/cloud.py`.
 
 ---
@@ -71,7 +73,7 @@ cors:
       - https://timepointai.com
       - https://*.timepointai.com
       - https://flash.timepointai.com
-      - https://belle.timepointai.com
+      - https://app.timepointai.com
       - http://localhost:3000      # Dev only — remove if security review objects
     allowed_methods: [GET, HEAD]
     allowed_headers: ["*"]
@@ -291,8 +293,8 @@ open-source repo unless contributors opt in by setting the env vars.
   hard-deletes after 30 days. There is no R2-side versioning to roll back
   beyond that window.
 - **Cost guardrails.** R2's free tier is generous (10 GB storage,
-  1M Class-A ops/month, 10M Class-B ops/month). Belle traffic should fit
-  inside the free tier for the foreseeable future. Monitor via Cloudflare
+  1M Class-A ops/month, 10M Class-B ops/month). Current Flash traffic should
+  fit inside the free tier for the foreseeable future. Monitor via Cloudflare
   → R2 → Metrics. Set a billing alert at $5/mo as an early-warning.
 - **Key rotation.** Rotate `FLASH_BLOB_SECRET` annually or on suspicion of
   compromise. Procedure: create a new token, swap in Railway, redeploy,
