@@ -485,7 +485,7 @@ class TestStepJudgeRejection:
         rejected = JudgeResult(
             is_valid=False,
             query_type=QueryType.INVALID,
-            reason="Query is too personal to render as a scene",
+            reason="Query is purely abstract — cannot be visualized as a scene",
         )
         pipeline._judge_agent.run = AsyncMock(
             return_value=AgentResult(
@@ -563,3 +563,63 @@ class TestGroundingTrigger:
             query_type=QueryType.FICTIONAL,
         )
         assert input_data.needs_grounding() is False
+
+
+class TestStepJudgeDriftOverride:
+    """Defensive override: judge rejections using forbidden keywords (personal,
+    future, speculative, uncertain) MUST be flipped back to is_valid=True per
+    SYSTEM_PROMPT contract.
+    """
+
+    async def test_judge_personal_rejection_overridden(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.agents.base import AgentResult
+
+        pipeline = GenerationPipeline()
+        pipeline._judge_agent = MagicMock()
+        rejected = JudgeResult(
+            is_valid=False,
+            query_type=QueryType.INVALID,
+            reason="The query is highly personal, speculative about a future event",
+        )
+        pipeline._judge_agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=True,
+                content=rejected,
+                latency_ms=42,
+                model_used="gemini-3-pro",
+            )
+        )
+        state = PipelineState(query="My Series A pitch", request_id="test")
+        result_state = await pipeline._step_judge(state)
+        # Override flips it
+        assert result_state.judge_result.is_valid is True
+        assert "[director-override: judge-drift]" in result_state.judge_result.reason
+
+    async def test_judge_legitimate_rejection_passes_through(self):
+        """Pure-data prediction queries should still be rejected (no drift kw)."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.agents.base import AgentResult
+
+        pipeline = GenerationPipeline()
+        pipeline._judge_agent = MagicMock()
+        rejected = JudgeResult(
+            is_valid=False,
+            query_type=QueryType.INVALID,
+            reason="Query is purely abstract — cannot be visualized as a scene",
+        )
+        pipeline._judge_agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=True,
+                content=rejected,
+                latency_ms=42,
+                model_used="gemini-3-pro",
+            )
+        )
+        state = PipelineState(query="love", request_id="test")
+        result_state = await pipeline._step_judge(state)
+        # Override does NOT fire — legitimate rejection
+        assert result_state.judge_result.is_valid is False
+        assert "[director-override" not in (result_state.judge_result.reason or "")
