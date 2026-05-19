@@ -14,6 +14,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_service_key
@@ -75,30 +76,47 @@ async def resolve_user(
     if user is not None:
         return ResolveUserResponse(user_id=user.id, created=False)
 
-    # Create new user
+    # Create new user. Wrap in try/except IntegrityError so a concurrent
+    # /resolve call for the same external_id doesn't crash with a 500. The
+    # skipmeetings calendar-sync worker fires resolve() for every event in
+    # rapid succession; without idempotency, the second-and-onward call hit
+    # ix_users_external_id duplicate-key violation and returned 500, blocking
+    # downstream meeting generation.
     settings = get_settings()
-    user = User(
-        id=str(uuid.uuid4()),
-        apple_sub=f"external:{request.external_id}",  # placeholder for NOT NULL constraint
-        external_id=request.external_id,
-        email=request.email,
-        display_name=request.display_name,
-    )
-    session.add(user)
-    await session.flush()
+    try:
+        user = User(
+            id=str(uuid.uuid4()),
+            apple_sub=f"external:{request.external_id}",  # placeholder for NOT NULL constraint
+            external_id=request.external_id,
+            email=request.email,
+            display_name=request.display_name,
+        )
+        session.add(user)
+        await session.flush()
 
-    # Create credit account with signup bonus
-    account = CreditAccount(
-        id=str(uuid.uuid4()),
-        user_id=user.id,
-        balance=settings.SIGNUP_CREDITS,
-        lifetime_earned=settings.SIGNUP_CREDITS,
-    )
-    session.add(account)
-    await session.commit()
+        # Create credit account with signup bonus
+        account = CreditAccount(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            balance=settings.SIGNUP_CREDITS,
+            lifetime_earned=settings.SIGNUP_CREDITS,
+        )
+        session.add(account)
+        await session.commit()
 
-    logger.info(f"Provisioned user {user.id} for external_id={request.external_id}")
-    return ResolveUserResponse(user_id=user.id, created=True)
+        logger.info(f"Provisioned user {user.id} for external_id={request.external_id}")
+        return ResolveUserResponse(user_id=user.id, created=True)
+    except IntegrityError:
+        # Race: concurrent /resolve won. Roll back, re-fetch, return existing.
+        await session.rollback()
+        result = await session.execute(
+            select(User).where(User.external_id == request.external_id)
+        )
+        user = result.scalar_one()
+        logger.info(
+            f"Resolve race for external_id={request.external_id}; returning existing {user.id}"
+        )
+        return ResolveUserResponse(user_id=user.id, created=False)
 
 
 # ---------- Response schemas ----------
