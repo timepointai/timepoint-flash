@@ -1,4 +1,4 @@
-# Timepoint Dev Management
+# Timepoint Flash
 
 ## Commit Rules
 

@@ -92,27 +92,14 @@ Or manually:
 ```bash
 pip install -e .
 cp .env.example .env  # Add your API key
-./run.sh -r           # Start server
+alembic upgrade head  # Run database migrations
+./run.sh -r           # Start server (auto-reload, port 8000)
 ./demo.sh             # Interactive demo with 10 templates
 ```
 
 Swagger docs at `http://localhost:8000/docs`
 
----
-
-## Deploy on Replit
-
-Import the repo directly from GitHub — Replit reads `.replit` and runs automatically.
-
-1. **Create a new Replit** → Import from GitHub → `https://github.com/timepointai/timepoint-flash`
-2. **Set Secrets** (sidebar → Secrets tab):
-   - `GOOGLE_API_KEY` — get free at [aistudio.google.com](https://aistudio.google.com)
-   - `OPENROUTER_API_KEY` — get at [openrouter.ai](https://openrouter.ai) (optional, enables hyper/gemini3 presets)
-3. **Hit Run** — the server starts on port 8080 and Replit exposes a public URL
-
-The startup script (`start.sh`) handles dependency installation, database migrations, and schema patching automatically on every run. No manual setup required.
-
-Swagger docs at `https://your-repl.replit.dev/docs`
+See [docs/DEPLOY.md](docs/DEPLOY.md) for production deployment (the live `flash.timepointai.com` service runs from the private `timepoint-flash-deploy-private-feb-2026` fork; the open-source repo here is the upstream reference implementation).
 
 ---
 
@@ -138,7 +125,7 @@ Judge → Timeline → Grounding (Google Search) → Scene
 - **Emotional transfer** — The image prompt optimizer translates narrative tension into physicalized body language instead of discarding it. "Climactic tension" becomes "wide eyes, dropped objects, body recoiling."
 - **Entity representation** — Non-human entities (Deep Blue, AlphaGo, HAL 9000) are shown through their physical representatives (IBM operator, monitor display, red camera lens).
 - **Anachronism prevention** — Era-specific exclusion lists, mutual exclusion rules (Roman toga + tricorn hat), famous painting drift detection.
-- **3-tier image fallback** — Google Imagen → Stability AI → OpenRouter. Image generation never fails.
+- **Two-tier image fallback** — Default mode: Google Imagen → OpenRouter. Permissive mode: Stability AI → OpenRouter (distillation-safe, Google-free). Image generation almost never fails.
 
 **The Clockchain Connection** — Flash is the Reality Writer for the Clockchain. Every scene becomes a verified anchor point in the temporal causal graph, strengthening the Bayesian prior for all future renderings. Flash's Google Search grounding ensures historical accuracy today; as the Clockchain accumulates validated causal paths, it becomes a complementary grounding source. Flash scenes can be exported as TDF records for use across the Timepoint suite.
 
@@ -189,17 +176,17 @@ Each scene includes full character bios, relationship graphs, scene metadata, ca
 
 | Preset | Speed | Provider | Best For |
 |--------|-------|----------|----------|
-| **hyper** | ~55s | OpenRouter | Fast iteration, prototyping |
+| **hyper** | ~55s | OpenRouter | Fast iteration, prototyping (text-only — image generation not available) |
 | **balanced** | ~90-110s | Google Native | Production quality |
 | **hd** | ~2-2.5 min | Google Native | Maximum fidelity (extended thinking) |
 | **gemini3** | ~60s | OpenRouter | Latest model, agentic workflows |
 
 ```bash
-# Hyper for speed
+# Hyper for speed (text-only — generate_image is ignored with hyper)
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
-  -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper", "generate_image": true}'
+  -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper"}'
 
-# HD for quality
+# HD for quality with image
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
   -d '{"query": "Oppenheimer Trinity test 5:29 AM July 16 1945", "preset": "hd", "generate_image": true}'
 ```
@@ -278,10 +265,11 @@ See [`.env.example`](.env.example) for the full list of environment variables.
 ## Testing
 
 ```bash
-python3.10 -m pytest tests/ -v              # 522 fast + integration, 11 skipped (e2e needs API keys)
+python3.10 -m pytest -m fast tests/ -v      # Fast unit tests (no API calls)
+python3.10 -m pytest tests/ -v              # Full suite (e2e tests skipped without API keys)
 ```
 
-660+ tests covering generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, visibility/access control, and provider failover.
+Tests cover generation, character interactions, temporal navigation, image fallback, historical grounding, schema validation, visibility/access control, and provider failover. CI runs the fast suite on every PR and the full e2e suite on PRs targeting `main` (see `.github/workflows/test.yml`).
 
 ---
 
