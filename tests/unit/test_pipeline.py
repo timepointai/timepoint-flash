@@ -482,10 +482,14 @@ class TestStepJudgeRejection:
         pipeline = GenerationPipeline()
         # Avoid real router/agent initialization
         pipeline._judge_agent = MagicMock()
+        # Use a genuine (non-drift-class) rejection reason. Drift-class reasons
+        # (e.g. "too personal", "speculative") are intentionally overridden back
+        # to valid by _step_judge's defensive override; a real rejection such as
+        # a technical how-to request is not.
         rejected = JudgeResult(
             is_valid=False,
             query_type=QueryType.INVALID,
-            reason="Query is too personal to render as a scene",
+            reason="Query is a technical how-to request, not a scene",
         )
         pipeline._judge_agent.run = AsyncMock(
             return_value=AgentResult(
@@ -496,7 +500,7 @@ class TestStepJudgeRejection:
             )
         )
 
-        state = PipelineState(query="my wife's 43rd birthday")
+        state = PipelineState(query="how do I reset my router password")
         state = await pipeline._step_judge(state)
 
         assert state.is_valid is False
@@ -506,7 +510,7 @@ class TestStepJudgeRejection:
         # error reporting sees it as a real failure, not a silent invalidation.
         assert judge_step.success is False
         assert judge_step.error is not None
-        assert "too personal" in judge_step.error
+        assert "technical how-to" in judge_step.error
 
     async def test_step_judge_llm_failure_still_records_error(self):
         """Judge agent failures should still propagate the underlying error."""

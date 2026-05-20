@@ -1255,11 +1255,7 @@ class GenerationPipeline:
         # is_valid back to true so the pipeline proceeds. Real rejections (pure
         # data prediction, abstract concepts, technical how-to) use different
         # rejection vocabulary and pass through normally.
-        if (
-            result.success
-            and state.judge_result is not None
-            and not state.judge_result.is_valid
-        ):
+        if result.success and state.judge_result is not None and not state.judge_result.is_valid:
             drift_reason = (state.judge_result.reason or "").lower()
             DRIFT_KEYWORDS = (
                 "speculative",
