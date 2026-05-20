@@ -400,4 +400,4 @@ The deployed fork adds `/api/v1/billing/*` proxy endpoints and `/internal/credit
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-05-18*

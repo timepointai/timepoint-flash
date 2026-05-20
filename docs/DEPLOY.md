@@ -1,6 +1,8 @@
 # Deployment
 
-Three ways to run TIMEPOINT Flash: local development, Railway (recommended), or Docker.
+Two ways to run the open-source TIMEPOINT Flash: **local development** or **your own Railway/PaaS deployment via NIXPACKS** (Python detected from `pyproject.toml`).
+
+> **Note on the live `flash.timepointai.com` service.** The production deployment runs from a private fork (`timepoint-flash-deploy-private-feb-2026`) that adds the billing microservice, Cloudflare R2 blob storage backend, and request-signing checks. This open-source repo is the upstream reference implementation — it ships with `NoOpBilling` (unlimited access) and the `local` blob backend (writes to disk). Provisioning steps for the private deployment live in [STORAGE.md](./STORAGE.md) and the private deploy repo's own runbook.
 
 ---
 
@@ -19,15 +21,15 @@ Swagger docs at `http://localhost:8000/docs`
 
 ---
 
-## Railway (Recommended)
+## Railway via NIXPACKS
 
-Railway auto-detects the `Dockerfile` and deploys with PostgreSQL, health checks, and CI gating.
+Railway will detect `pyproject.toml` and build with NIXPACKS automatically — no `Dockerfile` or `railway.json` is required in this repo.
 
 ### Setup
 
-1. **Create a Railway project** → connect your GitHub repo
-2. **Add PostgreSQL plugin** (Railway dashboard → Add Plugin → PostgreSQL)
-3. **Set environment variables** (see `.env.railway.example`):
+1. **Create a Railway project** → connect your GitHub fork
+2. **Add a PostgreSQL plugin** (Railway dashboard → Add Plugin → PostgreSQL)
+3. **Set environment variables**:
 
    | Variable | Required | Source |
    |----------|----------|--------|
@@ -43,22 +45,20 @@ Railway auto-detects the `Dockerfile` and deploys with PostgreSQL, health checks
    | `CORS_ORIGINS` | No | Comma-separated allowed origins |
    | `SHARE_URL_BASE` | No | Base URL for share links (e.g. `https://timepointai.com/t`) |
 
-4. **Deploy** — push to your connected branch. Railway builds the Dockerfile and deploys. Migrations run automatically at container startup (via Dockerfile CMD).
+4. **Set the start command** in Railway → service → Settings → Deploy:
+
+   ```bash
+   alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4
+   ```
+
+5. **Deploy** — push to your connected branch. Railway builds via NIXPACKS and deploys.
 
 ### How It Works
 
-- `Dockerfile` — multi-stage build (builder + slim runtime)
-- `railway.json` — config-as-code (builder, health check, restart policy)
-- Alembic migrations run at container startup (inside Dockerfile CMD, not a pre-deploy command)
+- NIXPACKS reads `pyproject.toml` and provisions a Python 3.11+ environment
+- The Railway start command runs Alembic migrations, then `uvicorn`
 - Health check at `/health` — Railway restarts unhealthy containers
-- Restart policy: ON_FAILURE with 3 retries
-
-### Branch Mapping
-
-| Branch | Environment | Auto-deploy |
-|--------|-------------|-------------|
-| `main` | Production | Yes (with "Wait for CI") |
-| `develop` | Development | Yes |
+- Recommended restart policy: ON_FAILURE with 3 retries
 
 ### Verify
 
@@ -75,41 +75,19 @@ curl -X POST https://your-domain.example.com/api/v1/timepoints/generate/sync \
   -d '{"query": "Alan Turing breaks Enigma at Bletchley Park Hut 8, winter 1941", "preset": "balanced", "generate_image": true}'
 ```
 
-### Post-Deploy Smoke Test
-
-Run the smoke test workflow manually from GitHub Actions:
-
-```bash
-gh workflow run smoke.yml -f target_url=https://your-domain.example.com
-```
-
 ---
 
-## Docker (Local or Custom Deploy)
-
-The repo includes a production-ready multi-stage `Dockerfile`:
+## Manual Run (any host)
 
 ```bash
-# Build
-docker build -t timepoint-flash .
-
-# Run with SQLite (local testing)
-docker run -p 8080:8080 \
-  -e DATABASE_URL=sqlite+aiosqlite:///./timepoint.db \
-  -e GOOGLE_API_KEY=your-key \
-  timepoint-flash
-
-# Run with PostgreSQL (production)
-docker run -p 8080:8080 \
-  -e DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/timepoint \
-  -e ENVIRONMENT=production \
-  -e GOOGLE_API_KEY=your-key \
-  timepoint-flash
+pip install -e .
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
 ```
 
 ### Environment Variables
 
-See `.env.railway.example` for the full list. Key variables:
+See `.env.example` for the full list. Key variables:
 
 ```bash
 DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/timepoint
@@ -121,15 +99,7 @@ CORS_ORIGINS=https://your-domain.com
 SHARE_URL_BASE=https://timepointai.com/t   # Optional: enables share_url in responses
 ```
 
-> **Note:** `AUTH_ENABLED=false` is the default. All endpoints remain open-access. Set `AUTH_ENABLED=true` only when deploying for the iOS app.
-
-### Manual Run (without Docker)
-
-```bash
-pip install -e .
-alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
-```
+> **Note:** `AUTH_ENABLED=false` is the default. All endpoints remain open-access. Set `AUTH_ENABLED=true` only when deploying for the iOS app or other authenticated client.
 
 ---
 
@@ -137,9 +107,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
 
 When Flash is deployed as an internal service (behind billing or clockchain), set `FLASH_SERVICE_KEY` to a shared secret. Other services include this in the `X-Service-Key` header when calling Flash.
 
+For the production gateway path, also set `GATEWAY_SIGNING_SECRET` so the API Gateway can HMAC-sign requests. See [API.md → Service-to-Service Auth](./API.md#service-to-service-auth) for the full signature scheme.
+
 Three auth paths are evaluated in order:
-1. **Service key + X-User-ID** — billing relays user requests (credits deducted from user)
-2. **Service key only** — clockchain system calls (unmetered, no user context)
+1. **Signed Gateway request** (`X-Gateway-Signature` + optional `X-User-Id`) — preferred path for the production deployment
+2. **Legacy service key** (`X-Service-Key` only) — system calls without user context
 3. **Bearer JWT** — direct user auth (iOS app)
 
 Set `CORS_ENABLED=false` when Flash is internal-only and never called from browsers.
@@ -156,10 +128,9 @@ The deployed version uses a separate billing microservice that handles Apple IAP
 
 ## Blob Storage
 
-> For the production cloud-storage decision (Cloudflare R2), env-var spec, and
-> provisioning runbook, see [STORAGE.md](./STORAGE.md).
+> For the production cloud-storage decision (Cloudflare R2), env-var spec, and provisioning runbook, see [STORAGE.md](./STORAGE.md).
 
-When `BLOB_STORAGE_ENABLED=true`, each generation writes a self-contained folder:
+When `BLOB_STORAGE_ENABLED=true` and `BLOB_STORAGE_BACKEND=local` (default in this repo), each generation writes a self-contained folder:
 
 ```
 output/timepoints/2026/02/
@@ -173,6 +144,8 @@ output/timepoints/2026/02/
 
 Each folder is portable — copy it anywhere and open `index.html` to view the complete scene.
 
+The `cloud` backend (Cloudflare R2 via S3 API) is implemented in the private deploy repo. The open-source `CloudStorageBackend` stub raises `NotImplementedError` by design — contributors who want R2 must implement the backend per the steps in [STORAGE.md → Migration Path](./STORAGE.md#migration-path).
+
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-05-18*
