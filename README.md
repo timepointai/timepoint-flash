@@ -176,17 +176,17 @@ Each scene includes full character bios, relationship graphs, scene metadata, ca
 
 | Preset | Speed | Provider | Best For |
 |--------|-------|----------|----------|
-| **hyper** | ~55s | OpenRouter | Fast iteration, prototyping |
+| **hyper** | ~55s | OpenRouter | Fast iteration, prototyping (text-only — image generation not available) |
 | **balanced** | ~90-110s | Google Native | Production quality |
 | **hd** | ~2-2.5 min | Google Native | Maximum fidelity (extended thinking) |
 | **gemini3** | ~60s | OpenRouter | Latest model, agentic workflows |
 
 ```bash
-# Hyper for speed
+# Hyper for speed (text-only — generate_image is ignored with hyper)
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
-  -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper", "generate_image": true}'
+  -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper"}'
 
-# HD for quality
+# HD for quality with image
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
   -d '{"query": "Oppenheimer Trinity test 5:29 AM July 16 1945", "preset": "hd", "generate_image": true}'
 ```

@@ -147,9 +147,7 @@ FLASH_BLOB_REGION=auto
 
 ## Provisioning Runbook
 
-These steps require Sean's Cloudflare and Railway dashboard access. The
-worker (infra-ops) cannot execute them — escalate via
-`sf message send --to el-2owx` referencing task el-5bkwk.
+These steps require Cloudflare and Railway dashboard access (owner credentials). Escalate to whoever holds those credentials before proceeding.
 
 ### 1. Create the R2 bucket (Cloudflare dashboard)
 
