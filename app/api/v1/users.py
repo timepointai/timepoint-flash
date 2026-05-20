@@ -109,9 +109,7 @@ async def resolve_user(
     except IntegrityError:
         # Race: concurrent /resolve won. Roll back, re-fetch, return existing.
         await session.rollback()
-        result = await session.execute(
-            select(User).where(User.external_id == request.external_id)
-        )
+        result = await session.execute(select(User).where(User.external_id == request.external_id))
         user = result.scalar_one()
         logger.info(
             f"Resolve race for external_id={request.external_id}; returning existing {user.id}"
