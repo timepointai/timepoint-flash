@@ -410,8 +410,7 @@ async def _run_quick_sim_image_gen(
         state = await pipeline._step_image_generation(state)
         if not state.image_base64:
             logger.warning(
-                "quick_sim background image: image generation returned no "
-                "bytes for timepoint %s",
+                "quick_sim background image: image generation returned no bytes for timepoint %s",
                 timepoint_id,
             )
             return
@@ -433,9 +432,7 @@ async def _run_quick_sim_image_gen(
         from app.models import Timepoint
 
         async with get_session() as session:
-            result = await session.execute(
-                select(Timepoint).where(Timepoint.id == timepoint_id)
-            )
+            result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
             tp = result.scalar_one_or_none()
             if tp is None:
                 logger.warning(
