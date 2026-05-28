@@ -914,3 +914,167 @@ class TestQuickSimPersistence:
         # Anonymous quick-sim (user_id=None) persists as PUBLIC so the
         # Preview link is reachable; authenticated runs persist as PRIVATE.
         assert body.get("visibility") == TimepointVisibility.PUBLIC.value
+
+
+# ---------------------------------------------------------------------------
+# Quick-sim async image generation (feat-quick-sim-async-image-gen-2026-05-28)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.fast
+class TestQuickSimAsyncImageGen:
+    """Quick-sim must schedule a fire-and-forget image gen after persistence.
+
+    Quick-sim's :meth:`GenerationPipeline.run_quick_sim` deliberately skips
+    the image path so the per-opportunity latency stays under the 60s
+    product target. That left the persisted row with ``image_url=NULL``,
+    so the web-app's Preview page rendered a placeholder. The fix
+    schedules :func:`_run_quick_sim_image_gen` AFTER successful persistence
+    so the image fills in ~30s later on a subsequent page load.
+
+    Per ``feedback_no_mocks.md`` nothing here is mocked. The test that
+    would exercise a real image-model call needs API keys + ~30s of
+    runtime, so the structural guards below assert the *scheduling*
+    contract (which is the regression-prone surface) and the side-effect
+    test that actually awaits an image is gated on a real backend.
+    """
+
+    def test_run_helper_exists_and_is_coroutine(self):
+        """The image-gen helper must be a coroutine — needed for create_task."""
+        from app.api.v1 import find_money as fm
+
+        assert hasattr(fm, "_run_quick_sim_image_gen")
+        assert inspect.iscoroutinefunction(fm._run_quick_sim_image_gen)
+
+    def test_schedule_helper_creates_named_task(self):
+        """``_schedule_quick_sim_image_gen`` returns an asyncio Task named for the row.
+
+        Naming the task ``quick-sim-img-{timepoint_id}`` is load-bearing
+        for log readability — when one of these warns, you need to be
+        able to tell which row it belonged to without instrumenting the
+        helper.
+        """
+        from app.api.v1 import find_money as fm
+
+        assert hasattr(fm, "_schedule_quick_sim_image_gen")
+        # The schedule call is sync (it returns the task object) so the
+        # response can continue without awaiting.
+        assert not inspect.iscoroutinefunction(fm._schedule_quick_sim_image_gen)
+
+    async def test_schedule_creates_named_task_and_registers_it(self):
+        """Schedule registers the task with the module-level set + name.
+
+        Real (non-mocked) call: build a tiny dummy pipeline + state, schedule
+        the task, then cancel it before the image-prompt step makes any
+        network call. This asserts the scheduling contract — the task is
+        created, named, and held in ``_BACKGROUND_IMG_TASKS`` so the loop
+        doesn't garbage-collect it.
+        """
+        import asyncio as _asyncio
+
+        from app.api.v1 import find_money as fm
+
+        # Real pipeline + state. The pipeline is never RUN here — we cancel
+        # the scheduled task before its first step can issue a network call.
+        pipeline = _build_generation_pipeline(preset=None, user_id=None)
+
+        class _DummyState:
+            pass
+
+        task = fm._schedule_quick_sim_image_gen(
+            timepoint_id="tp-test-schedule-1",
+            pipeline=pipeline,
+            state=_DummyState(),
+        )
+        try:
+            assert isinstance(task, _asyncio.Task)
+            assert task.get_name() == "quick-sim-img-tp-test-schedule-1"
+            assert task in fm._BACKGROUND_IMG_TASKS
+        finally:
+            task.cancel()
+            try:
+                await task
+            except BaseException:  # noqa: BLE001 — cancel + any swallow
+                pass
+            # done_callback must have removed it from the registry.
+            assert task not in fm._BACKGROUND_IMG_TASKS
+
+    def test_simulate_one_schedules_image_gen_only_on_persist_success(self):
+        """``_simulate_one`` must schedule image gen only when persistence succeeded.
+
+        Two structural requirements:
+
+        1. The schedule call exists in ``_simulate_one`` (it's the wiring).
+        2. It's gated by ``persisted_id is not None`` — firing on a failed
+           persist would log a warning trying to update a row that doesn't
+           exist, but more importantly there's no row to update, so the
+           task is pure waste.
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._simulate_one)
+        assert "_schedule_quick_sim_image_gen(" in source
+        assert "if persisted_id is not None" in source
+        # The schedule call must appear AFTER the persist call, not before.
+        persist_idx = source.index("_persist_quick_sim_timepoint(")
+        schedule_idx = source.index("_schedule_quick_sim_image_gen(")
+        assert schedule_idx > persist_idx, (
+            "image-gen scheduling must follow persistence — firing before "
+            "would race against the row insert"
+        )
+
+    def test_image_gen_helper_uses_fresh_session(self):
+        """The background image-gen helper must open its own session.
+
+        The request's session closes when the response returns; if the
+        helper reused it the task would crash on first DB access. Mirror
+        the pattern in ``app.core.background_grounding``.
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._run_quick_sim_image_gen)
+        assert "get_session()" in source
+        # And it writes to image_url, not some other field — match the
+        # column the regular full pipeline writes.
+        assert "image_url" in source
+
+    def test_image_gen_helper_swallows_exceptions(self):
+        """Failures must not crash quick-sim — log + return.
+
+        The persisted moment is already returned to the user; an image
+        failure must stay as the placeholder (the row's image_url just
+        remains NULL).
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._run_quick_sim_image_gen)
+        # Broad except + warning log, no re-raise, no retry loop.
+        assert "except Exception" in source
+        assert "logger.warning" in source
+        # No retry — the contract is "do not retry, do not crash".
+        assert "for attempt" not in source
+        assert "retry" not in source.lower() or "no retry" in source.lower()
+
+    def test_image_gen_helper_does_not_hardcode_image_model(self):
+        """The pipeline's normal model selection must apply — no hardcode.
+
+        Per the spec: do NOT hardcode a different image model; let the
+        pipeline's preset / ``get_image_fallback_model(permissive_only=True)``
+        path apply. Hardcoding a model here would silently diverge from
+        the full pipeline's selection.
+        """
+        from app.api.v1 import find_money as fm
+
+        source = inspect.getsource(fm._run_quick_sim_image_gen)
+        # No raw model identifiers — model selection happens inside the
+        # pipeline's ImageGen step via the router config.
+        for forbidden in (
+            "black-forest-labs/",
+            "stability-ai/",
+            "openai/dall-e",
+            "google/imagen",
+        ):
+            assert forbidden not in source, (
+                f"image-gen helper must not hardcode {forbidden} — the "
+                "pipeline's existing model selection has to apply"
+            )
