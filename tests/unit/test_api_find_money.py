@@ -863,3 +863,54 @@ class TestEndpointRegistered:
             },
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Quick-sim timepoint persistence (regression)
+# ---------------------------------------------------------------------------
+
+
+class TestQuickSimPersistence:
+    """Quick-sim timepoints must be persisted to Flash's DB.
+
+    Regression test for fix-quick-sim-persist-timepoints-2026-05-27. The
+    handler used to build a Timepoint with a generated UUID + slug, return
+    them to the web-app, but never call ``session.add`` — so every
+    web-app "Preview the moment" link 404'd via
+    ``GET /api/v1/timepoints/{id}``. This test exercises the persistence
+    helper against a real test DB (no mocks) and then re-reads via the
+    public GET endpoint to assert the round-trip works.
+    """
+
+    async def test_persist_then_get_via_api_round_trips(self, test_client):
+        """`_persist_quick_sim_timepoint` saves the row; GET /timepoints/{id}
+        then returns 200 with the same slug."""
+        from app.api.v1.find_money import _persist_quick_sim_timepoint
+        from app.models import Timepoint, TimepointStatus, TimepointVisibility
+
+        tp = Timepoint.create(
+            query="$50k climate operating grant by Sept 2026",
+            status=TimepointStatus.COMPLETED,
+            tdf_payload={"query": "$50k climate operating grant", "scene_data": {}},
+            tdf_hash="quicksim-test-hash",
+            year=2026,
+        )
+
+        persisted_id = await _persist_quick_sim_timepoint(tp, user_id=None)
+
+        assert persisted_id is not None, "quick-sim timepoint must be persisted"
+        assert persisted_id == tp.id
+
+        # The round-trip through the real GET handler is the bug: before
+        # this fix the GET 404'd because the row was never saved.
+        resp = await test_client.get(f"/api/v1/timepoints/{persisted_id}")
+        assert resp.status_code == 200, (
+            f"expected 200 from GET /api/v1/timepoints/{persisted_id}, "
+            f"got {resp.status_code}: {resp.text}"
+        )
+        body = resp.json()
+        assert body["id"] == persisted_id
+        assert body["slug"] == tp.slug
+        # Anonymous quick-sim (user_id=None) persists as PUBLIC so the
+        # Preview link is reachable; authenticated runs persist as PRIVATE.
+        assert body.get("visibility") == TimepointVisibility.PUBLIC.value
