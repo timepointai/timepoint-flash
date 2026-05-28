@@ -71,6 +71,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/find-money", tags=["find-money"])
 
 
+# Module-level set of in-flight background image-generation tasks. Keeping a
+# reference here prevents the asyncio event loop from garbage-collecting the
+# task before it completes — see ``app/mcp_server.py`` for the same pattern.
+# A ``done_callback`` removes the task on completion so this never grows
+# unbounded.
+_BACKGROUND_IMG_TASKS: set[asyncio.Task[None]] = set()
+
+
 # Per-opportunity credit cost. Keep this tiny — Find Money batches up to 15
 # opportunities and a single batch must remain cheap enough that users will
 # actually run the discovery step before paying for the slower Pro deep-sim.
@@ -338,6 +346,143 @@ async def _persist_quick_sim_timepoint(
 
 
 # ---------------------------------------------------------------------------
+# Async (fire-and-forget) image generation for a persisted quick-sim moment
+# ---------------------------------------------------------------------------
+
+
+async def _run_quick_sim_image_gen(
+    *,
+    timepoint_id: str,
+    pipeline: GenerationPipeline,
+    state: Any,
+) -> None:
+    """Generate + persist an image for an already-persisted quick-sim moment.
+
+    Quick-sim's :meth:`GenerationPipeline.run_quick_sim` deliberately skips
+    the image path (ImagePrompt -> ImagePromptOptimize -> ImageGeneration)
+    to keep per-opportunity latency under the 60s product target. That
+    leaves the persisted future-moment row with ``image_url=NULL``, so the
+    web-app's "Preview the moment" page renders a placeholder.
+
+    This helper fills that gap *after* the user has their fit/probability
+    metrics. It is fire-and-forget — the quick-sim response returns first;
+    the image fills in ~30s later on a subsequent page load.
+
+    All failures are swallowed (logged at WARNING) per the contract:
+    quick-sim already returned successfully, so a failed image must not
+    crash anything. There is no retry — a missed image just stays as the
+    placeholder, exactly as it would have without this helper.
+
+    The function opens its **own** ``get_session()`` because the originating
+    request's session is closed by the time this task runs (the response
+    has already been returned). This mirrors the pattern in
+    :func:`app.core.background_grounding.run_background_grounding`.
+
+    Args:
+        timepoint_id: Persisted Timepoint row to update on success.
+        pipeline: The same ``GenerationPipeline`` instance that produced
+            ``state`` — reused so its router config (and model selection)
+            is identical to the run that produced the row.
+        state: The completed quick-sim ``PipelineState``. Carries judge /
+            timeline / scene / character / moment data — enough for the
+            ImagePrompt agent to compose a prompt without re-running the
+            text path.
+    """
+    try:
+        # ImagePrompt is the cheap step; the meaningful cost is in
+        # ImageGeneration. Run them sequentially on the existing state.
+        state = await pipeline._step_image_prompt(state)
+        if state.image_prompt_data is None:
+            logger.warning(
+                "quick_sim background image: image-prompt step produced no "
+                "data for timepoint %s — skipping image generation",
+                timepoint_id,
+            )
+            return
+
+        # Optimize the prompt (best-effort; image gen still runs if this
+        # fails — _step_image_generation falls back to the full prompt).
+        state = await pipeline._step_image_prompt_optimize(state)
+
+        # Image generation. The pipeline's normal model selection applies
+        # (preset / get_image_fallback_model permissive fallback) — quick-sim
+        # does NOT hardcode an image model here.
+        state = await pipeline._step_image_generation(state)
+        if not state.image_base64:
+            logger.warning(
+                "quick_sim background image: image generation returned no bytes for timepoint %s",
+                timepoint_id,
+            )
+            return
+
+        # Encode the bytes as a data URL exactly the way state_to_timepoint
+        # does for the synchronous full-pipeline path, so quick-sim moments
+        # and full moments store image_url in the same canonical shape.
+        image_format = "jpeg"
+        if state.image_base64.startswith("iVBOR"):
+            image_format = "png"
+        elif state.image_base64.startswith("R0lGOD"):
+            image_format = "gif"
+        image_url = f"data:image/{image_format};base64,{state.image_base64}"
+
+        # Update the persisted row in a fresh session — the request's
+        # session has long since closed.
+        from sqlalchemy import select
+
+        from app.models import Timepoint
+
+        async with get_session() as session:
+            result = await session.execute(select(Timepoint).where(Timepoint.id == timepoint_id))
+            tp = result.scalar_one_or_none()
+            if tp is None:
+                logger.warning(
+                    "quick_sim background image: timepoint %s not found — "
+                    "row may have been deleted between persistence and image gen",
+                    timepoint_id,
+                )
+                return
+            tp.image_url = image_url
+            tp.image_base64 = state.image_base64
+            await session.commit()
+            logger.info(
+                "quick_sim background image: timepoint %s image_url populated",
+                timepoint_id,
+            )
+    except Exception:  # noqa: BLE001 — best-effort; no retry, no crash
+        logger.warning(
+            "quick_sim background image: failed for timepoint %s",
+            timepoint_id,
+            exc_info=True,
+        )
+
+
+def _schedule_quick_sim_image_gen(
+    *,
+    timepoint_id: str,
+    pipeline: GenerationPipeline,
+    state: Any,
+) -> asyncio.Task[None]:
+    """Schedule :func:`_run_quick_sim_image_gen` as a fire-and-forget task.
+
+    The task reference is held in the module-level ``_BACKGROUND_IMG_TASKS``
+    set so the event loop does not garbage-collect it before completion;
+    a done-callback removes it on completion. The caller does NOT await
+    the returned task — quick-sim's response returns immediately.
+    """
+    task = asyncio.create_task(
+        _run_quick_sim_image_gen(
+            timepoint_id=timepoint_id,
+            pipeline=pipeline,
+            state=state,
+        ),
+        name=f"quick-sim-img-{timepoint_id}",
+    )
+    _BACKGROUND_IMG_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_IMG_TASKS.discard)
+    return task
+
+
+# ---------------------------------------------------------------------------
 # Per-opportunity simulation
 # ---------------------------------------------------------------------------
 
@@ -413,6 +558,22 @@ async def _simulate_one(
         # fail the quick-sim: log + clear timepoint_id so the web-app skips
         # rendering the Preview link.
         persisted_id = await _persist_quick_sim_timepoint(timepoint, user_id=user_id)
+
+        # Fire-and-forget background image generation. Quick-sim's light path
+        # deliberately skipped ImagePrompt + ImageGeneration to keep latency
+        # under the 60s product target, which leaves the persisted row with
+        # image_url=NULL and the web-app's Preview page rendering a
+        # placeholder. Schedule the image gen AFTER successful persistence
+        # (only on the success path — never fire when persistence failed,
+        # because there is no row to update). The response returns
+        # immediately; the image fills in ~30s later on the next page load.
+        # Failures inside the task are logged but never crash quick-sim.
+        if persisted_id is not None:
+            _schedule_quick_sim_image_gen(
+                timepoint_id=persisted_id,
+                pipeline=pipeline,
+                state=state,
+            )
 
         tdf = dict(timepoint.tdf_payload or {})
         tdf["status"] = timepoint.status.value if timepoint.status else "unknown"
