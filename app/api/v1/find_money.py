@@ -56,7 +56,8 @@ from app.auth.credits import CREDIT_COSTS, grant_credits, spend_credits
 from app.auth.dependencies import get_current_user
 from app.config import QualityPreset
 from app.core.pipeline import GenerationPipeline
-from app.database import get_db_session
+from app.database import get_db_session, get_session
+from app.models import TimepointVisibility
 from app.models_auth import TransactionType, User
 from app.schemas.quick_sim import (
     OpportunityIn,
@@ -275,6 +276,68 @@ def summarize_tdf_for_metrics(tdf: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Per-opportunity persistence
+# ---------------------------------------------------------------------------
+
+
+async def _persist_quick_sim_timepoint(
+    timepoint: Any,
+    *,
+    user_id: str | None,
+) -> str | None:
+    """Save a quick-sim future-moment Timepoint to Flash's DB.
+
+    Quick-sim returns a generated UUID + slug to the web-app, which uses
+    them to build a "Preview the moment" link at
+    ``/timepoint/{slug}?id={timepoint_id}``. That link resolves via Flash's
+    ``GET /api/v1/timepoints/{id}`` — which 404s unless we actually save
+    the row here. (Diagnosed against run 31:
+    ``5305ea61-b806-4046-979e-db1102ae6f93`` was never in the DB.)
+
+    The row is owned by the requesting user and marked PRIVATE — these are
+    per-run private simulations, not curated public timepoints. Visibility
+    inheritance follows the same pattern as
+    ``/timepoints/generate/sync`` (see :mod:`app.api.v1.timepoints`).
+
+    Uses a fresh ``get_session()`` rather than the request-scoped session
+    because the batch handler runs up to ``_BATCH_CONCURRENCY`` of these
+    concurrently and the request session is also being used for credit
+    ledger writes.
+
+    On any DB error this returns ``None`` (and logs) so the quick-sim
+    response still carries the in-memory ``tdf`` — the only loss is the
+    Preview link, which the web-app suppresses when ``timepoint_id`` is
+    absent.
+    """
+    try:
+        if user_id is not None:
+            timepoint.user_id = user_id
+            # Quick-sim moments are per-user private simulations.
+            timepoint.visibility = TimepointVisibility.PRIVATE
+        else:
+            # Anonymous quick-sim (AUTH_ENABLED=false) — nobody owns the row,
+            # so PRIVATE would lock it out of GET /timepoints/{id} forever
+            # (check_visibility_access 403s when there is no owner). Keep it
+            # PUBLIC so the Preview link still resolves.
+            timepoint.visibility = TimepointVisibility.PUBLIC
+
+        async with get_session() as session:
+            session.add(timepoint)
+            await session.commit()
+            await session.refresh(timepoint)
+            return timepoint.id
+    except Exception as exc:  # noqa: BLE001 — persistence is best-effort
+        logger.warning(
+            "quick_sim: failed to persist timepoint id=%s slug=%s user=%s: %s",
+            getattr(timepoint, "id", None),
+            getattr(timepoint, "slug", None),
+            user_id,
+            exc,
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Per-opportunity simulation
 # ---------------------------------------------------------------------------
 
@@ -341,9 +404,19 @@ async def _simulate_one(
         )
 
         timepoint = pipeline.state_to_timepoint(state)
+        # Persist the quick-sim future-moment so web-app's "Preview the moment"
+        # link (which points at /timepoint/{slug}?id={timepoint_id}) can resolve
+        # via GET /api/v1/timepoints/{id}. Without this row, every Preview
+        # click 404s — see fix-quick-sim-persist-timepoints-2026-05-27.
+        # Quick-sim moments are private to the requesting user (not user-curated
+        # public timepoints), so visibility=PRIVATE. Persist failure must NOT
+        # fail the quick-sim: log + clear timepoint_id so the web-app skips
+        # rendering the Preview link.
+        persisted_id = await _persist_quick_sim_timepoint(timepoint, user_id=user_id)
+
         tdf = dict(timepoint.tdf_payload or {})
         tdf["status"] = timepoint.status.value if timepoint.status else "unknown"
-        tdf["timepoint_id"] = timepoint.id
+        tdf["timepoint_id"] = persisted_id  # None if persistence failed
         tdf["slug"] = timepoint.slug
 
         scene_context = summarize_tdf_for_metrics(tdf)
