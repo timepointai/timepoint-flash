@@ -994,7 +994,7 @@ class TestQuickSimAsyncImageGen:
             task.cancel()
             try:
                 await task
-            except (BaseException,):  # noqa: BLE001 — cancel + any swallow
+            except BaseException:  # noqa: BLE001 — cancel + any swallow
                 pass
             # done_callback must have removed it from the registry.
             assert task not in fm._BACKGROUND_IMG_TASKS
