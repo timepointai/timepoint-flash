@@ -410,8 +410,8 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         max_output_tokens=8192,
         notes="Claude Sonnet 4.5 via OpenRouter (claude-3.5-sonnet was retired by Anthropic)",
     ),
-    "anthropic/claude-opus-4": TextModelConfig(
-        model_id="anthropic/claude-opus-4",
+    "anthropic/claude-opus-4.8": TextModelConfig(
+        model_id="anthropic/claude-opus-4.8",
         provider="openrouter",
         supports_json_schema=False,  # Claude via OpenRouter: use json_mode, not json_schema
         supports_json_mode=True,
@@ -420,7 +420,7 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         supports_extended_thinking=False,  # pending OpenRouter verification; revisit when confirmed
         max_output_tokens=8192,
         notes=(
-            "Claude Opus 4 via OpenRouter. FRONTIER preset. "
+            "Claude Opus 4.8 via OpenRouter. FRONTIER preset. "
             "Anthropic-direct routing (provider.order=[Anthropic]) required for prompt cache. "
             "Bedrock routing blocks cache headers and must not be used."
         ),

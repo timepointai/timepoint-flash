@@ -180,10 +180,10 @@ class TestResolveQuickSimTextModel:
         assert _resolve_quick_sim_text_model("deep") == "gemini-2.5-flash"
 
     def test_frontier_tier_uses_claude_opus(self):
-        assert _resolve_quick_sim_text_model("frontier") == "anthropic/claude-opus-4"
+        assert _resolve_quick_sim_text_model("frontier") == "anthropic/claude-opus-4.8"
 
     def test_depth_is_case_insensitive(self):
-        assert _resolve_quick_sim_text_model("FRONTIER") == "anthropic/claude-opus-4"
+        assert _resolve_quick_sim_text_model("FRONTIER") == "anthropic/claude-opus-4.8"
 
     def test_unrecognised_depth_falls_back_to_default(self):
         assert _resolve_quick_sim_text_model("ludicrous") == _QUICK_SIM_TEXT_MODEL

@@ -135,7 +135,7 @@ class VerifiedModels:
         "openrouter/hunter-alpha",
         "openrouter/healer-alpha",
         # Anthropic frontier (Anthropic-direct routing via OpenRouter for cache)
-        "anthropic/claude-opus-4",
+        "anthropic/claude-opus-4.8",
     ]
 
     # Fallback chains - ordered by preference
@@ -279,14 +279,14 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     QualityPreset.FRONTIER: {
         "name": "Frontier",
         "description": (
-            "True frontier — Claude Opus 4 via OpenRouter with Anthropic-direct routing. "
+            "True frontier — Claude Opus 4.8 via OpenRouter with Anthropic-direct routing. "
             "High-judgment tasks: entity grounding, judge passes, discrimination steps. "
             "Uses json_mode (not json_schema). Prompt caching active via cache_control injection."
         ),
-        # anthropic/claude-opus-4 routes through OpenRouter with provider.order=["Anthropic"]
+        # anthropic/claude-opus-4.8 routes through OpenRouter with provider.order=["Anthropic"]
         # to guarantee Anthropic-direct (not Bedrock) routing, which is required for cache headers.
-        "text_model": "anthropic/claude-opus-4",
-        "judge_model": "anthropic/claude-opus-4",
+        "text_model": "anthropic/claude-opus-4.8",
+        "judge_model": "anthropic/claude-opus-4.8",
         "image_model": "gemini-3-pro-image-preview",  # HD image quality reused
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.OPENROUTER,
