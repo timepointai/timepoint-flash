@@ -142,8 +142,52 @@ _BATCH_CONCURRENCY = 6
 # The ``preset`` the caller passes still flows through (it selects the
 # parallelism mode), but the text model + thinking config below override
 # it so quick-sim stays fast regardless of which preset the web-app sends.
+#
+# Callers may opt into a different model tier by passing the ``depth``
+# field (Operation Control Surface dial — B1 spec).  When ``depth`` is
+# absent the default below applies unchanged (no regression).
 _QUICK_SIM_TEXT_MODEL = "gemini-2.5-flash"
 _QUICK_SIM_LLM_PARAMS: dict[str, Any] = {"thinking_level": 512, "max_tokens": 4096}
+
+# Operation Control Surface dial → text model resolution for quick-sim.
+# Maps the B1 ``depth`` values to concrete model IDs.  The thinking-level
+# cap (``thinking_level=512``) is applied uniformly; non-Gemini providers
+# (OpenRouter/Claude) safely ignore that key — it never reaches their
+# payload (see ``app/core/providers/openrouter.py`` kwargs handling).
+#
+# Depth → model rationale:
+#   fast     — gemini-2.0-flash (no thinking overhead, ~2-4s/call; good for bulk)
+#   standard — gemini-2.5-flash (current default; unchanged)
+#   deep     — gemini-2.5-flash (same text model as BALANCED/HD; richer image in full render)
+#   frontier — anthropic/claude-opus-4 (true frontier; Anthropic-direct via OpenRouter for cache)
+_DEPTH_TO_TEXT_MODEL: dict[str, str] = {
+    "fast": "gemini-2.0-flash",
+    "standard": "gemini-2.5-flash",
+    "deep": "gemini-2.5-flash",
+    "frontier": "anthropic/claude-opus-4",
+}
+
+
+def _resolve_quick_sim_text_model(depth: str | None) -> str:
+    """Return the text model to use for a quick-sim call given an optional depth tier.
+
+    Falls back to :data:`_QUICK_SIM_TEXT_MODEL` when ``depth`` is absent
+    or unrecognised, preserving today's default behaviour (no regression).
+
+    Args:
+        depth: One of ``"fast"``, ``"standard"``, ``"deep"``, ``"frontier"``,
+            or ``None``.
+
+    Returns:
+        A model ID string accepted by :class:`GenerationPipeline`.
+    """
+    if depth is None:
+        return _QUICK_SIM_TEXT_MODEL
+    resolved = _DEPTH_TO_TEXT_MODEL.get(depth.lower())
+    if resolved is None:
+        logger.warning("quick_sim: unrecognised depth %r, using default model", depth)
+        return _QUICK_SIM_TEXT_MODEL
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +538,7 @@ async def _simulate_one(
     opportunity: OpportunityIn,
     preset: QualityPreset | None,
     user_id: str | None,
+    depth: str | None = None,
 ) -> dict[str, Any]:
     """Run the quick-sim pipeline + metrics agent for a single opportunity.
 
@@ -508,6 +553,11 @@ async def _simulate_one(
     Because the light path never renders an image, the request's
     ``generate_image`` flag does not apply to quick-sim and is ignored.
 
+    The ``depth`` parameter selects the text/judge model via
+    :func:`_resolve_quick_sim_text_model`.  When absent, the default
+    :data:`_QUICK_SIM_TEXT_MODEL` (``gemini-2.5-flash``) is used and
+    behaviour is identical to previous versions (no regression).
+
     Returns a dict ready to fold into a :class:`QuickSimTdfEntry`:
     ``{"success": bool, "tdf": dict | None, "quick_sim": QuickSimMetrics | None,
        "error": str | None, "latency_ms": int}``.
@@ -519,15 +569,21 @@ async def _simulate_one(
     t0 = time.perf_counter()
     opp_dict = opportunity.model_dump()
 
+    # Resolve the text model from the depth dial (B1 spec). Falls back to
+    # the module-level default when depth is absent or unrecognised.
+    text_model = _resolve_quick_sim_text_model(depth)
+
     # Lazy import — avoids pulling app.prompts at module import time, which
     # would force the test conftest to set every env var early.
     from app.prompts.quick_sim import build_future_moment_query
 
     query = build_future_moment_query(goal=goal, opportunity=opp_dict)
     logger.info(
-        "quick_sim: opportunity %d title=%r query=%r",
+        "quick_sim: opportunity %d title=%r depth=%r model=%r query=%r",
         index,
         opp_dict.get("title"),
+        depth,
+        text_model,
         query[:120],
     )
 
@@ -535,7 +591,7 @@ async def _simulate_one(
         pipeline = _build_generation_pipeline(
             preset=preset,
             user_id=user_id,
-            text_model=_QUICK_SIM_TEXT_MODEL,
+            text_model=text_model,
             llm_params=dict(_QUICK_SIM_LLM_PARAMS),
         )
         # LIGHT path: run_quick_sim runs only Judge -> Timeline -> Scene ->
@@ -582,10 +638,13 @@ async def _simulate_one(
 
         scene_context = summarize_tdf_for_metrics(tdf)
 
-        # The metrics agent reuses the pipeline's router (same fast,
-        # Google-native text path) AND the same capped thinking budget —
-        # without _QUICK_SIM_LLM_PARAMS it would fall back to the model's
-        # dynamic thinking budget and become the slowest step in the path.
+        # The metrics agent reuses the pipeline's router (same model as the
+        # pipeline, selected by the depth dial) AND the same capped LLM
+        # params — without _QUICK_SIM_LLM_PARAMS it would fall back to the
+        # model's dynamic thinking budget (for Gemini thinking models) and
+        # become the slowest step in the path. For non-Gemini providers
+        # (e.g. frontier/Claude), thinking_level is ignored at the provider
+        # layer, so the same params dict is safe to pass unconditionally.
         metrics_agent = QuickSimMetricsAgent(
             router=pipeline.router,
             llm_params=dict(_QUICK_SIM_LLM_PARAMS),
@@ -769,6 +828,10 @@ async def _run_batch(
     Up to :data:`_BATCH_CONCURRENCY` opportunities run at once; the
     response lists one :class:`QuickSimTdfEntry` per opportunity,
     ordered by request index, so it always pairs 1:1 with the request.
+
+    The ``request.depth`` field (Operation Control Surface dial) is
+    forwarded to :func:`_simulate_one`, which resolves it to a concrete
+    text model via :func:`_resolve_quick_sim_text_model`.
     """
     preset: QualityPreset | None = None
     if request.preset:
@@ -817,6 +880,7 @@ async def _run_batch(
                 opportunity=opportunity,
                 preset=preset,
                 user_id=user_id,
+                depth=request.depth,
             )
             return index, opportunity, result, True
 
@@ -922,12 +986,14 @@ async def quick_sim_batch(
     gateway_metered = request.headers.get(_GATEWAY_METERED_HEADER, "").lower() == "true"
 
     logger.info(
-        "quick_sim_batch: goal=%r count=%d user=%s gateway_metered=%s preset=%s",
+        "quick_sim_batch: goal=%r count=%d user=%s gateway_metered=%s preset=%s depth=%s model=%s",
         body.goal[:80],
         len(body.opportunities),
         user.id if user else None,
         gateway_metered,
         body.preset,
+        body.depth,
+        _resolve_quick_sim_text_model(body.depth),
     )
 
     response = await _run_batch(

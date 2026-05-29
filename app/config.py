@@ -51,11 +51,12 @@ class ParallelismMode(str, Enum):
 class QualityPreset(str, Enum):
     """Quality preset for generation pipeline.
 
-    - HD: Highest quality with Gemini 3 Pro + Google image generation
+    - HD: Highest quality with Gemini 2.5 Flash + Nano Banana Pro image
     - HYPER: Fastest speed with Gemini 2.0 Flash via OpenRouter
     - BALANCED: Default balance of quality and speed
     - GEMINI3: Latest Gemini 3 Flash Preview via OpenRouter (thinking model)
     - FREE_DISTILLABLE: Free distillable models — $0 cost, outputs usable for training/distillation
+    - FRONTIER: True frontier — Claude Opus 4 via OpenRouter/Anthropic-direct (high-judgment tasks)
     """
 
     HD = "hd"
@@ -63,6 +64,7 @@ class QualityPreset(str, Enum):
     BALANCED = "balanced"
     GEMINI3 = "gemini3"
     FREE_DISTILLABLE = "free_distillable"
+    FRONTIER = "frontier"
 
 
 class Environment(str, Enum):
@@ -132,6 +134,8 @@ class VerifiedModels:
         # OpenRouter free distillable models
         "openrouter/hunter-alpha",
         "openrouter/healer-alpha",
+        # Anthropic frontier (Anthropic-direct routing via OpenRouter for cache)
+        "anthropic/claude-opus-4",
     ]
 
     # Fallback chains - ordered by preference
@@ -272,6 +276,27 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
         "thinking_level": None,
         "image_supported": True,
     },
+    QualityPreset.FRONTIER: {
+        "name": "Frontier",
+        "description": (
+            "True frontier — Claude Opus 4 via OpenRouter with Anthropic-direct routing. "
+            "High-judgment tasks: entity grounding, judge passes, discrimination steps. "
+            "Uses json_mode (not json_schema). Prompt caching active via cache_control injection."
+        ),
+        # anthropic/claude-opus-4 routes through OpenRouter with provider.order=["Anthropic"]
+        # to guarantee Anthropic-direct (not Bedrock) routing, which is required for cache headers.
+        "text_model": "anthropic/claude-opus-4",
+        "judge_model": "anthropic/claude-opus-4",
+        "image_model": "gemini-3-pro-image-preview",  # HD image quality reused
+        "image_provider": ProviderType.GOOGLE,
+        "text_provider": ProviderType.OPENROUTER,
+        "openrouter_provider_order": ["Anthropic"],  # force Anthropic-direct for prompt cache
+        "json_schema_support": False,  # Claude via OpenRouter: use json_mode, not json_schema
+        "extended_thinking": False,  # pending OpenRouter verification; revisit when confirmed
+        "max_tokens": 4096,
+        "thinking_level": None,
+        "image_supported": True,
+    },
 }
 
 
@@ -283,6 +308,7 @@ PRESET_PARALLELISM: dict[QualityPreset, ParallelismMode] = {
     QualityPreset.HYPER: ParallelismMode.MAX,  # Speed focus, maximum parallelism
     QualityPreset.GEMINI3: ParallelismMode.AGGRESSIVE,  # Thinking model, moderate parallelism
     QualityPreset.FREE_DISTILLABLE: ParallelismMode.SEQUENTIAL,  # Free models need sequential
+    QualityPreset.FRONTIER: ParallelismMode.NORMAL,  # High-cost frontier; standard parallelism
 }
 
 # Provider rate limits (requests per minute and safe concurrent calls)
