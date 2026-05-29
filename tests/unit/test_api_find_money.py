@@ -29,8 +29,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api.v1.find_money import (
+    _QUICK_SIM_TEXT_MODEL,
     _build_generation_pipeline,
     _build_tdf_entry,
+    _resolve_quick_sim_text_model,
     summarize_tdf_for_metrics,
 )
 from app.config import QualityPreset
@@ -126,6 +128,15 @@ class TestQuickSimBatchRequest:
         assert req.goal == "$50k operating grant"
         assert req.preset == "hyper"  # default favours speed
         assert req.generate_image is False
+        assert req.depth is None  # dial absent → default model path
+
+    def test_depth_accepts_control_surface_tier(self):
+        req = QuickSimBatchRequest(
+            goal="$50k operating grant",
+            opportunities=self._opps(1),
+            depth="frontier",
+        )
+        assert req.depth == "frontier"
 
     def test_requires_at_least_one_opportunity(self):
         with pytest.raises(ValidationError):
@@ -146,6 +157,36 @@ class TestQuickSimBatchRequest:
     def test_goal_max_length(self):
         with pytest.raises(ValidationError):
             QuickSimBatchRequest(goal="x" * 1001, opportunities=self._opps(1))
+
+
+@pytest.mark.fast
+class TestResolveQuickSimTextModel:
+    """Operation Control Surface depth dial → text-model resolution (el-3ojoy).
+
+    The default (depth absent) path must be unchanged — this is the
+    no-regression contract for every existing quick-sim caller.
+    """
+
+    def test_none_uses_default_no_regression(self):
+        assert _resolve_quick_sim_text_model(None) == _QUICK_SIM_TEXT_MODEL
+
+    def test_standard_resolves_to_default_model(self):
+        assert _resolve_quick_sim_text_model("standard") == _QUICK_SIM_TEXT_MODEL
+
+    def test_fast_tier_uses_cheaper_model(self):
+        assert _resolve_quick_sim_text_model("fast") == "gemini-2.0-flash"
+
+    def test_deep_tier_uses_default_text_model(self):
+        assert _resolve_quick_sim_text_model("deep") == "gemini-2.5-flash"
+
+    def test_frontier_tier_uses_claude_opus(self):
+        assert _resolve_quick_sim_text_model("frontier") == "anthropic/claude-opus-4"
+
+    def test_depth_is_case_insensitive(self):
+        assert _resolve_quick_sim_text_model("FRONTIER") == "anthropic/claude-opus-4"
+
+    def test_unrecognised_depth_falls_back_to_default(self):
+        assert _resolve_quick_sim_text_model("ludicrous") == _QUICK_SIM_TEXT_MODEL
 
 
 @pytest.mark.fast

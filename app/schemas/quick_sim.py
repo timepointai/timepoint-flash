@@ -82,6 +82,20 @@ class QuickSimBatchRequest(BaseModel):
         preset: Quality preset forwarded to the generation pipeline
             (default ``"hyper"`` — batch latency dominates UX, so we
             favour speed by default).
+        depth: Operation Control Surface dial value (``fast`` / ``standard`` /
+            ``deep`` / ``frontier``). When present, overrides the text and
+            judge model used by both the quick-sim render
+            (:meth:`GenerationPipeline.run_quick_sim`) and the
+            :class:`QuickSimMetricsAgent`, mapping::
+
+                fast     → gemini-2.0-flash (bulk/cheap)
+                standard → gemini-2.5-flash (current default, no change)
+                deep     → gemini-2.5-flash (same text model as standard; HD image in full render)
+                frontier → anthropic/claude-opus-4 (true frontier, Anthropic-direct routing)
+
+            Absent or ``None`` → today's default (``gemini-2.5-flash``), no regression.
+            The thinking-budget cap (``thinking_level=512``) is kept for Gemini thinking models
+            and naturally ignored by non-thinking providers (OpenRouter/Claude).
         generate_image: Whether to attach images to the future-moments.
             Default ``False`` — images add ~30s each and aren't needed
             for the decision page.
@@ -93,6 +107,14 @@ class QuickSimBatchRequest(BaseModel):
     preset: str | None = Field(
         default="hyper",
         description="Quality preset forwarded to GenerationPipeline (hyper/balanced/hd).",
+    )
+    depth: str | None = Field(
+        default=None,
+        description=(
+            "Operation Control Surface dial: fast|standard|deep|frontier. "
+            "Selects the text/judge model for quick-sim render + metrics agent. "
+            "Absent → gemini-2.5-flash default (no regression)."
+        ),
     )
     generate_image: bool = Field(
         default=False,
