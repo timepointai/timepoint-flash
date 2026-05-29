@@ -159,12 +159,12 @@ _QUICK_SIM_LLM_PARAMS: dict[str, Any] = {"thinking_level": 512, "max_tokens": 40
 #   fast     — gemini-2.0-flash (no thinking overhead, ~2-4s/call; good for bulk)
 #   standard — gemini-2.5-flash (current default; unchanged)
 #   deep     — gemini-2.5-flash (same text model as BALANCED/HD; richer image in full render)
-#   frontier — anthropic/claude-opus-4 (true frontier; Anthropic-direct via OpenRouter for cache)
+#   frontier — anthropic/claude-opus-4.8 (true frontier; Anthropic-direct via OpenRouter for cache)
 _DEPTH_TO_TEXT_MODEL: dict[str, str] = {
     "fast": "gemini-2.0-flash",
     "standard": "gemini-2.5-flash",
     "deep": "gemini-2.5-flash",
-    "frontier": "anthropic/claude-opus-4",
+    "frontier": "anthropic/claude-opus-4.8",
 }
 
 
