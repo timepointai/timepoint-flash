@@ -291,7 +291,7 @@ Render the past. Simulate the future. Score the predictions. Accumulate the grap
 |---------|------|------|------|
 | **Flash** | **Open Source** | **timepoint-flash** | **Reality Writer — renders grounded historical moments** |
 | **Clockchain** | Open Source | timepoint-clockchain | Temporal Causal Graph — Rendered Past + Rendered Future, growing 24/7 |
-| **Pro** | Open Source | timepoint-pro | SNAG Simulation Engine — temporal simulation, TDF output, training data |
+| **Pro** | Closed / Hosted API | pro.timepointai.com | SNAG Simulation Engine — hosted temporal simulation, TDF output |
 | **Proteus** | Open Source | proteus | Settlement Layer — prediction markets for Rendered Futures |
 | **TDF** | Open Source | timepoint-tdf | Data Format — JSON-LD interchange across all services |
 | **SNAG Bench** | Open Source | timepoint-snag-bench | Quality Certifier — measures Causal Resolution across renderings |
