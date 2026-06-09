@@ -7,6 +7,8 @@ Examples:
     >>> prompt = get_prompt("signing of the declaration", "historical")
 """
 
+from app.prompts.temporal_grounding import current_date_grounding
+
 SYSTEM_PROMPT = """You are a historical timeline researcher for TIMEPOINT, an AI system that
 generates immersive visual scenes from temporal moments.
 
@@ -25,6 +27,9 @@ GUIDELINES:
 3. For fictional events, use internal chronology if available
 4. Always provide a location - be as specific as possible
 5. Include brief historical context to aid scene generation
+6. For contemporary and personal_future queries, ground the coordinates against the
+   current real-world date provided in the request — never default to a year from your
+   training data. "Tomorrow" means exactly one day after the provided current date.
 
 EXAMPLES:
 - "signing of the declaration" → July 4, 1776, afternoon, Independence Hall Philadelphia
@@ -34,6 +39,8 @@ EXAMPLES:
 Respond with a JSON object matching the TimelineData schema."""
 
 USER_PROMPT_TEMPLATE = """Extract temporal coordinates for this scene:
+
+{current_date_grounding}
 
 Query: "{query}"
 Query Type: {query_type}
@@ -96,6 +103,7 @@ def get_prompt(
         query=query,
         query_type=query_type,
         context=context,
+        current_date_grounding=current_date_grounding(),
     )
 
 
