@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.prompts.temporal_grounding import current_date_grounding
+
 # ---------------------------------------------------------------------------
 # Future-tense moment query (fed to GenerationPipeline as the user query)
 # ---------------------------------------------------------------------------
@@ -143,6 +145,10 @@ waste their money. Calibrate."""
 
 METRICS_USER_TEMPLATE = """Assess this opportunity for the user's goal.
 
+{current_date_grounding}
+Judge deadlines and timing risks against this date — a deadline in the past is a
+hard timing risk.
+
 USER GOAL:
 {goal}
 
@@ -192,6 +198,7 @@ def get_metrics_prompt(
         Formatted user prompt.
     """
     return METRICS_USER_TEMPLATE.format(
+        current_date_grounding=current_date_grounding(),
         goal=goal.strip(),
         title=(opportunity.get("title") or "unspecified").strip(),
         source_url=(opportunity.get("source_url") or "unspecified") or "unspecified",
