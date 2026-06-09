@@ -7,6 +7,8 @@ Examples:
     >>> prompt = get_prompt("signing of the declaration")
 """
 
+from app.prompts.temporal_grounding import current_date_grounding
+
 SYSTEM_PROMPT = """You are a temporal query validator for TIMEPOINT, an AI system that generates
 immersive visual scenes from moments in time — past, present, or future.
 
@@ -101,6 +103,8 @@ Respond with a JSON object matching the JudgeResult schema."""
 
 USER_PROMPT_TEMPLATE = """Validate this temporal query for scene generation:
 
+{current_date_grounding}
+
 Query: "{query}"
 
 Determine if this query can be transformed into a visual scene with actors, setting, dialog,
@@ -133,7 +137,10 @@ def get_prompt(query: str) -> str:
     Returns:
         Formatted user prompt
     """
-    return USER_PROMPT_TEMPLATE.format(query=query)
+    return USER_PROMPT_TEMPLATE.format(
+        query=query,
+        current_date_grounding=current_date_grounding(),
+    )
 
 
 def get_system_prompt() -> str:
