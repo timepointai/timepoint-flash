@@ -37,7 +37,11 @@ from app.api.v1.find_money import (
 )
 from app.config import QualityPreset
 from app.core.pipeline import GenerationPipeline
-from app.prompts.quick_sim import build_future_moment_query
+from app.prompts.quick_sim import (
+    build_future_moment_query,
+    get_metrics_prompt,
+    get_metrics_system_prompt,
+)
 from app.schemas.quick_sim import (
     OpportunityIn,
     QuickSimBatchRequest,
@@ -333,6 +337,64 @@ class TestBuildFutureMomentQuery:
         )
         # Falls back to the "see source for details" sentinel
         assert "see source" in q.lower() or "unspecified" in q.lower()
+
+
+# ---------------------------------------------------------------------------
+# Quick-Sim metrics prompts (rationale framing)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.fast
+class TestMetricsPromptFraming:
+    """The metrics prompts must steer the rationale toward factual analysis,
+    not a narrated pitch scene. Guards the Find Money "assessment" text from
+    drifting back into present-tense drama (e.g. "in a high-stakes pitch")."""
+
+    def test_system_prompt_forbids_scene_narration(self):
+        # Collapse whitespace so line-wrapped phrases still match.
+        sys = " ".join(get_metrics_system_prompt().lower().split())
+        # Must explicitly tell the model not to narrate a live scene/pitch.
+        assert "do not describe the room" in sys
+        # The drama exemplars we are guarding against are named so the
+        # instruction is model-agnostic (works regardless of model quirks).
+        assert "high-stakes pitch" in sys
+        assert "skeptical evaluators" in sys
+
+    def test_system_prompt_demands_factual_fit_analysis(self):
+        sys = get_metrics_system_prompt().lower()
+        assert "factual analysis" in sys
+        assert "analyst" in sys
+
+    def test_user_prompt_marks_scene_as_visual_context_only(self):
+        prompt = get_metrics_prompt(
+            goal="$50k operating grant by Sept 2026",
+            opportunity={
+                "title": "Climate Action Fund",
+                "summary": "Annual climate grants",
+                "amount": 25000,
+                "deadline": "2026-09-01",
+                "source_url": "https://example.org/x",
+            },
+            scene_context="oak-panelled boardroom, polite tension, slide deck",
+        )
+        low = prompt.lower()
+        # Scene is flagged as context only, and the rationale schema hint must
+        # not ask for scene-anchored narration.
+        assert "visual context only" in low
+        assert "do not retell it" in low
+        assert "no scene narration" in low
+        # Opportunity + goal still flow through for grounding.
+        assert "Climate Action Fund" in prompt
+        assert "$50k operating grant by Sept 2026" in prompt
+
+    def test_rationale_schema_hint_is_not_scene_anchored(self):
+        prompt = get_metrics_prompt(
+            goal="goal",
+            opportunity={"title": "x"},
+            scene_context="a room",
+        )
+        # The old hint ("summary anchored in the scene") is gone.
+        assert "anchored in the scene" not in prompt.lower()
 
 
 # ---------------------------------------------------------------------------
