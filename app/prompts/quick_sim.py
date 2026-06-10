@@ -134,8 +134,14 @@ You produce a structured fit assessment with five fields:
   the probability of award (a specific intro to ask for, a tighter framing,
   a complementary co-applicant).
 
-- rationale: One sentence summarizing why these numbers, anchored in the
-  rendered scene.
+- rationale: One or two sentences of factual analysis: why this opportunity
+  does or does not fit the user's goal, and what drives the probability and
+  effort numbers (alignment, eligibility, timing, competition). Write as an
+  analyst's assessment grounded in the goal and the opportunity. Do NOT
+  narrate a live scene or pitch — no present-tense drama ("the user is in a
+  high-stakes pitch", "facing skeptical evaluators", "pitching to the City").
+  The scene below is a visual aid only; assess the opportunity, do not
+  describe the room.
 
 You MUST be honest. The downstream Pro deep-sim is expensive — your job is to
 help the user pick the 5 opportunities most worth that spend. Cluster
@@ -159,8 +165,11 @@ OPPORTUNITY:
 - amount: {amount}
 - deadline: {deadline}
 
-RENDERED FUTURE-MOMENT SCENE (the moment the user is in the midst of pursuing this):
+RENDERED FUTURE-MOMENT SCENE (visual context only — do NOT retell it in your assessment):
 {scene_context}
+
+Assess the opportunity itself. The rationale must read as factual analysis of
+fit and odds, not a narration of the scene above.
 
 Respond with valid JSON matching this schema:
 {{
@@ -170,7 +179,7 @@ Respond with valid JSON matching this schema:
   "effort_estimate": "short phrase with hours",
   "key_risks": ["risk 1", "risk 2", "..."],
   "key_levers": ["lever 1", "lever 2", "..."],
-  "rationale": "one-sentence summary anchored in the scene"
+  "rationale": "factual analysis of fit and odds (no scene narration)"
 }}"""
 
 
