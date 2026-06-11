@@ -1,5 +1,13 @@
 # TIMEPOINT Flash
 
+
+<!-- AUTO-PACKAGE-BADGES:START -->
+<!-- Auto-generated package badges -->
+
+![PyPI version](https://img.shields.io/pypi/v/timepoint-flash?style=flat-square&logo=pypi&color=green) ![PyPI downloads](https://img.shields.io/pypi/dm/timepoint-flash?style=flat-square&color=brightgreen) ![PyPI license](https://img.shields.io/pypi/l/timepoint-flash?style=flat-square) [![Deployed](https://img.shields.io/badge/deployed-2.4.0-blue?style=flat-square)](https://pypi.org/project/timepoint-flash)
+![TestPyPI version](https://img.shields.io/testpypi/v/timepoint-flash?style=flat-square&logo=pypi&color=orange) ![TestPyPI](https://img.shields.io/badge/testpypi-preview-orange?style=flat-square&logo=pypi) [![Deployed](https://img.shields.io/badge/deployed-2.4.0-blue?style=flat-square)](https://test.pypi.org/project/timepoint-flash)
+
+<!-- AUTO-PACKAGE-BADGES:END -->
 **Experience Synthetic Time Travel** — type any moment in history, get a complete historically grounded scene in seconds: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
 
 ---
@@ -70,10 +78,24 @@ Atmosphere:  Intense concentration and quiet anticipation. The audience is hushe
 
 ```bash
 POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
+
 # → One hour later: Lee Sedol has left the room. The commentators are still trying to explain it.
 ```
 
 ---
+
+## Table of Contents
+1. [Quick Start](#quick-start)
+2. [How It Works](#how-it-works)
+3. [Example Scenes](#example-scenes)
+4. [Quality Presets](#quality-presets)
+5. [Model Control](#model-control)
+6. [API](#api)
+7. [Configuration](#configuration)
+8. [Testing](#testing)
+9. [Documentation](#documentation)
+10. [Timepoint Suite](#timepoint-suite)
+11. [License](#license)
 
 ## Quick Start
 
@@ -83,6 +105,7 @@ POST /api/v1/temporal/{id}/next {"units": 1, "unit": "hour"}
 git clone https://github.com/timepointai/timepoint-flash.git
 cd timepoint-flash
 ./setup.sh            # Checks prereqs, installs deps, creates .env
+
 # Edit .env → add your GOOGLE_API_KEY
 ./quickstart.sh       # Starts server + generates a demo scene
 ```
@@ -182,6 +205,7 @@ Each scene includes full character bios, relationship graphs, scene metadata, ca
 | **gemini3** | ~60s | OpenRouter | Latest model, agentic workflows |
 
 ```bash
+
 # Hyper for speed (text-only — generate_image is ignored with hyper)
 curl -X POST localhost:8000/api/v1/timepoints/generate/stream \
   -d '{"query": "Kasparov Deep Blue Game 6 Equitable Center 1997", "preset": "hyper"}'
@@ -234,6 +258,7 @@ Full reference: [docs/API.md](docs/API.md)
 ## Configuration
 
 ```bash
+
 # .env
 GOOGLE_API_KEY=your-key                              # Required (free at aistudio.google.com)
 OPENROUTER_API_KEY=your-key                          # Optional (for hyper/gemini3 presets)
