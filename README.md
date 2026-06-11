@@ -1,5 +1,13 @@
 # TIMEPOINT Flash
 
+
+<!-- AUTO-PACKAGE-BADGES:START -->
+<!-- Auto-generated package badges -->
+
+![PyPI version](https://img.shields.io/pypi/v/timepoint-flash?style=flat-square&logo=pypi&color=green) ![PyPI downloads](https://img.shields.io/pypi/dm/timepoint-flash?style=flat-square&color=brightgreen) ![PyPI license](https://img.shields.io/pypi/l/timepoint-flash?style=flat-square) [![Deployed](https://img.shields.io/badge/deployed-2.4.0-blue?style=flat-square)](https://pypi.org/project/timepoint-flash)
+![TestPyPI version](https://img.shields.io/testpypi/v/timepoint-flash?style=flat-square&logo=pypi&color=orange) ![TestPyPI](https://img.shields.io/badge/testpypi-preview-orange?style=flat-square&logo=pypi) [![Deployed](https://img.shields.io/badge/deployed-2.4.0-blue?style=flat-square)](https://test.pypi.org/project/timepoint-flash)
+
+<!-- AUTO-PACKAGE-BADGES:END -->
 **Experience Synthetic Time Travel** — type any moment in history, get a complete historically grounded scene in seconds: characters with distinct voices, period-accurate dialog, relationship dynamics, and a photorealistic image — all verified against Google Search.
 
 ---
