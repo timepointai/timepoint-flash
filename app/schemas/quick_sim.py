@@ -231,8 +231,7 @@ class QuickSimMetrics(BaseModel):
     confidence_basis: ConfidenceBasis = Field(
         default=ConfidenceBasis.INFERRED,
         description=(
-            "grounded | inferred | insufficient_evidence — never a fabricated "
-            "mid-range fill."
+            "grounded | inferred | insufficient_evidence — never a fabricated mid-range fill."
         ),
     )
 

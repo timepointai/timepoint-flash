@@ -106,27 +106,21 @@ def test_no_signal_path_caps_confidence_and_flags() -> None:
     Regardless of how confident the model claimed to be.
     """
     m = _metrics(score_confidence=0.95, confidence_basis=ConfidenceBasis.GROUNDED)
-    out = apply_confidence_floor(
-        m, opportunity={"title": "Bare"}, scene_context=NO_OP_SCENE
-    )
+    out = apply_confidence_floor(m, opportunity={"title": "Bare"}, scene_context=NO_OP_SCENE)
     assert out.confidence_basis == ConfidenceBasis.INSUFFICIENT_EVIDENCE
     assert out.score_confidence <= INSUFFICIENT_EVIDENCE_CONFIDENCE_CAP
 
 
 def test_no_signal_with_second_fallback_string() -> None:
     m = _metrics(score_confidence=0.8, confidence_basis=ConfidenceBasis.INFERRED)
-    out = apply_confidence_floor(
-        m, opportunity={}, scene_context=NO_OP_SCENE_2
-    )
+    out = apply_confidence_floor(m, opportunity={}, scene_context=NO_OP_SCENE_2)
     assert out.confidence_basis == ConfidenceBasis.INSUFFICIENT_EVIDENCE
     assert out.score_confidence <= INSUFFICIENT_EVIDENCE_CONFIDENCE_CAP
 
 
 def test_floor_only_lowers_never_raises_confidence() -> None:
     """An already-low self-report is not bumped UP by the cap."""
-    m = _metrics(
-        score_confidence=0.02, confidence_basis=ConfidenceBasis.INSUFFICIENT_EVIDENCE
-    )
+    m = _metrics(score_confidence=0.02, confidence_basis=ConfidenceBasis.INSUFFICIENT_EVIDENCE)
     out = apply_confidence_floor(m, opportunity={}, scene_context=NO_OP_SCENE)
     assert out.score_confidence == pytest.approx(0.02)
     assert out.confidence_basis == ConfidenceBasis.INSUFFICIENT_EVIDENCE
