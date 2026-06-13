@@ -126,9 +126,7 @@ async def lifespan(app: FastAPI):
         registry = OpenRouterModelRegistry.get_instance()
         ok = await registry.refresh_google(api_key=_settings.GOOGLE_API_KEY)
         if ok:
-            logger.info(
-                "Google model catalog warmed: %d models", registry.google_model_count
-            )
+            logger.info("Google model catalog warmed: %d models", registry.google_model_count)
         else:
             logger.warning("Google model catalog unreachable; liveness guard fails soft")
 

@@ -128,7 +128,9 @@ class TestRegistryLiveness:
         registry = OpenRouterModelRegistry.get_instance()
         _populate_openrouter(registry, ["anthropic/claude-opus-4.8"])
         assert registry.is_slug_live("anthropic/claude-opus-4.8", ProviderType.OPENROUTER)
-        assert not registry.is_slug_live("anthropic/claude-3-5-haiku-20241022", ProviderType.OPENROUTER)
+        assert not registry.is_slug_live(
+            "anthropic/claude-3-5-haiku-20241022", ProviderType.OPENROUTER
+        )
 
 
 # ---------------------------------------------------------------------------
