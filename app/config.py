@@ -207,6 +207,81 @@ class VerifiedModels:
 
         return False
 
+    @classmethod
+    def provider_for(cls, model: str) -> "ProviderType":
+        """Infer the provider that serves ``model`` from the static lists.
+
+        OpenRouter slugs are namespaced (``vendor/model``); Google-native
+        slugs are bare (``gemini-2.5-flash``). Stability image slugs are
+        treated as STABILITY. Defaults to GOOGLE for an unknown bare slug.
+        """
+        if model in cls.OPENROUTER_TEXT or "/" in model:
+            # stability-ai/* is an image slug routed via Stability, not OpenRouter
+            if model in cls.STABILITY_IMAGE:
+                return ProviderType.STABILITY
+            return ProviderType.OPENROUTER
+        if model in cls.STABILITY_IMAGE:
+            return ProviderType.STABILITY
+        return ProviderType.GOOGLE
+
+    @classmethod
+    def is_slug_live(cls, model: str, provider: "ProviderType | None" = None) -> bool:
+        """Liveness-check a *static* slug against the live provider catalog.
+
+        Unlike :meth:`is_verified_or_available` (which trusts static-list
+        membership), this consults the cached provider catalog so a slug that
+        was hardcoded but has since been deprecated at the provider is reported
+        DEAD. It only asserts death when a catalog is actually loaded for the
+        provider — with no catalog (offline / no key) it fails *soft* and
+        returns True, because absence of a catalog is not evidence a slug is
+        dead (see the model-registry ``has_catalog`` guard).
+
+        Args:
+            model: The model slug to check.
+            provider: Provider to check against; inferred from the slug when
+                omitted.
+
+        Returns:
+            True if the slug is live (or liveness can't be asserted); False
+            only when a catalog exists for the provider and the slug is absent.
+        """
+        if provider is None:
+            provider = cls.provider_for(model)
+        try:
+            from app.core.model_registry import OpenRouterModelRegistry
+
+            registry = OpenRouterModelRegistry.get_instance()
+        except Exception:
+            return True  # registry unavailable — fail soft
+        if not registry.has_catalog(provider):
+            return True  # no catalog loaded — cannot assert death, fail soft
+        return registry.is_slug_live(model, provider)
+
+    @classmethod
+    def all_configured_text_slugs(cls) -> list[tuple[str, "ProviderType"]]:
+        """Enumerate every configured text slug with its provider.
+
+        Used by the CI liveness guard so a dead slug in any static list /
+        depth map / fallback chain becomes a red CI rather than a silent
+        empty-score regression in production. Image slugs are out of scope
+        for the quick-sim guard (see PR-04 scope).
+        """
+        slugs: list[tuple[str, ProviderType]] = []
+        seen: set[str] = set()
+
+        def _add(slug: str, provider: ProviderType) -> None:
+            if slug and slug not in seen:
+                seen.add(slug)
+                slugs.append((slug, provider))
+
+        for s in cls.GOOGLE_TEXT:
+            _add(s, ProviderType.GOOGLE)
+        for s in cls.OPENROUTER_TEXT:
+            _add(s, ProviderType.OPENROUTER)
+        for s in cls.TEXT_FALLBACK_CHAIN:
+            _add(s, cls.provider_for(s))
+        return slugs
+
 
 # Quality Preset Configurations
 # =============================================================================
