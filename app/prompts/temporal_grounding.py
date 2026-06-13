@@ -39,6 +39,6 @@ def current_date_grounding(now: datetime | None = None) -> str:
         '"next Tuesday", "in two weeks", "this summer" — MUST be resolved '
         "against this date, NOT against your training data. For contemporary "
         "or personal-future scenarios, the moment's year/month/day must be "
-        "consistent with this date (e.g. \"tomorrow\" is exactly one day "
+        'consistent with this date (e.g. "tomorrow" is exactly one day '
         "after it)."
     )
