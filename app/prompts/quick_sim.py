@@ -134,6 +134,19 @@ You produce a structured fit assessment with five fields:
   the probability of award (a specific intro to ask for, a tighter framing,
   a complementary co-applicant).
 
+- score_confidence (0.0-1.0): How much the three scores above can be trusted,
+  given what you actually had to read. High (0.7+) only when the opportunity
+  has real detail (summary, amount, deadline) AND the scene grounds it. Low
+  (below 0.3) when the opportunity is a bare title with no amount/deadline, or
+  the scene context is empty/placeholder. If you cannot ground a number, SAY SO
+  — an honest low-confidence "insufficient_evidence" is worth more to the user
+  than a confident guess. Do NOT report high confidence to fill the grid.
+
+- confidence_basis: One of exactly "grounded", "inferred", or
+  "insufficient_evidence". Use "grounded" only when real opportunity facts and
+  a usable scene back the numbers; "inferred" when you reasoned from partial
+  signal; "insufficient_evidence" when there was nothing real to anchor on.
+
 - rationale: One or two sentences of factual analysis: why this opportunity
   does or does not fit the user's goal, and what drives the probability and
   effort numbers (alignment, eligibility, timing, competition). Write as an
@@ -179,7 +192,9 @@ Respond with valid JSON matching this schema:
   "effort_estimate": "short phrase with hours",
   "key_risks": ["risk 1", "risk 2", "..."],
   "key_levers": ["lever 1", "lever 2", "..."],
-  "rationale": "factual analysis of fit and odds (no scene narration)"
+  "rationale": "factual analysis of fit and odds (no scene narration)",
+  "score_confidence": 0.0-1.0,
+  "confidence_basis": "grounded | inferred | insufficient_evidence"
 }}"""
 
 
