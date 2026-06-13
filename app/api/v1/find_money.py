@@ -732,6 +732,8 @@ def _build_tdf_entry(
         probability=metrics.probability_of_award if metrics is not None else None,
         fit_score=metrics.fit_score if metrics is not None else None,
         effort_score=metrics.effort_score if metrics is not None else None,
+        score_confidence=metrics.score_confidence if metrics is not None else None,
+        confidence_basis=metrics.confidence_basis if metrics is not None else None,
         amount_usd=opportunity.amount,
         source="flash-quick-sim" if success else "flash-quick-sim-error",
         tdf=result.get("tdf"),
