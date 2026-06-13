@@ -116,6 +116,22 @@ async def lifespan(app: FastAPI):
         await registry.initialize(api_key=_openrouter_keys[0])
         registry.start_background_refresh(interval=3600)
 
+    # Warm the Google-native catalog so the model-slug liveness guard
+    # (PR-04) can assert that GOOGLE_TEXT slugs like gemini-2.5-flash are
+    # actually live. One bounded fetch per run; failure is logged and the
+    # guard fails soft (no catalog → cannot assert a slug is dead).
+    if _settings.GOOGLE_API_KEY:
+        from app.core.model_registry import OpenRouterModelRegistry
+
+        registry = OpenRouterModelRegistry.get_instance()
+        ok = await registry.refresh_google(api_key=_settings.GOOGLE_API_KEY)
+        if ok:
+            logger.info(
+                "Google model catalog warmed: %d models", registry.google_model_count
+            )
+        else:
+            logger.warning("Google model catalog unreachable; liveness guard fails soft")
+
     # Start the MCP Streamable HTTP session manager so the /mcp sub-app
     # works.  The context manager must wrap ``yield`` so the transport is
     # torn down cleanly on shutdown.

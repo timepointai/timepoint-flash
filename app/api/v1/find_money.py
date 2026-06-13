@@ -71,6 +71,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/find-money", tags=["find-money"])
 
 
+class DeadFrontierSlugError(RuntimeError):
+    """Raised when the resolved ``frontier``-tier slug is not in the live catalog.
+
+    A dead frontier slug must NOT silently degrade to a fallback model — the
+    user explicitly (and at higher cost) requested the frontier tier. The guard
+    raises this so :func:`_simulate_one` fails the affected opportunity with an
+    honest error and the batch refunds the credits, rather than emitting a
+    garbage score from a deprecated model (the ecosystem-wide dead-slug failure
+    mode documented in ``reference_dead_model_slug_failure_mode.md``).
+    """
+
+
 # Module-level set of in-flight background image-generation tasks. Keeping a
 # reference here prevents the asyncio event loop from garbage-collecting the
 # task before it completes — see ``app/mcp_server.py`` for the same pattern.
@@ -174,20 +186,71 @@ def _resolve_quick_sim_text_model(depth: str | None) -> str:
     Falls back to :data:`_QUICK_SIM_TEXT_MODEL` when ``depth`` is absent
     or unrecognised, preserving today's default behaviour (no regression).
 
+    **Model-slug liveness guard (PR-04).** Before returning a resolved slug,
+    it is liveness-checked against the live provider catalog
+    (``VerifiedModels.is_slug_live``). A statically-hardcoded slug that has
+    since been silently deprecated at the provider would otherwise 404 →
+    empty/garbled scores the user paid for. The guard's behaviour by tier:
+
+    * non-``frontier`` (default / ``fast`` / ``standard`` / ``deep``): a dead
+      slug emits a loud ``WARNING`` and falls back to the known-live default
+      (:data:`_QUICK_SIM_TEXT_MODEL`).
+    * ``frontier``: a dead slug raises :class:`DeadFrontierSlugError` — the
+      paid frontier request fails loud + refunds rather than degrading to a
+      garbage score.
+
+    The liveness check is set-membership against a *cached* catalog (one
+    bounded fetch per run via the model registry), not a per-opportunity call.
+    When no catalog is loaded (offline / no key) the check fails *soft* and the
+    slug is used unchanged.
+
     Args:
         depth: One of ``"fast"``, ``"standard"``, ``"deep"``, ``"frontier"``,
             or ``None``.
 
     Returns:
         A model ID string accepted by :class:`GenerationPipeline`.
+
+    Raises:
+        DeadFrontierSlugError: When ``depth == "frontier"`` and the resolved
+            frontier slug is absent from the live catalog.
     """
+    from app.config import VerifiedModels
+
+    is_frontier = depth is not None and depth.lower() == "frontier"
+
     if depth is None:
-        return _QUICK_SIM_TEXT_MODEL
-    resolved = _DEPTH_TO_TEXT_MODEL.get(depth.lower())
-    if resolved is None:
-        logger.warning("quick_sim: unrecognised depth %r, using default model", depth)
-        return _QUICK_SIM_TEXT_MODEL
-    return resolved
+        resolved = _QUICK_SIM_TEXT_MODEL
+    else:
+        resolved = _DEPTH_TO_TEXT_MODEL.get(depth.lower())
+        if resolved is None:
+            logger.warning("quick_sim: unrecognised depth %r, using default model", depth)
+            resolved = _QUICK_SIM_TEXT_MODEL
+
+    # Liveness guard: confirm the resolved slug is still served by its provider.
+    if VerifiedModels.is_slug_live(resolved):
+        return resolved
+
+    if is_frontier:
+        # Never silently degrade a paid frontier request to a fallback model.
+        logger.error(
+            "quick_sim: frontier slug %r is DEAD (absent from live catalog) — "
+            "failing the opportunity loud + refunding rather than emitting a garbage score",
+            resolved,
+        )
+        raise DeadFrontierSlugError(
+            f"frontier model {resolved!r} is not live in the provider catalog"
+        )
+
+    # Non-frontier: loud WARNING + fallback to the known-live default.
+    logger.warning(
+        "quick_sim: depth %r slug %r is DEAD (absent from live catalog) — "
+        "falling back to default live model %r",
+        depth,
+        resolved,
+        _QUICK_SIM_TEXT_MODEL,
+    )
+    return _QUICK_SIM_TEXT_MODEL
 
 
 # ---------------------------------------------------------------------------
@@ -569,9 +632,22 @@ async def _simulate_one(
     t0 = time.perf_counter()
     opp_dict = opportunity.model_dump()
 
-    # Resolve the text model from the depth dial (B1 spec). Falls back to
-    # the module-level default when depth is absent or unrecognised.
-    text_model = _resolve_quick_sim_text_model(depth)
+    # Resolve the text model from the depth dial (B1 spec), with the PR-04
+    # model-slug liveness guard applied. Falls back to the module-level
+    # default when depth is absent/unrecognised or when a non-frontier slug
+    # is dead; a DEAD frontier slug raises DeadFrontierSlugError so this
+    # opportunity fails loud + refunds rather than emitting a garbage score.
+    try:
+        text_model = _resolve_quick_sim_text_model(depth)
+    except DeadFrontierSlugError as exc:
+        logger.error("quick_sim opportunity %d: %s", index, exc)
+        return {
+            "success": False,
+            "tdf": None,
+            "quick_sim": None,
+            "error": f"frontier model unavailable: {exc}",
+            "latency_ms": int((time.perf_counter() - t0) * 1000),
+        }
 
     # Lazy import — avoids pulling app.prompts at module import time, which
     # would force the test conftest to set every env var early.
