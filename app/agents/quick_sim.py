@@ -30,7 +30,7 @@ from typing import Any
 from app.agents.base import AgentResult, BaseAgent
 from app.core.llm_router import LLMRouter
 from app.prompts import quick_sim as quick_sim_prompts
-from app.schemas.quick_sim import QuickSimMetrics
+from app.schemas.quick_sim import QuickSimMetrics, apply_confidence_floor
 
 # Quick-sim runs the metrics call at a low, fixed sampling temperature so
 # calibration stays stable across a batch.
@@ -100,10 +100,26 @@ class QuickSimMetricsAgent(BaseAgent[QuickSimMetricsInput, QuickSimMetrics]):
     async def run(self, input_data: QuickSimMetricsInput) -> AgentResult[QuickSimMetrics]:
         """Execute the metrics agent.
 
+        After the LLM call, runs the deterministic fail-closed post-check
+        (:func:`app.schemas.quick_sim.apply_confidence_floor`) against the
+        *inputs* — it can only ever *lower* ``score_confidence`` / force an
+        ``insufficient_evidence`` basis, never raise it. This is what keeps
+        a no-signal call (empty opportunity stub + no-op scene_context) from
+        emitting confident-looking 0–1 floats; it abstains/flags instead.
+
         Args:
             input_data: Goal + opportunity + scene context bundle.
 
         Returns:
             AgentResult with QuickSimMetrics on success, error otherwise.
         """
-        return await self._call_llm(input_data, temperature=_METRICS_TEMPERATURE)
+        result = await self._call_llm(input_data, temperature=_METRICS_TEMPERATURE)
+        if result.success and result.content is not None:
+            adjusted = apply_confidence_floor(
+                result.content,
+                opportunity=input_data.opportunity,
+                scene_context=input_data.scene_context,
+            )
+            if adjusted is not result.content:
+                result.content = adjusted
+        return result
