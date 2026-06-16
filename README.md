@@ -218,8 +218,6 @@ All three are composable: `model_policy` + explicit models + `llm_params` work t
 | `POST /api/v1/temporal/{id}/next` | Jump forward in time |
 | `POST /api/v1/temporal/{id}/prior` | Jump backward in time |
 | `GET /api/v1/temporal/{id}/sequence` | Get linked timeline |
-| `POST /api/v1/auth/apple` | Apple Sign-In → JWT pair |
-| `POST /api/v1/auth/refresh` | Rotate refresh token |
 | `GET /api/v1/credits/balance` | Credit balance |
 | `GET /api/v1/credits/costs` | Credit cost table |
 | `GET /api/v1/users/me/timepoints` | User's scene history |
