@@ -141,12 +141,7 @@ The `llm_params` object gives downstream callers fine-grained control over gener
 
 | Category | Endpoint | Description |
 |----------|----------|-------------|
-| **Auth** | `POST /api/v1/auth/apple` | Apple Sign-In → JWT pair |
-| **Auth** | `POST /api/v1/auth/dev/token` | Dev admin: create test user → JWT pair |
-| **Auth** | `POST /api/v1/auth/refresh` | Rotate refresh token |
-| **Auth** | `GET /api/v1/auth/me` | Current user profile |
-| **Auth** | `POST /api/v1/auth/logout` | Revoke refresh token |
-| **Auth** | `DELETE /api/v1/auth/account` | Soft-delete user account |
+| **Auth** | _Auth endpoints moved to the API Gateway (`api.timepointai.com`) as of 2026-03-21. See [Gateway auth docs](https://api.timepointai.com/docs)._ | |
 | **Credits** | `GET /api/v1/credits/balance` | Current credit balance |
 | **Credits** | `GET /api/v1/credits/history` | Paginated transaction ledger |
 | **Credits** | `POST /api/v1/credits/admin/grant` | Dev admin: grant credits to any user |
@@ -942,120 +937,16 @@ When `AUTH_ENABLED=false` and no service key is provided, all endpoints are open
 
 ## Authentication
 
-Auth endpoints are always available but only functional when `AUTH_ENABLED=true`.
-
-### POST /api/v1/auth/dev/token (Admin)
-
-Create a test user (or find existing by email) and return a JWT pair. Requires `X-Admin-Key` header matching the `ADMIN_API_KEY` env var. Returns 403 if the key is missing, wrong, or `ADMIN_API_KEY` is not set.
-
-On first creation, the user gets signup credits (default 50).
-
-**Request:**
-```json
-{
-  "email": "test@example.com",
-  "display_name": "Test User"
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| email | string | Yes | Email for the test user |
-| display_name | string | No | Optional display name |
-
-**Headers:**
-```
-X-Admin-Key: your-admin-key
-```
-
-**Response:** Same shape as `/auth/apple`.
-
----
-
-### POST /api/v1/auth/apple
-
-Verify an Apple identity token and return a JWT pair. Creates a new user on first sign-in and grants signup credits.
-
-**Request:**
-```json
-{
-  "identity_token": "eyJhbGciOiJSUzI1NiIs..."
-}
-```
-
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "refresh_token": "abc123...",
-  "token_type": "bearer",
-  "expires_in": 900
-}
-```
-
----
-
-### POST /api/v1/auth/refresh
-
-Rotate a refresh token and return a new JWT pair. The old refresh token is revoked.
-
-**Request:**
-```json
-{
-  "refresh_token": "abc123..."
-}
-```
-
-**Response:** Same shape as `/auth/apple`.
-
----
-
-### GET /api/v1/auth/me
-
-Return the current user's profile. Requires Bearer JWT.
-
-**Response:**
-```json
-{
-  "id": "550e8400-...",
-  "email": "user@example.com",
-  "display_name": null,
-  "created_at": "2026-02-09T12:00:00Z"
-}
-```
-
----
-
-### POST /api/v1/auth/logout
-
-Revoke a refresh token. Always returns 200.
-
-**Request:**
-```json
-{
-  "refresh_token": "abc123..."
-}
-```
-
-**Response:**
-```json
-{
-  "detail": "Logged out"
-}
-```
-
----
-
-### DELETE /api/v1/auth/account
-
-Soft-delete user account. Sets `is_active=false` and revokes all refresh tokens. Required for App Store compliance. Requires Bearer JWT.
-
-**Response:**
-```json
-{
-  "detail": "Account deactivated"
-}
-```
+> **Moved to the API Gateway (2026-03-21).**
+>
+> Flash no longer exposes `/api/v1/auth/*`. All sign-in, token refresh, profile,
+> logout, and account-deletion endpoints are served by the API Gateway at
+> `https://api.timepointai.com/`. Flash continues to validate JWTs that the
+> Gateway issues (the two services share `JWT_SECRET_KEY`), so authenticated
+> calls to `/api/v1/timepoints/*`, `/api/v1/credits/*`, etc. still work — they
+> just expect a Gateway-issued `Authorization: Bearer <token>` header.
+>
+> See the Gateway's OpenAPI docs for the current auth surface.
 
 ---
 
