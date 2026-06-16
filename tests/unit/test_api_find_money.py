@@ -902,12 +902,16 @@ class TestEndpointRegistered:
 
     _PATH = "/api/v1/find-money/quick-sim-batch"
 
-    def test_route_is_registered(self):
-        from app.main import app
-
-        paths = {r.path for r in app.routes}  # type: ignore[attr-defined]
-        # FastAPI's APIRouter combines parent prefix with the route path.
-        assert self._PATH in paths
+    def test_route_is_registered(self, client):
+        # Assert via the client rather than scraping ``app.routes``: depending
+        # on the resolved FastAPI/Starlette version, an included router may be
+        # left as a nested ``_IncludedRouter`` wrapper (which has no ``.path``)
+        # instead of being flattened onto ``app.routes`` — scraping then either
+        # crashes with ``AttributeError`` or misses the nested path. A
+        # *registered* path rejects a bad body with 422; only an *unregistered*
+        # path 404s. That distinction is the actual contract under test.
+        resp = client.post(self._PATH, json={})
+        assert resp.status_code != 404, f"route not registered: {resp.status_code}"
 
     def test_route_returns_json_batch_response_not_sse(self):
         """The route's response_model is QuickSimBatchResponse — a JSON body.
@@ -916,13 +920,14 @@ class TestEndpointRegistered:
         streams ``text/event-stream`` (which the API gateway 502s on and
         the web-app's ``r.json()`` consumer cannot parse).
         """
-        from app.main import app
+        # Inspect the find-money sub-router directly. Its route path
+        # (``/find-money/quick-sim-batch``) and ``response_model`` are stable
+        # regardless of how the parent app flattens or nests included routers.
+        from app.api.v1.find_money import router as fm_router
         from app.schemas.quick_sim import QuickSimBatchResponse as _Resp
 
         route = next(
-            r
-            for r in app.routes
-            if getattr(r, "path", None) == self._PATH  # type: ignore[attr-defined]
+            r for r in fm_router.routes if getattr(r, "path", "").endswith("/quick-sim-batch")
         )
         assert route.response_model is _Resp  # type: ignore[attr-defined]
         # SSE was the old contract — the helpers that built it are gone.
