@@ -27,7 +27,7 @@ GOOGLE_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 _FETCH_TIMEOUT = 5.0  # seconds
 
 # Hardcoded defaults — used when registry has no data
-_DEFAULT_TEXT_FALLBACK = "google/gemini-2.0-flash-001"
+_DEFAULT_TEXT_FALLBACK = "google/gemini-2.5-flash"
 _DEFAULT_IMAGE_FALLBACK = "google/gemini-2.5-flash-image-preview"
 
 
