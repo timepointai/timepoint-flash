@@ -159,7 +159,7 @@ async def _run_reground(
 
         # Deep mode: also search X/Twitter via Grok
         if deep and x_handle:
-            grounding_model = "x-ai/grok-3-fast"
+            grounding_model = "x-ai/grok-4.20"
             messages.append(
                 {
                     "role": "user",

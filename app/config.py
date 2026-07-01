@@ -111,8 +111,8 @@ class VerifiedModels:
     # OpenRouter API (via openrouter.ai)
     # These work with OPENROUTER_API_KEY
     OPENROUTER_TEXT = [
-        "google/gemini-2.0-flash-001",  # Fast, handles JSON well
-        "google/gemini-2.0-flash-001:free",  # Free tier (rate limited)
+        "google/gemini-2.5-flash",  # Fast, handles JSON well
+        "google/gemini-2.5-flash-lite",  # Cheapest live Gemini (no :free variant in catalog)
         "google/gemini-3-flash-preview",  # Latest thinking model, agentic workflows
         # NVIDIA Nemotron family
         "nvidia/llama-3.1-nemotron-70b-instruct",
@@ -142,7 +142,7 @@ class VerifiedModels:
     # When a model fails, try the next one
     TEXT_FALLBACK_CHAIN = [
         "gemini-2.5-flash",  # Primary: Google native
-        "google/gemini-2.0-flash-001",  # Fallback: OpenRouter
+        "google/gemini-2.5-flash",  # Fallback: OpenRouter
     ]
 
     IMAGE_FALLBACK_CHAIN = [
@@ -165,7 +165,7 @@ class VerifiedModels:
         if provider == ProviderType.GOOGLE:
             return cls.GOOGLE_TEXT[0]  # gemini-2.5-flash
         else:
-            return cls.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+            return cls.OPENROUTER_TEXT[0]  # google/gemini-2.5-flash
 
     @classmethod
     def get_safe_image_model(cls) -> str:
@@ -303,10 +303,10 @@ PRESET_CONFIGS: dict[QualityPreset, dict[str, Any]] = {
     },
     QualityPreset.HYPER: {
         "name": "Hyper Speed",
-        "description": "Fastest generation - Gemini 2.0 Flash via OpenRouter",
+        "description": "Fastest generation - Gemini 2.5 Flash via OpenRouter",
         # All models from VerifiedModels.OPENROUTER_TEXT and GOOGLE_IMAGE
-        "text_model": "google/gemini-2.0-flash-001",  # VerifiedModels.OPENROUTER_TEXT[0]
-        "judge_model": "google/gemini-2.0-flash-001",  # VerifiedModels.OPENROUTER_TEXT[0]
+        "text_model": "google/gemini-2.5-flash",  # VerifiedModels.OPENROUTER_TEXT[0]
+        "judge_model": "google/gemini-2.5-flash",  # VerifiedModels.OPENROUTER_TEXT[0]
         "image_model": "gemini-2.5-flash-image",  # VerifiedModels.GOOGLE_IMAGE[0]
         "image_provider": ProviderType.GOOGLE,
         "text_provider": ProviderType.OPENROUTER,

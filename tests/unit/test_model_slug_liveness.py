@@ -268,7 +268,7 @@ class TestEnumerateConfiguredSlugs:
         assert "gemini-2.5-flash" in slugs  # GOOGLE_TEXT
         assert "gemini-2.0-flash" in slugs  # depth map (fast) + GOOGLE_TEXT
         assert "anthropic/claude-opus-4.8" in slugs  # OPENROUTER_TEXT / frontier
-        assert "google/gemini-2.0-flash-001" in slugs  # fallback chain
+        assert "google/gemini-2.5-flash" in slugs  # fallback chain
 
     def test_ci_guard_catches_a_dead_slug(self):
         """Simulate CI: enumerate every slug, assert each is live. A catalog
