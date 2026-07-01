@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # Static fallback defaults (used when model registry has no data)
-_PAID_FALLBACK_DEFAULT = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.0-flash-001
+_PAID_FALLBACK_DEFAULT = VerifiedModels.OPENROUTER_TEXT[0]  # google/gemini-2.5-flash
 _IMAGE_FALLBACK_DEFAULT = "google/gemini-2.5-flash-image-preview"
 # Stability AI SD3.5 Large for permissive mode — allows downstream distillation
 _IMAGE_FALLBACK_PERMISSIVE = "stability-ai/sd3.5-large"
@@ -342,9 +342,9 @@ class LLMRouter:
         # Map Google models to OpenRouter equivalents if needed
         if provider == ProviderType.OPENROUTER:
             google_to_openrouter = {
-                "gemini-3-pro-preview": "google/gemini-2.0-flash-001",
-                "gemini-2.5-flash": "google/gemini-2.0-flash-001",
-                "gemini-2.5-pro": "google/gemini-2.0-flash-001",
+                "gemini-3-pro-preview": "google/gemini-2.5-flash",
+                "gemini-2.5-flash": "google/gemini-2.5-flash",
+                "gemini-2.5-pro": "google/gemini-2.5-flash",
                 # Image models use native Google, no OpenRouter mapping needed
             }
             model = google_to_openrouter.get(model, model)

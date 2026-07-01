@@ -366,8 +366,8 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         notes="Older but stable",
     ),
     # OpenRouter Models
-    "google/gemini-2.0-flash-001": TextModelConfig(
-        model_id="google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash": TextModelConfig(
+        model_id="google/gemini-2.5-flash",
         provider="openrouter",
         supports_json_schema=False,  # OpenRouter uses json_mode, not schema
         supports_json_mode=True,
@@ -377,8 +377,8 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         max_output_tokens=8192,
         notes="Via OpenRouter, fast",
     ),
-    "google/gemini-2.0-flash-001:free": TextModelConfig(
-        model_id="google/gemini-2.0-flash-001:free",
+    "google/gemini-2.5-flash-lite": TextModelConfig(
+        model_id="google/gemini-2.5-flash-lite",
         provider="openrouter",
         supports_json_schema=False,
         supports_json_mode=True,
@@ -386,7 +386,7 @@ TEXT_MODEL_REGISTRY: dict[str, TextModelConfig] = {
         supports_streaming=True,
         supports_extended_thinking=False,
         max_output_tokens=8192,
-        notes="Free tier, rate limited",
+        notes="Cheapest live Gemini flash tier",
     ),
     "google/gemini-2.5-flash-preview": TextModelConfig(
         model_id="google/gemini-2.5-flash-preview",
